@@ -1,4 +1,5 @@
 import numpy as np
+from ins import INS
 
 class KalmanFilter:
     def __init__(self, dt: float, init_position: list[float], init_velocity: list[float], process_noise_std: float,
@@ -79,6 +80,9 @@ class KalmanFilter:
         """
         Update the position of the missile, combining measurement and prediction result, use Kalman Gain to determine
         which to trust more.
+
+        Args:
+            measurement: list[lat, lon, alt]
         """
         # Set the R matrix to different value based on sensor_type
         if sensor_type == "TERCOM":
