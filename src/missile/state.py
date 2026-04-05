@@ -32,7 +32,7 @@ class MissileState:
     roll: float
     heading: float
 
-    # navigation & guidance
+    # navigation & pathfinder
     lon: float
     lat: float
     altitude: float
@@ -40,7 +40,7 @@ class MissileState:
     # time tracking
     time: float
 
-    # guidance system state
+    # pathfinder system state
     gps_valid: bool
     tercom_active: bool
     ins_calibrated: bool

@@ -13,6 +13,8 @@ import numpy as np
 from pathlib import Path
 import fastplotlib as fpl
 
+from pathfinder.pathfinding_backend import Pathfinding
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 

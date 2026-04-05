@@ -10,9 +10,9 @@ try:
 except ImportError as e:
     print("---------- ERROR! ----------")
     print(f"  WARNING: C++ Engine not found ({e}).")
-    print("   Please compile the C++ code in src/guidance/cpp/ first.")
-    print("   Locate src/guidance/cpp/ folder at terminal and enter 'make'.")
-    print("   Ensure the .so file is in src/guidance/")
+    print("   Please compile the C++ code in src/pathfinder/cpp/ first.")
+    print("   Locate src/pathfinder/cpp/ folder at terminal and enter 'make'.")
+    print("   Ensure the .so file is in src/pathfinder/")
     print("----------------------------")
 
     CPP_AVAILABLE = False

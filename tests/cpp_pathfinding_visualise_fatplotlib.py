@@ -15,12 +15,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # UPDATED IMPORTS
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.guidance.pathfinding_backend import Pathfinding
-from src.guidance.trajectory import TrajectoryGenerator
+from src.pathfinder.pathfinding_backend import Pathfinding
+from src.pathfinder.trajectory import TrajectoryGenerator
 def calculate_geo_distance(p1, p2):
     """Simple Euclidean distance for stats (using lat/lon approx)"""
     # Note: This is a rough approx for visualization stats only.
-    # Real guidance uses the C++ distance metric.
+    # Real pathfinder uses the C++ distance metric.
     return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2) * 111000 # ~Meters
 
 def visualize_path_fastplotlib(start_gps: tuple[float, float], end_gps: tuple[float, float],

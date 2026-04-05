@@ -12,7 +12,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.guidance.pathfinding_backend import Pathfinding
+from src.pathfinder.pathfinding_backend import Pathfinding
 
 def test_pathfinding_gps(start: tuple[float, float], end: tuple[float, float]):
 
