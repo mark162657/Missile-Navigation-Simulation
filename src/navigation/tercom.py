@@ -15,7 +15,7 @@ class TERCOM:
         - db data: from TerrainDatabase.get_elevation_patch
         - sensor data:
     """
-    def __init__(self, location: list[float, float], update_freq: int=10):
+    def __init__(self, location: list[float, float], DEM_NAME: str):
         """
         Args:
             - location: receive the current location of the missile, not a true absolute location
@@ -23,7 +23,7 @@ class TERCOM:
         """
         self.location = location
 
-        tif_path = Path(__file__).parent.parent.parent / 'data' / 'dem' / f'merged_dem_sib_N54_N59_E090_E100.tif'
+        tif_path = Path(__file__).parent.parent.parent / 'data' / 'dem' / f'{DEM_NAME}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 
@@ -35,18 +35,6 @@ class TERCOM:
         self.lateral_accuracy = 12.0  # meters
         self.vertical_accuracy = 2.5  # meters
 
-        # Time related operation (same as gps.py)
-        self.time_interval = 1.0 / update_freq
-        self.timer = InternalTimer()
-        self.last_update_time = -float("inf")
-
-    def is_ready(self) -> bool:
-        """
-        Check if TERCOM navigation is ready to work, by checking whether it is the right time to work
-        """
-        current_time = self.timer.get_time_elapsed()
-        return (current_time - self.last_update_time) >= self.time_interval
-
     def cross_correlation(self, a_greater_patch: np.ndarray, b_sensed_patch: np.ndarray) -> float:
         """
         Manual function implementation for normalized cross-correlation.
@@ -54,7 +42,6 @@ class TERCOM:
         Args:
             a_greater_patch: labelled patch a, the patch in database to compare
             b_sensed_patch: labelled patch b, the elevation patch sensed by missile
-
 
         """
 

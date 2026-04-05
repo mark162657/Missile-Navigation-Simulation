@@ -19,14 +19,14 @@ except ImportError as e:
 
 # Main class that main file will call
 class Pathfinding:
-    def __init__(self, dem_name: str) -> None:
+    def __init__(self, DEM_NAME: str) -> None:
         """
         Args:
             - dem_name: the name of the DEM file
         """
         
         # Load dem, requesting dem file name:
-        tif_path = Path(__file__).parent.parent.parent / 'data' / 'dem' / f'{dem_name}'
+        tif_path = Path(__file__).parent.parent.parent / 'data' / 'dem' / f'{DEM_NAME}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 
