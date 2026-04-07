@@ -61,8 +61,7 @@ class INS:
         self,
         corrected_pos: np.ndarray | list[float],
         corrected_vel: np.ndarray | list[float],
-        corrected_att: np.ndarray | list[float] | None = None,
-    ) -> None:
+        corrected_att: np.ndarray | list[float] | None = None,) -> None:
         """
         Replace INS estimate with corrected external state.
         """
