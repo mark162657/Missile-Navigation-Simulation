@@ -1,4 +1,4 @@
-# Advanced Missile Guidance Framework
+# Missile Guidance Framework
 
 Simulates a Tomahawk-class cruise missile guidance system over real-world satellite terrain data (DEM), featuring GPS navigation, TERCOM terrain matching, Kalman filter sensor fusion, and proportional navigation guidance. Modular by design for scalable experimentation and educational use.
 
