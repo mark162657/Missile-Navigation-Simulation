@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SENTINEL-GCS | MISSILE_CONFIG_LAB</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&amp;family=JetBrains+Mono:wght@400;700&amp;family=Space+Grotesk:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#fffaf9",
+                        "surface-container-high": "#262a31",
+                        "surface": "#10141a",
+                        "tertiary-fixed": "#ffdad9",
+                        "surface-tint": "#00e479",
+                        "primary-fixed": "#60ff99",
+                        "surface-dim": "#10141a",
+                        "outline-variant": "#3b4b3d",
+                        "background": "#10141a",
+                        "error-container": "#93000a",
+                        "on-tertiary-fixed-variant": "#920022",
+                        "on-primary-fixed-variant": "#005228",
+                        "error": "#ffb4ab",
+                        "surface-container-lowest": "#0a0e14",
+                        "on-secondary": "#432c00",
+                        "on-background": "#dfe2eb",
+                        "secondary-container": "#fdaf00",
+                        "primary": "#f1ffef",
+                        "on-primary-fixed": "#00210c",
+                        "on-error": "#690005",
+                        "surface-bright": "#353940",
+                        "on-secondary-fixed": "#281800",
+                        "on-secondary-fixed-variant": "#614000",
+                        "tertiary-fixed-dim": "#ffb3b3",
+                        "surface-container-low": "#181c22",
+                        "on-tertiary": "#680015",
+                        "primary-container": "#00ff88",
+                        "primary-fixed-dim": "#00e479",
+                        "on-surface": "#dfe2eb",
+                        "on-secondary-container": "#694600",
+                        "on-primary": "#003919",
+                        "inverse-surface": "#dfe2eb",
+                        "secondary": "#ffd393",
+                        "tertiary-container": "#ffd4d4",
+                        "on-error-container": "#ffdad6",
+                        "secondary-fixed": "#ffddaf",
+                        "outline": "#849585",
+                        "surface-container-highest": "#31353c",
+                        "inverse-on-surface": "#2d3137",
+                        "secondary-fixed-dim": "#ffba43",
+                        "on-tertiary-container": "#c50032",
+                        "inverse-primary": "#006d37",
+                        "surface-variant": "#31353c",
+                        "on-tertiary-fixed": "#40000a",
+                        "surface-container": "#1c2026",
+                        "on-primary-container": "#007139",
+                        "on-surface-variant": "#b9cbb9"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0px",
+                        "lg": "0px",
+                        "xl": "0px",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { background-color: #10141a; color: #dfe2eb; font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .headline { font-family: 'Space Grotesk', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+        .glow-primary { box-shadow: 0 0 10px rgba(0, 255, 136, 0.2); }
+        .ghost-border { border: 1px solid rgba(59, 75, 61, 0.15); }
+        input, select { border-radius: 0 !important; }
+    </style>
+</head>
+<body class="overflow-hidden">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-6 h-12 bg-[#10141a] fixed top-0 z-50">
+<div class="flex items-center gap-8">
+<span class="text-xl font-black tracking-tighter text-[#00ff88]">SENTINEL-GCS</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-slate-500 uppercase tracking-widest text-[10px] hover:text-[#00ff88] hover:bg-[#1c2026] duration-75" href="#">TACTICAL</a>
+<a class="text-[#00ff88] border-b-2 border-[#00ff88] pb-1 uppercase tracking-widest text-[10px]" href="#">CONFIG</a>
+<a class="text-slate-500 uppercase tracking-widest text-[10px] hover:text-[#00ff88] hover:bg-[#1c2026] duration-75" href="#">DIAGNOSTICS</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex gap-3 text-slate-500">
+<span class="material-symbols-outlined cursor-pointer hover:text-[#00ff88]">satellite_alt</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-[#00ff88]">settings_input_component</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-[#00ff88]">terminal</span>
+</div>
+<button class="bg-[#00ff88] text-[#003919] px-3 py-1 text-[10px] font-bold uppercase tracking-tighter active:scale-95 duration-75">SYSTEM_LOCK</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-12 bottom-0 w-64 flex flex-col z-40 bg-[#10141a] border-r border-[#3b4b3d]/15">
+<div class="p-4 bg-[#0a0e14]">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-surface-container-highest flex items-center justify-center border border-primary-container/20">
+<span class="material-symbols-outlined text-[16px] text-primary-container">person</span>
+</div>
+<div>
+<p class="text-[#00ff88] font-bold text-[11px] leading-none uppercase">GCS_ALPHA</p>
+<p class="text-slate-500 text-[9px] uppercase tracking-wider">SECTOR_7_ACTIVE</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 mt-4">
+<div class="px-4 py-3 text-slate-500 flex items-center gap-3 hover:bg-[#1c2026] hover:text-[#00ff88] transition-colors duration-150 cursor-pointer">
+<span class="material-symbols-outlined text-sm">explore</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">MISSION_MAP</span>
+</div>
+<div class="px-4 py-3 text-slate-500 flex items-center gap-3 hover:bg-[#1c2026] hover:text-[#00ff88] transition-colors duration-150 cursor-pointer">
+<span class="material-symbols-outlined text-sm">timeline</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">TRAJECTORY</span>
+</div>
+<div class="bg-[#1c2026] text-[#00ff88] border-l-4 border-[#00ff88] px-4 py-3 flex items-center gap-3 transition-colors duration-150 cursor-pointer">
+<span class="material-symbols-outlined text-sm">hub</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">KALMAN_FLT</span>
+</div>
+<div class="px-4 py-3 text-slate-500 flex items-center gap-3 hover:bg-[#1c2026] hover:text-[#00ff88] transition-colors duration-150 cursor-pointer">
+<span class="material-symbols-outlined text-sm">terrain</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">TERCOM_DATA</span>
+</div>
+<div class="px-4 py-3 text-slate-500 flex items-center gap-3 hover:bg-[#1c2026] hover:text-[#00ff88] transition-colors duration-150 cursor-pointer">
+<span class="material-symbols-outlined text-sm">navigation</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">INS_DRIFT</span>
+</div>
+</nav>
+<div class="p-4 border-t border-[#3b4b3d]/15 bg-[#0a0e14]">
+<div class="flex items-center gap-3 text-slate-500 hover:text-primary-container cursor-pointer mb-3">
+<span class="material-symbols-outlined text-sm">code</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">TERMINAL</span>
+</div>
+<div class="flex items-center gap-3 text-slate-500 hover:text-primary-container cursor-pointer">
+<span class="material-symbols-outlined text-sm">history</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">LOGS</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 mt-12 h-[calc(100vh-3rem)] grid grid-cols-12 overflow-hidden bg-background">
+<!-- Left: Profile Explorer -->
+<section class="col-span-3 border-r border-[#3b4b3d]/15 bg-surface flex flex-col">
+<div class="p-4 border-b border-[#3b4b3d]/15 bg-surface-container-low flex justify-between items-center">
+<h2 class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant">Profile Explorer</h2>
+<span class="mono text-[10px] text-primary-container/60">[008_LOCAL]</span>
+</div>
+<div class="flex-1 overflow-y-auto p-2 space-y-1">
+<div class="p-3 bg-surface-container-highest border-l-2 border-primary-container cursor-pointer">
+<p class="mono text-xs font-bold text-primary-container">STRIKE_ALFA</p>
+<p class="text-[9px] text-slate-500 uppercase mt-1">Payload: Kinetic / Fuel: 85%</p>
+</div>
+<div class="p-3 hover:bg-surface-container cursor-pointer transition-colors">
+<p class="mono text-xs font-bold text-on-surface">LONG_RANGE_ZULU</p>
+<p class="text-[9px] text-slate-500 uppercase mt-1">Payload: HE / Fuel: 100%</p>
+</div>
+<div class="p-3 hover:bg-surface-container cursor-pointer transition-colors">
+<p class="mono text-xs font-bold text-on-surface">INTERCEPT_09</p>
+<p class="text-[9px] text-slate-500 uppercase mt-1">Payload: EMP / Fuel: 60%</p>
+</div>
+<div class="p-3 hover:bg-surface-container cursor-pointer transition-colors">
+<p class="mono text-xs font-bold text-on-surface">RECON_GHOST_X</p>
+<p class="text-[9px] text-slate-500 uppercase mt-1">Payload: Optic / Fuel: 120%</p>
+</div>
+<div class="p-3 hover:bg-surface-container cursor-pointer transition-colors opacity-50">
+<p class="mono text-xs font-bold text-on-surface">HYPER_DASH_V2</p>
+<p class="text-[9px] text-slate-500 uppercase mt-1">Status: Corrupted_F_System</p>
+</div>
+</div>
+<div class="p-4 bg-surface-container-low grid grid-cols-2 gap-2">
+<button class="bg-surface-container border border-outline-variant/30 text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-surface-container-high transition-colors">Compare</button>
+<button class="bg-primary-container text-on-primary text-[10px] font-bold uppercase tracking-widest py-2 active:scale-95 duration-75">Save New</button>
+</div>
+</section>
+<!-- Center: Parameter Editor -->
+<section class="col-span-6 relative bg-surface-container-lowest flex flex-col">
+<!-- Background Schematic -->
+<div class="absolute inset-0 z-0 flex items-center justify-center opacity-10 pointer-events-none overflow-hidden">
+<div class="relative w-[120%] aspect-square border border-primary-container/20 rotate-12 flex items-center justify-center">
+<div class="absolute inset-0 border border-primary-container/10 -rotate-6"></div>
+<img class="w-3/4 object-contain mix-blend-screen opacity-50" data-alt="Technical blueprint schematic of a missile weapon system with wireframe 3D grid and engineering measurement lines in high contrast dark mode" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJ5JRxCEhBNAAHXJI-BSV-P4qsyP4RrKv-TD5PCDv9H4lGm0d5Fy92_VEz-JgGLZC_yPX6UDnXFK_5ddX2q9zptBN0cm3K-oVlGjaCqUl9J8NCq9qYnNdCNMsY7YvJafadeEjUbIqmmtZIXIL7OIImQV1NhaqXDl5pFriZpzqk7axoeBOq02o6rrwT4Rmu74eEAyvO68v0sPkRTo8Z3YqmpiderdpltGRqd5PJHdmLPAMO9qrscTqMbc8W_USSJgCZDZO2mong0Ro"/>
+</div>
+</div>
+<div class="relative z-10 p-6 flex flex-col h-full">
+<header class="mb-8">
+<h1 class="headline text-2xl font-black text-on-surface tracking-tighter">MISSILE_CONFIG_LAB</h1>
+<div class="flex gap-4 mt-2">
+<span class="text-[10px] font-mono text-primary-container border border-primary-container/30 px-2 py-0.5">[ STATUS: STABLE ]</span>
+<span class="text-[10px] font-mono text-secondary-container border border-secondary-container/30 px-2 py-0.5">[ AUTO_SYNC: ON ]</span>
+</div>
+</header>
+<div class="grid grid-cols-2 gap-8">
+<div class="space-y-6">
+<div>
+<label class="block text-[10px] uppercase font-bold text-on-surface-variant tracking-widest mb-2">PAYLOAD_TYPE</label>
+<select class="w-full bg-surface-container-highest border-none text-on-surface mono text-xs p-3 focus:ring-1 focus:ring-primary-container">
+<option>KINETIC_PENETRATOR_MK4</option>
+<option>HIGH_EXPLOSIVE_FRAGMENTATION</option>
+<option>ELECTRO_MAGNETIC_PULSE</option>
+<option>NUCLEAR_TACTICAL_YIELD</option>
+</select>
+</div>
+<div>
+<label class="block text-[10px] uppercase font-bold text-on-surface-variant tracking-widest mb-2">ENGINE_THRUST_PROFILE</label>
+<div class="space-y-3">
+<input class="w-full h-1 bg-surface-container-highest accent-primary-container appearance-none" type="range"/>
+<div class="flex justify-between mono text-[10px] text-slate-500">
+<span>LOW_EFF_MAX_T</span>
+<span class="text-primary-container">745.8 kN</span>
+<span>HI_EFF_MOD_T</span>
+</div>
+</div>
+</div>
+<div>
+<label class="block text-[10px] uppercase font-bold text-on-surface-variant tracking-widest mb-2">FUEL_CAPACITY (KG)</label>
+<input class="w-full bg-surface-container-highest border-none text-on-surface mono text-xs p-3 focus:ring-1 focus:ring-primary-container" type="text" value="4,200.00"/>
+</div>
+</div>
+<div class="space-y-6">
+<div>
+<label class="block text-[10px] uppercase font-bold text-on-surface-variant tracking-widest mb-2">GUIDANCE_SUITE</label>
+<div class="grid grid-cols-1 gap-2">
+<div class="p-3 bg-surface-container border border-primary-container/20 flex items-center justify-between cursor-pointer">
+<span class="mono text-xs text-primary-container">PROPORTIONAL_NAV</span>
+<span class="material-symbols-outlined text-sm text-primary-container">radio_button_checked</span>
+</div>
+<div class="p-3 bg-surface-container border border-outline-variant/10 flex items-center justify-between cursor-pointer hover:bg-surface-container-high transition-colors">
+<span class="mono text-xs text-on-surface">PURE_PURSUIT</span>
+<span class="material-symbols-outlined text-sm text-slate-600">radio_button_unchecked</span>
+</div>
+<div class="p-3 bg-surface-container border border-outline-variant/10 flex items-center justify-between cursor-pointer hover:bg-surface-container-high transition-colors">
+<span class="mono text-xs text-on-surface">LOS_GUIDANCE</span>
+<span class="material-symbols-outlined text-sm text-slate-600">radio_button_unchecked</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-auto p-4 bg-surface-container border-l-4 border-secondary-container">
+<p class="text-[10px] uppercase font-bold text-secondary-container tracking-widest mb-1">System Advisory</p>
+<p class="mono text-[10px] text-on-surface opacity-80 leading-relaxed">Configuring thrust profile above 700kN will significantly reduce fuel efficiency for long-range engagements. Verify maximum burn time against trajectory parameters.</p>
+</div>
+</div>
+</section>
+<!-- Right: Performance Estimation -->
+<section class="col-span-3 bg-surface border-l border-[#3b4b3d]/15 flex flex-col">
+<div class="p-4 border-b border-[#3b4b3d]/15 bg-surface-container-low flex justify-between items-center">
+<h2 class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant">Performance Est.</h2>
+<span class="material-symbols-outlined text-primary-container text-sm">analytics</span>
+</div>
+<div class="p-4 space-y-8 flex-1 overflow-y-auto">
+<!-- Stat Block 1 -->
+<div>
+<div class="flex justify-between items-end mb-2">
+<span class="text-[10px] uppercase font-bold text-slate-500">MAX_RANGE_EST</span>
+<span class="mono text-xl font-bold text-on-primary-container">1,450.2 KM</span>
+</div>
+<div class="h-1 bg-surface-container-highest w-full overflow-hidden">
+<div class="h-full bg-primary-container" style="width: 72%;"></div>
+</div>
+</div>
+<!-- Stat Block 2 -->
+<div>
+<div class="flex justify-between items-end mb-2">
+<span class="text-[10px] uppercase font-bold text-slate-500">G_LOAD_LIMIT</span>
+<span class="mono text-xl font-bold text-secondary-container">42.5 G</span>
+</div>
+<div class="h-1 bg-surface-container-highest w-full overflow-hidden">
+<div class="h-full bg-secondary-container" style="width: 85%;"></div>
+</div>
+</div>
+<!-- Velocity Profile Visualization -->
+<div>
+<span class="text-[10px] uppercase font-bold text-slate-500 block mb-4">VELOCITY_PROFILE</span>
+<div class="aspect-video bg-surface-container-lowest border border-outline-variant/15 flex items-end p-2 gap-1 overflow-hidden relative">
+<div class="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(rgba(0,255,136,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,136,0.1)_1px,transparent_1px)] bg-[size:10px_10px]"></div>
+<!-- Mock Bars -->
+<div class="w-full bg-primary-container/40" style="height: 20%;"></div>
+<div class="w-full bg-primary-container/50" style="height: 45%;"></div>
+<div class="w-full bg-primary-container/70" style="height: 65%;"></div>
+<div class="w-full bg-primary-container/90" style="height: 90%;"></div>
+<div class="w-full bg-primary-container" style="height: 85%;"></div>
+<div class="w-full bg-primary-container/80" style="height: 55%;"></div>
+<div class="w-full bg-primary-container/40" style="height: 30%;"></div>
+</div>
+<div class="flex justify-between mt-2 mono text-[8px] text-slate-600">
+<span>LAUNCH</span>
+<span>BURNOUT</span>
+<span>IMPACT</span>
+</div>
+</div>
+<!-- Technical Specs Grid -->
+<div class="space-y-4">
+<div class="flex justify-between border-b border-outline-variant/10 py-2">
+<span class="text-[9px] uppercase font-bold text-slate-500">Thermal_Tolerance</span>
+<span class="mono text-[10px] text-on-surface">2,400 K</span>
+</div>
+<div class="flex justify-between border-b border-outline-variant/10 py-2">
+<span class="text-[9px] uppercase font-bold text-slate-500">Sig_Cross_Section</span>
+<span class="mono text-[10px] text-on-surface">0.024 M²</span>
+</div>
+<div class="flex justify-between border-b border-outline-variant/10 py-2">
+<span class="text-[9px] uppercase font-bold text-slate-500">Max_Mach_V</span>
+<span class="mono text-[10px] text-primary-container">7.2 M</span>
+</div>
+</div>
+</div>
+<div class="p-4 bg-surface-container-low border-t border-outline-variant/15">
+<button class="w-full bg-transparent border border-primary-container text-primary-container py-3 text-[11px] font-bold uppercase tracking-widest hover:bg-primary-container/10 transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">rocket_launch</span>
+                    SIMULATE_FLIGHT_PATH
+                </button>
+</div>
+</section>
+</main>
+<!-- Bottom Footer Status -->
+<footer class="fixed bottom-0 left-64 right-0 h-6 bg-[#0a0e14] border-t border-[#3b4b3d]/15 flex items-center px-4 justify-between z-50">
+<div class="flex gap-4">
+<span class="mono text-[9px] text-slate-600">SECURE_LINK: ACTIVE</span>
+<span class="mono text-[9px] text-slate-600">COORD: 34.0522° N, 118.2437° W</span>
+</div>
+<div class="flex gap-4 items-center">
+<div class="w-2 h-2 rounded-full bg-primary-container glow-primary animate-pulse"></div>
+<span class="mono text-[9px] text-primary-container font-bold">READY_TO_DEPLOY</span>
+</div>
+</footer>
+</body></html>

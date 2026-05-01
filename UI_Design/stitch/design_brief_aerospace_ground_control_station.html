@@ -1,0 +1,39 @@
+# Design Philosophy: Aerospace Ground Control Station
+
+## Aesthetic
+Dark, precise, monospaced, data-dense. Inspired by NORAD and missile ground stations. 
+- **No decoration, no gradients.**
+- **High functionality:** Every pixel must represent simulation data.
+
+## Color Palette
+- **Background:** Near-black (#0d1117).
+- **Active State:** Phosphor green (#00ff88) for live data.
+- **Warnings:** Radar amber.
+- **Errors:** Crimson.
+
+## Typography
+- **Data/Coordinates:** JetBrains Mono (monospaced for readability).
+- **Labels:** Inter/Geist Sans.
+
+## Core Features
+### 1. Tactical Map (Center)
+- Dark terrain grid.
+- Visual markers: Launch (hollow green crosshair), Target (pulsing red diamond), Missile (glowing arrowhead).
+- Path visualization: Planned (dashed amber), Actual (solid green), Kalman Filter Estimate (semi-transparent blue).
+- Info strip: Distance, ETA, Heading, Speed, Altitude.
+
+### 2. Pre-Flight Planning (Left)
+- Mission ID, Launch/Target LAT/LON.
+- Guidance: Proportional Navigation, Pure Pursuit, Constant Bearing.
+- Navigation Gain (N=1-6).
+- Kalman Filter: ON/OFF, EKF/UKF/Standard types.
+- TERCOM toggle.
+- Waypoint management.
+- **Launch Button:** Amber, activates after validation.
+
+### 3. Live Telemetry (Right)
+- KPIs: Velocity, Altitude, Heading, Fuel.
+- Navigation State Table: INS vs GPS vs Kalman.
+- Kalman Covariance Ellipse Visualization.
+- Guidance Monitor: LOS rate, Accel command, cross-track error.
+- Event Log: Color-coded (INFO, GPS, WARN, SYS, ERROR).

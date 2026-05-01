@@ -29,25 +29,8 @@ class KalmanFilter:
         # Replace A with what we have in ins.py
         self.A = ins.get_transition_matrix()
 
-        # State transition matrix (A) 6 * 6 for 3D
-        # self.A = np.eye(6) # creating identity matrix, 0 and 1s are all in place already
-        # self.A[0, 3] = self.dt
-        # self.A[1, 4] = self.dt
-        # self.A[2, 5] = self.dt
-
         # Replace B with what we have in ins.py
         self.B = ins.get_control_matrix()
-
-        # Control input matrix (B) 6 * 3 for 3D
-        # self.B = np.zeros((6, 3))
-        #
-        # self.B[0, 0] = 0.5 * self.dt ** 2
-        # self.B[1, 1] = 0.5 * self.dt ** 2
-        # self.B[2, 2] = 0.5 * self.dt ** 2
-        #
-        # self.B[3, 0] = self.dt
-        # self.B[4, 1] = self.dt
-        # self.B[5, 2] = self.dt
 
         # Observation matrix (H) - transformation matrix
         self.H = np.zeros((3, 6))

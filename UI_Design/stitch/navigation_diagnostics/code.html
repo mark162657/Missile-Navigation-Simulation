@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SENTINEL-GCS | NAVIGATION DIAGNOSTICS</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&amp;family=JetBrains+Mono:wght@400;700&amp;family=Space+Grotesk:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#fffaf9",
+                        "surface-container-high": "#262a31",
+                        "surface": "#10141a",
+                        "tertiary-fixed": "#ffdad9",
+                        "surface-tint": "#00e479",
+                        "primary-fixed": "#60ff99",
+                        "surface-dim": "#10141a",
+                        "outline-variant": "#3b4b3d",
+                        "background": "#10141a",
+                        "error-container": "#93000a",
+                        "on-tertiary-fixed-variant": "#920022",
+                        "on-primary-fixed-variant": "#005228",
+                        "error": "#ffb4ab",
+                        "surface-container-lowest": "#0a0e14",
+                        "on-secondary": "#432c00",
+                        "on-background": "#dfe2eb",
+                        "secondary-container": "#fdaf00",
+                        "primary": "#f1ffef",
+                        "on-primary-fixed": "#00210c",
+                        "on-error": "#690005",
+                        "surface-bright": "#353940",
+                        "on-secondary-fixed": "#281800",
+                        "on-secondary-fixed-variant": "#614000",
+                        "tertiary-fixed-dim": "#ffb3b3",
+                        "surface-container-low": "#181c22",
+                        "on-tertiary": "#680015",
+                        "primary-container": "#00ff88",
+                        "primary-fixed-dim": "#00e479",
+                        "on-surface": "#dfe2eb",
+                        "on-secondary-container": "#694600",
+                        "on-primary": "#003919",
+                        "inverse-surface": "#dfe2eb",
+                        "secondary": "#ffd393",
+                        "tertiary-container": "#ffd4d4",
+                        "on-error-container": "#ffdad6",
+                        "secondary-fixed": "#ffddaf",
+                        "outline": "#849585",
+                        "surface-container-highest": "#31353c",
+                        "inverse-on-surface": "#2d3137",
+                        "secondary-fixed-dim": "#ffba43",
+                        "on-tertiary-container": "#c50032",
+                        "inverse-primary": "#006d37",
+                        "surface-variant": "#31353c",
+                        "on-tertiary-fixed": "#40000a",
+                        "surface-container": "#1c2026",
+                        "on-primary-container": "#007139",
+                        "on-surface-variant": "#b9cbb9"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0px",
+                        "lg": "0px",
+                        "xl": "0px",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #0a0e14; color: #dfe2eb; overflow: hidden; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .font-headline { font-family: 'Space Grotesk', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #10141a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3b4b3d; }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden select-none">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-6 h-12 bg-[#10141a] z-50">
+<div class="flex items-center gap-8">
+<span class="text-xl font-black tracking-tighter text-[#00ff88]">SENTINEL-GCS</span>
+<nav class="flex items-center gap-6">
+<a class="text-slate-500 uppercase tracking-widest text-[10px] font-bold hover:text-[#00ff88]" href="#">TACTICAL</a>
+<a class="text-[#00ff88] border-b-2 border-[#00ff88] pb-1 uppercase tracking-widest text-[10px] font-bold" href="#">DIAGNOSTICS</a>
+<a class="text-slate-500 uppercase tracking-widest text-[10px] font-bold hover:text-[#00ff88]" href="#">CONFIG</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container text-xs font-mono border border-outline-variant/10">
+<span class="w-2 h-2 bg-primary-container rounded-full animate-pulse"></span>
+<span>LINK_STABLE: 99.4%</span>
+</div>
+<div class="flex gap-3 text-slate-500">
+<span class="material-symbols-outlined text-sm">satellite_alt</span>
+<span class="material-symbols-outlined text-sm">settings_input_component</span>
+<span class="material-symbols-outlined text-sm">terminal</span>
+</div>
+<button class="bg-primary-container text-on-primary text-[10px] font-bold px-4 h-8 hover:bg-primary-fixed-dim transition-colors">
+                SYSTEM_LOCK
+            </button>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- SideNavBar -->
+<aside class="w-64 bg-[#10141a] flex flex-col z-40 border-r border-[#3b4b3d]/15">
+<div class="p-6 border-b border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-container-highest flex items-center justify-center border border-primary-container/20">
+<span class="material-symbols-outlined text-primary-container">person</span>
+</div>
+<div>
+<div class="text-[#00ff88] font-bold text-xs uppercase tracking-tight">GCS_ALPHA</div>
+<div class="text-[10px] text-slate-500 font-mono">OPERATOR_ID_09</div>
+</div>
+</div>
+</div>
+<nav class="flex-1 py-4">
+<div class="px-6 py-2 text-[10px] font-bold text-slate-600 tracking-[0.2em] uppercase">Navigation</div>
+<ul class="mt-2 space-y-1">
+<li><a class="flex items-center gap-3 text-slate-500 px-6 py-3 hover:bg-[#1c2026] hover:text-[#00ff88] transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">explore</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">MISSION_MAP</span>
+</a></li>
+<li><a class="flex items-center gap-3 text-slate-500 px-6 py-3 hover:bg-[#1c2026] hover:text-[#00ff88] transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">timeline</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">TRAJECTORY</span>
+</a></li>
+<li><a class="flex items-center gap-3 bg-[#1c2026] text-[#00ff88] border-l-4 border-[#00ff88] px-6 py-3" href="#">
+<span class="material-symbols-outlined text-lg">hub</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">KALMAN_FLT</span>
+</a></li>
+<li><a class="flex items-center gap-3 text-slate-500 px-6 py-3 hover:bg-[#1c2026] hover:text-[#00ff88] transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">terrain</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">TERCOM_DATA</span>
+</a></li>
+<li><a class="flex items-center gap-3 text-slate-500 px-6 py-3 hover:bg-[#1c2026] hover:text-[#00ff88] transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">navigation</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">INS_DRIFT</span>
+</a></li>
+</ul>
+</nav>
+<div class="p-4 border-t border-outline-variant/10">
+<div class="grid grid-cols-2 gap-2">
+<button class="flex flex-col items-center justify-center p-2 bg-surface-container-low hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-sm mb-1">code</span>
+<span class="text-[8px] font-bold uppercase tracking-tighter">TERMINAL</span>
+</button>
+<button class="flex flex-col items-center justify-center p-2 bg-surface-container-low hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-sm mb-1">history</span>
+<span class="text-[8px] font-bold uppercase tracking-tighter">LOGS</span>
+</button>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 bg-surface-container-lowest grid grid-cols-12 overflow-hidden gap-px bg-outline-variant/5">
+<!-- Left Sidebar: Sensor Health & INS Drift -->
+<section class="col-span-3 bg-surface flex flex-col overflow-y-auto custom-scrollbar p-6 space-y-6">
+<div>
+<h2 class="text-[10px] font-bold text-primary-container tracking-widest uppercase mb-4">Sensor_Health_Monitor</h2>
+<div class="space-y-4">
+<div class="bg-surface-container-low p-3">
+<div class="flex justify-between items-end mb-2">
+<span class="text-[10px] font-bold text-slate-400 uppercase">ACCEL_ARRAY</span>
+<span class="text-xs font-mono text-primary-container">NOMINAL</span>
+</div>
+<div class="h-1 w-full bg-surface-container-highest">
+<div class="h-full bg-primary-container w-[92%]"></div>
+</div>
+</div>
+<div class="bg-surface-container-low p-3">
+<div class="flex justify-between items-end mb-2">
+<span class="text-[10px] font-bold text-slate-400 uppercase">GYRO_STABILITY</span>
+<span class="text-xs font-mono text-secondary-container">DRIFT_WARN</span>
+</div>
+<div class="h-1 w-full bg-surface-container-highest">
+<div class="h-full bg-secondary-container w-[65%]"></div>
+</div>
+</div>
+</div>
+</div>
+<div>
+<h2 class="text-[10px] font-bold text-primary-container tracking-widest uppercase mb-4">INS_DRIFT_ANALYSIS</h2>
+<div class="bg-surface-container-low aspect-[4/3] p-4 relative border-l-2 border-primary-container/20">
+<!-- Chart Mockup -->
+<div class="absolute inset-4 flex flex-col justify-between opacity-20 pointer-events-none">
+<div class="border-t border-slate-500 w-full"></div>
+<div class="border-t border-slate-500 w-full"></div>
+<div class="border-t border-slate-500 w-full"></div>
+</div>
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 100 60">
+<polyline fill="none" points="0,30 10,28 20,35 30,25 40,22 50,30 60,32 70,28 80,15 90,18 100,10" stroke="#00ff88" stroke-width="0.5"></polyline>
+<polyline fill="none" points="0,32 15,35 30,40 45,38 60,45 75,48 100,55" stroke="#fdaf00" stroke-width="0.5"></polyline>
+</svg>
+<div class="mt-2 flex justify-between text-[8px] font-mono text-slate-500 uppercase">
+<span>T-600s</span>
+<span>AXIS_X_Y_Z</span>
+<span>LIVE</span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2 mt-2">
+<div class="bg-surface-container-low p-2">
+<div class="text-[8px] text-slate-500 uppercase">X_OFF</div>
+<div class="text-xs font-mono">+0.0024</div>
+</div>
+<div class="bg-surface-container-low p-2">
+<div class="text-[8px] text-slate-500 uppercase">Y_OFF</div>
+<div class="text-xs font-mono">-0.0018</div>
+</div>
+<div class="bg-surface-container-low p-2">
+<div class="text-[8px] text-slate-500 uppercase">Z_OFF</div>
+<div class="text-xs font-mono">+0.0142</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Center: Kalman Filter & TERCOM -->
+<section class="col-span-6 bg-surface-container-low flex flex-col overflow-y-auto custom-scrollbar border-x border-outline-variant/10">
+<!-- Kalman Section -->
+<div class="p-6 border-b border-outline-variant/10">
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-sm font-headline text-primary-container tracking-wider uppercase font-bold">Kalman_Filter_Diagnostics</h2>
+<div class="flex gap-2">
+<span class="px-2 py-0.5 bg-primary-container/10 border border-primary-container/30 text-[9px] font-bold text-primary-container">EKF_ACTIVE</span>
+<span class="px-2 py-0.5 bg-surface-container-highest text-[9px] font-bold text-slate-400">DT: 10ms</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<div>
+<div class="text-[10px] font-bold text-slate-500 uppercase mb-3">Covariance_Matrix_Heatmap</div>
+<div class="grid grid-cols-6 gap-1 bg-surface p-2 border border-outline-variant/20">
+<!-- Generated Matrix Heatmap -->
+<div class="aspect-square bg-primary-container/90"></div>
+<div class="aspect-square bg-primary-container/40"></div>
+<div class="aspect-square bg-primary-container/10"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-primary-container/40"></div>
+<div class="aspect-square bg-primary-container/80"></div>
+<div class="aspect-square bg-primary-container/30"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-primary-container/10"></div>
+<div class="aspect-square bg-primary-container/30"></div>
+<div class="aspect-square bg-primary-container/70"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-primary-container/60"></div>
+<div class="aspect-square bg-primary-container/20"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-primary-container/20"></div>
+<div class="aspect-square bg-primary-container/50"></div>
+<div class="aspect-square bg-primary-container/10"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-surface-container-highest"></div>
+<div class="aspect-square bg-primary-container/10"></div>
+<div class="aspect-square bg-primary-container/90"></div>
+</div>
+</div>
+<div class="space-y-4">
+<div>
+<div class="text-[10px] font-bold text-slate-500 uppercase mb-2">State_Vector_Residuals</div>
+<div class="bg-surface font-mono text-[10px] p-3 space-y-1 border-l border-primary-container">
+<div class="flex justify-between"><span class="text-slate-500">POS_X:</span> <span class="text-primary-container">0.000142</span></div>
+<div class="flex justify-between"><span class="text-slate-500">POS_Y:</span> <span class="text-primary-container">-0.000089</span></div>
+<div class="flex justify-between"><span class="text-slate-500">POS_Z:</span> <span class="text-primary-container">0.002311</span></div>
+<div class="flex justify-between"><span class="text-slate-500">VEL_X:</span> <span class="text-secondary-container">0.041022</span></div>
+</div>
+</div>
+<div>
+<div class="text-[10px] font-bold text-slate-500 uppercase mb-2">Gain_Values</div>
+<div class="grid grid-cols-2 gap-2">
+<div class="bg-surface-container-highest p-2 text-center">
+<div class="text-[8px] text-slate-500 uppercase">K_GAIN_POS</div>
+<div class="text-xs font-mono">0.824</div>
+</div>
+<div class="bg-surface-container-highest p-2 text-center">
+<div class="text-[8px] text-slate-500 uppercase">K_GAIN_VEL</div>
+<div class="text-xs font-mono">0.115</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- TERCOM Section -->
+<div class="p-6">
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-sm font-headline text-primary-container tracking-wider uppercase font-bold">Terrain_Contour_Matching</h2>
+<div class="flex items-center gap-4">
+<div class="text-right">
+<div class="text-[8px] text-slate-500 uppercase leading-none">Correlation_Score</div>
+<div class="text-xl font-mono text-primary-container leading-none">0.9982</div>
+</div>
+<span class="material-symbols-outlined text-primary-container animate-pulse">radar</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold uppercase">
+<span class="text-slate-500">SENSED_PATCH</span>
+<span class="text-secondary-container">NOISY_INPUT</span>
+</div>
+<div class="aspect-square bg-surface relative overflow-hidden group border border-outline-variant/10">
+<div class="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary-container/20 via-transparent to-transparent"></div>
+<div class="grid grid-cols-12 h-full w-full">
+<!-- Visual Noise simulation with divs -->
+<div class="bg-primary-container/20 border border-black/50"></div>
+<div class="bg-primary-container/40 border border-black/50"></div>
+<div class="bg-primary-container/10 border border-black/50"></div>
+<div class="bg-primary-container/50 border border-black/50"></div>
+<!-- Repeats simulated with patterns in actual CSS normally, but using high-density divs here -->
+<div class="col-span-12 row-span-12 absolute inset-0 mix-blend-overlay opacity-30" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA8maYApttE81jEFWTQ-F4tSTSBp_w5VMpm-SsHoWP5aD92FsjXYNQTjuJbI0ZVCjBWaf6SZVyCTZBfJIfZiXWz4WMU6AwanUolO2EJDScgCGHzpJgWLd6jRxWPu0TDl3jSyfOxLcLyH2lRnQHuBbyXLFLQ-AKo5jVv64WEneO05UzegvpckkCHhug3o28g7bya-csRpjM4Kk5jJL3WnUy-oKzkN-FvL0a3lCDzsNWsNsF3AxWR_nYxVLNXHuc6pVcr8cjCOBfst7E')"></div>
+<img class="absolute inset-0 w-full h-full object-cover grayscale brightness-50 contrast-125 opacity-40" data-alt="Topographic satellite view of rugged mountain terrain with high contrast shadows and green elevation maps" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCjVON0BPmgFjSG_Gr-GINRnkPVvcW1XCbuLhd4GDTA9G5R0Pn4agXx0UY5aMP0Cg4r3EkzphNON7mn7Z0XROKYzeu3Dv9PzupUISYw_n6TwC8cLfgGCBcEiD5UvAa7cBCgLzpxoXewZutL_TKL8fEu2IsyEo1iamDoyHTaM8q36A04sDmuj-GA6Grnk0V0_yNWzA2PSJfaIcIcE6Wkt0cNHTkO-N_E6w9pSjt73-KN5mV6CrPO9PbkUFcJ6a7HD9f4KBfj9zz3vcg"/>
+</div>
+<div class="absolute top-2 left-2 text-[8px] font-mono bg-black/80 px-1 py-0.5">RES: 5m/PX</div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold uppercase">
+<span class="text-slate-500">DATABASE_MATCH</span>
+<span class="text-primary-container">CLEAN_REFERENCE</span>
+</div>
+<div class="aspect-square bg-surface relative overflow-hidden group border border-primary-container/30">
+<div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary-container/10 via-transparent to-transparent"></div>
+<img class="absolute inset-0 w-full h-full object-cover grayscale brightness-75 contrast-150" data-alt="Topographic satellite view of rugged mountain terrain with high contrast shadows and green elevation maps" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDenwlbFPkTDaq_EUFqMMdeyzh8pzccyg9c2s-BkSmddsAqNKeT-Yfr3K4qWPXZE4wguLdLvSA-jUmRkRC85KugiFfRW3a79RySWSnNikOIpl5pqAkz33EffBI-lrcnrE9AtyRCPPf1SDUsa5evERjQ3Qr8eMyngGLgdGWs2jkWYu0b0RDidC6D8FoyPV-4yZl0YHNqpUKvUPoa_zVSmOcJu2EUAe1qwi2o-QYPhdXQu8n-KGspZBVZ-Bx5QGmU74sM1VD32yYaC2w"/>
+<div class="absolute inset-0 border-[8px] border-primary-container/5 pointer-events-none"></div>
+<div class="absolute bottom-2 right-2 text-[8px] font-mono bg-primary-container text-on-primary px-1 py-0.5">DB_VER: 7.4.2</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Sidebar: Fusion Status -->
+<section class="col-span-3 bg-surface flex flex-col overflow-y-auto custom-scrollbar">
+<div class="p-6 space-y-8">
+<div>
+<h2 class="text-[10px] font-bold text-primary-container tracking-widest uppercase mb-6">Nav_Fusion_Weights</h2>
+<div class="space-y-6">
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-mono">
+<span class="text-slate-400">INS_SENSORS</span>
+<span class="text-primary-container">45%</span>
+</div>
+<div class="h-3 w-full bg-surface-container-highest">
+<div class="h-full bg-primary-container w-[45%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-mono">
+<span class="text-slate-400">GPS_L1_L2</span>
+<span class="text-secondary-container">35%</span>
+</div>
+<div class="h-3 w-full bg-surface-container-highest">
+<div class="h-full bg-secondary-container w-[35%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-mono">
+<span class="text-slate-400">TERCOM_FIX</span>
+<span class="text-primary-container">20%</span>
+</div>
+<div class="h-3 w-full bg-surface-container-highest">
+<div class="h-full bg-primary-container w-[20%]"></div>
+</div>
+</div>
+</div>
+</div>
+<div>
+<h2 class="text-[10px] font-bold text-primary-container tracking-widest uppercase mb-4">Nav_System_Log</h2>
+<div class="bg-surface-container-low p-4 font-mono text-[10px] space-y-3 h-64 overflow-y-auto custom-scrollbar border border-outline-variant/10">
+<div class="flex gap-2">
+<span class="text-slate-600">[12:04:12]</span>
+<span class="text-primary-container">TERCOM Fix Acquired</span>
+</div>
+<div class="flex gap-2">
+<span class="text-slate-600">[12:04:08]</span>
+<span class="text-slate-400">Searching terrain DB...</span>
+</div>
+<div class="flex gap-2">
+<span class="text-slate-600">[12:03:55]</span>
+<span class="text-secondary-container">GPS Signal Degradation</span>
+</div>
+<div class="flex gap-2">
+<span class="text-slate-600">[12:03:40]</span>
+<span class="text-slate-400">Kalman State Initialized</span>
+</div>
+<div class="flex gap-2">
+<span class="text-slate-600">[12:03:32]</span>
+<span class="text-slate-400">GCS_ALPHA Link Handshake</span>
+</div>
+<div class="flex gap-2">
+<span class="text-slate-600">[12:03:30]</span>
+<span class="text-primary-container">System Online</span>
+</div>
+</div>
+</div>
+<div class="bg-tertiary-container/5 border border-on-tertiary-container/20 p-4">
+<div class="flex items-center gap-2 mb-2 text-on-tertiary-container">
+<span class="material-symbols-outlined text-sm">warning</span>
+<span class="text-[10px] font-bold uppercase tracking-tight">AUTO_PILOT_ADVISORY</span>
+</div>
+<p class="text-[9px] text-slate-400 leading-relaxed font-mono">
+                            Divergence in INS vertical axis detected. Increasing TERCOM weighting factor to compensate.
+                        </p>
+</div>
+</div>
+</section>
+</main>
+</div>
+<!-- System Status Bar (Fixed Bottom) -->
+<footer class="h-6 bg-[#0a0e14] border-t border-outline-variant/10 px-6 flex items-center justify-between z-50">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="text-[9px] font-bold text-slate-500 uppercase">LAT:</span>
+<span class="text-[9px] font-mono text-primary-container">34°05'08"N</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[9px] font-bold text-slate-500 uppercase">LON:</span>
+<span class="text-[9px] font-mono text-primary-container">118°14'37"W</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[9px] font-bold text-slate-500 uppercase">ALT:</span>
+<span class="text-[9px] font-mono text-primary-container">42,500 FT</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-[9px] font-mono text-slate-600">SENTINEL-v4.0.12-PROX</span>
+<div class="w-16 h-1.5 bg-surface-container flex">
+<div class="w-1/3 bg-primary-container/40 h-full"></div>
+<div class="w-1/3 bg-primary-container h-full"></div>
+<div class="w-1/3 bg-primary-container/20 h-full"></div>
+</div>
+</div>
+</footer>
+</body></html>

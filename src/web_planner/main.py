@@ -21,9 +21,11 @@ from src.missile.config_store import load_configurations, get_configuration
 
 app = FastAPI(title="Missile Guidance Web Planner Pro")
 
-# Path to static files
-STATIC_DIR = Path(__file__).parent / "static"
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# Frontend lives outside the Python src tree so the app boundary stays clear.
+FRONTEND_DIR = PROJECT_ROOT / "frontend" / "web_planner" / "dist"
+LEGACY_FRONTEND_DIR = PROJECT_ROOT / "frontend" / "web_planner_legacy"
+app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets"), check_dir=False), name="assets")
+app.mount("/static", StaticFiles(directory=str(LEGACY_FRONTEND_DIR), check_dir=False), name="static")
 
 DEM_DIR = PROJECT_ROOT / "data" / "dem"
 
@@ -62,7 +64,14 @@ class PathRequest(BaseModel):
 @app.get("/")
 async def read_index():
     from fastapi.responses import FileResponse
-    return FileResponse(STATIC_DIR / "index.html")
+    # If the built index.html exists, serve it
+    index_path = FRONTEND_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    
+    # Fallback to old static if dist doesn't exist yet (for dev)
+    old_static = LEGACY_FRONTEND_DIR / "index.html"
+    return FileResponse(old_static)
 
 @app.get("/api/dems")
 async def list_dems():

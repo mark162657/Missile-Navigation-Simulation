@@ -49,6 +49,7 @@ class NavigationComputer:
             mission_terminated: If True, the navigation loop will terminate
         """
 
+        # START THE TIMER at this point. Based on when Navigation Computer started while launched.
         self.timer.start()
 
         while not mission_terminated:
@@ -67,6 +68,7 @@ class NavigationComputer:
             if now >= self.next_tercom:
                 # TODO: basic TERCOM and kf check and update
                 self.next_tercom += self.tercom_period
+
 
 
 
