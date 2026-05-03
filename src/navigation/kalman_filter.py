@@ -1,5 +1,5 @@
 import numpy as np
-from ins import INS
+from navigation.ins import INS
 
 class KalmanFilter:
     def __init__(self, dt: float, init_position: list[float], init_velocity: list[float], process_noise_std: float,
@@ -24,13 +24,13 @@ class KalmanFilter:
         ])
 
         # Initialise INS
-        ins = INS()
+        ins = INS(init_pos=init_position, init_vel=init_velocity)
 
         # Replace A with what we have in ins.py
-        self.A = ins.get_transition_matrix()
+        self.A = ins.get_transition_matrix(dt)
 
         # Replace B with what we have in ins.py
-        self.B = ins.get_control_matrix()
+        self.B = ins.get_control_matrix(dt)
 
         # Observation matrix (H) - transformation matrix
         self.H = np.zeros((3, 6))
