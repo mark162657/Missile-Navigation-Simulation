@@ -1,3 +1,6 @@
+from matplotlib import axis
+from click import decorators
+from asyncio import base_events
 import math
 import numpy as np
 
@@ -34,33 +37,35 @@ class TERCOM:
         self.lateral_accuracy = 12.0  # meters
         self.vertical_accuracy = 2.5  # meters
 
-    def cross_correlation(self, a_greater_patch: np.ndarray, b_sensed_patch: np.ndarray) -> float:
+    def cross_correlation(self, a_window: np.ndarray, b_sensed_patch: np.ndarray) -> float:
         """
         Manual function implementation for normalized cross-correlation.
-
+        Accepts all windows at once.
         Args:
-            a_greater_patch: labelled patch a, the patch in database to compare
-            b_sensed_patch: labelled patch b, the elevation patch sensed by missile
+            a_windows: shape (119, 119, 7, 7)
+            b_sensed_patch: shape (7, 7)
+        Return:
+            ncc_map: shape (119, 119)
 
         """
 
-        a_mean = np.mean(a_greater_patch)
-        b_mean = np.mean(b_sensed_patch)
+        a_mean = a_window.mean(axis=(-2, -1), keepdims=True)
+        b_mean = b_sensed_patch.mean()
 
-        a_diff = a_greater_patch - a_mean
+        a_diff = a_window - a_mean
         b_diff = b_sensed_patch - b_mean
 
         # Get numerator
-        numerator = np.sum((a_diff) * (b_diff))
+        numerator = np.sum((a_diff) * (b_diff), axis=(-2, -1))
 
         # Square difference
-        a_sqr_diff = np.sum((a_diff) ** 2)
+        a_sqr_diff = np.sum((a_diff) ** 2, axis=(-2, -1))
         b_sqr_diff = np.sum((b_diff) ** 2)
 
-        denominator = np.sqrt(a_sqr_diff * b_sqr_diff)
-        correlation = numerator / denominator
+        denominator = np.sqrt(a_sqr_diff * b_sqr_diff + 1e-10)
 
-        return correlation
+        return numerator / denominator 
+
 
 
     def process_update(self, sensed_patch: np.ndarray, est_lat: float, est_lon: float, search_size: int=125) \
@@ -74,9 +79,6 @@ class TERCOM:
         """
 
         center_row, center_col = self.dem_loader.lat_lon_to_pixel(est_lat, est_lon)
-        half_search = search_size // 2
-        row_start = max(0, center_row - half_search)
-        col_start = max(0, center_col - half_search)
 
         db_search_patch = self.dem_loader.get_elevation_patch(est_lat, est_lon, search_size, normalized=False)
         snsr_patch_height, snsr_patch_width = sensed_patch.shape
@@ -89,31 +91,9 @@ class TERCOM:
 
         # temp1, temp2 is not used, and is only used to handle ValueError: too many values to unpack
         win_rows, win_cols, temp1, temp2 = window.shape
-        # print(window)
 
-        for r in range(win_rows): # vertical movement
-            for c in range(win_cols): # horizontal
-                sub_patch = window[r, c]
-
-                # Get NCC
-                correlation = self.cross_correlation(sub_patch, sensed_patch)
-
-                if correlation > best_correlation:
-                    best_correlation = correlation
-                    found_match = True
-                    best_offset = (r + snsr_patch_height // 2, c + snsr_patch_width // 2) # best matched middle pixel
-
-        if found_match and best_correlation > 0.9999: # adjust this value to define how strict our matching algorithm is
-            # Add best_offset (local patch) to the rest of the larger map, to get exact coordinate pixel
-            matched_row = row_start + best_offset[0]
-            matched_col = col_start + best_offset[1]
-
-            # Turn row/col into lat/lon
-            matched_lat, matched_lon = self.dem_loader.pixel_to_lat_lon(matched_row, matched_col)
-
-            return matched_lat, matched_lon, self.get_noise_covariance() # get lat/lon coordinate and also the noise
-
-        return None, None, None
+        ncc_map = self.cross_correlation(window, sensed_patch) # return score of all each window
+        
 
     def get_noise_covariance(self) -> np.ndarray:
         """
