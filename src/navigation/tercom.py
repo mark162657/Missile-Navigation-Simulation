@@ -1,4 +1,3 @@
-from fastplotlib.graphics.features import _selection_features
 import numpy as np
 
 from pathlib import Path
@@ -40,8 +39,8 @@ class TERCOM:
         Manual function implementation for normalized cross-correlation.
         Accepts all windows at once.
         Args:
-            a_windows: shape (119, 119, 7, 7)
-            b_sensed_patch: shape (7, 7)
+            a_windows: all the patches segmented by np.sliding_window_view, shape (119, 119, 7, 7)
+            b_sensed_patch: TODO
         Return:
             ncc_map: shape (119, 119)
 
@@ -71,9 +70,10 @@ class TERCOM:
         We already obtained the normalized sensed patch 7 * 7 grid underneath our missile, now we will
         search for the certain grid size from our tif for pattern and determine where we might have been.
 
+        TODO
         Args:
             sensed_patch: the smaller patched sensed; default: 7 * 7
-            est_lat: 
+            est_lat:
             est_lon
 
         """
@@ -112,7 +112,6 @@ class TERCOM:
             matched_lat, matched_lon = self.dem_loader.pixel_to_lat_lon(matched_row, matched_col)
             return matched_lat, matched_lon, self.get_noise_covariance()
 
-
         return None, None, None
         
     def get_noise_covariance(self) -> np.ndarray:
@@ -127,8 +126,43 @@ class TERCOM:
             self.vertical_accuracy ** 2
         ])
 
+# if __name__ == "__main__":
+#     import time
+#     from pathlib import Path
+#     from src.terrain.dem_loader import DEMLoader
+#
+#     dem_path = Path(__file__).parents[2] / "data" / "dem" / "merged_dem_sib_N54_N59_E090_E100.tif"
+#     dem = DEMLoader(dem_path)
+#     tercom = TERCOM(location=(54.9, 98.7), dem_name="merged_dem_sib_N54_N59_E090_E100.tif")
+#     tercom.dem_loader = dem
+#
+#
+#     # true_loc = (54.7, 98.6)
+#     # ins_guess = (54.7005, 98.6007)
+#     true_loc = (57.850, 95.120)
+#     ins_guess = (57.854, 95.116)
+#
+#     sensed_patch = dem.get_elevation_patch(true_loc[0], true_loc[1], 7, True)
+#
+#     start_bench = time.perf_counter()
+#
+#     result = tercom.process_update(sensed_patch, ins_guess[0], ins_guess[1], 125)
+#
+#     end_bench = time.perf_counter()
+#     duration = (end_bench - start_bench) * 1000  # Convert to milliseconds
+#
+#     if result and result[0]:
+#         print(f"Match Found: {result[0]}, {result[1]}")
+#         print(f"TERCOM Execution Time: {duration:.2f} ms")
+#     else:
+#         print("Match Failed!")
+
 if __name__ == "__main__":
+    """
+    Test code by Claude to simply conduct mass test for verifying compile time.
+    """
     import time
+    import numpy as np
     from pathlib import Path
     from src.terrain.dem_loader import DEMLoader
 
@@ -137,21 +171,64 @@ if __name__ == "__main__":
     tercom = TERCOM(location=(54.9, 98.7), dem_name="merged_dem_sib_N54_N59_E090_E100.tif")
     tercom.dem_loader = dem
 
+    # ── 1. Define DEM valid range ─────────────────────────────────────────
+    LAT_MIN, LAT_MAX = 54.5, 58.5   # stay away from edges (avoid out-of-bounds)
+    LON_MIN, LON_MAX = 90.5, 99.5
 
-    true_loc = (54.7, 98.6)
-    ins_guess = (54.7005, 98.6007)
+    # ── 2. Test parameters ────────────────────────────────────────────────
+    NUM_LOCATIONS  = 20    # how many random true locations to test
+    RUNS_PER_LOC   = 5     # how many times to run each location (for timing stability)
+    INS_NOISE_DEG  = 0.001 # simulate INS drift (~100m offset)
 
-    sensed_patch = dem.get_elevation_patch(true_loc[0], true_loc[1], 7, True)
+    np.random.seed(42)     # reproducible random coordinates
 
-    start_bench = time.perf_counter()
+    # ── 3. Generate random true locations ────────────────────────────────
+    true_lats = np.random.uniform(LAT_MIN, LAT_MAX, NUM_LOCATIONS)
+    true_lons = np.random.uniform(LON_MIN, LON_MAX, NUM_LOCATIONS)
 
-    result = tercom.process_update(sensed_patch, ins_guess[0], ins_guess[1], 125)
+    # ── 4. Run mass test ──────────────────────────────────────────────────
+    results = []
 
-    end_bench = time.perf_counter()
-    duration = (end_bench - start_bench) * 1000  # Convert to milliseconds
+    for i, (true_lat, true_lon) in enumerate(zip(true_lats, true_lons)):
 
-    if result and result[0]:
-        print(f"Match Found: {result[0]}, {result[1]}")
-        print(f"TERCOM Execution Time: {duration:.2f} ms")
-    else:
-        print("Match Failed!")
+        # Simulate INS guess with small noise
+        ins_lat = true_lat + np.random.uniform(-INS_NOISE_DEG, INS_NOISE_DEG)
+        ins_lon = true_lon + np.random.uniform(-INS_NOISE_DEG, INS_NOISE_DEG)
+
+        # Get sensed patch at true location
+        try:
+            sensed_patch = dem.get_elevation_patch(true_lat, true_lon, 7, True)
+        except Exception as e:
+            print(f"[{i+1}] Skipped ({true_lat:.4f}, {true_lon:.4f}) — patch load failed: {e}")
+            continue
+
+        # Run multiple times for timing stability
+        run_times = []
+        match_found = False
+
+        for _ in range(RUNS_PER_LOC):
+            start = time.perf_counter()
+            result = tercom.process_update(sensed_patch, ins_lat, ins_lon, 125)
+            end   = time.perf_counter()
+            run_times.append((end - start) * 1000)  # ms
+            if result[0] is not None:
+                match_found = True
+
+        avg_time = np.mean(run_times)
+        results.append(avg_time)
+
+        status = "✅ Match" if match_found else "❌ No match"
+        print(f"[{i+1:02d}] ({true_lat:.4f}°N, {true_lon:.4f}°E) | "
+              f"{status} | avg: {avg_time:.2f}ms | "
+              f"min: {min(run_times):.2f}ms | max: {max(run_times):.2f}ms")
+
+    # ── 5. Summary statistics ─────────────────────────────────────────────
+    results = np.array(results)
+    print(f"\n{'─'*55}")
+    print(f"  Locations tested : {len(results)}")
+    print(f"  Runs per location: {RUNS_PER_LOC}")
+    print(f"  Mean runtime     : {np.mean(results):.2f} ms")
+    print(f"  Std deviation    : {np.std(results):.2f} ms")
+    print(f"  Min runtime      : {np.min(results):.2f} ms")
+    print(f"  Max runtime      : {np.max(results):.2f} ms")
+    print(f"{'─'*55}")
