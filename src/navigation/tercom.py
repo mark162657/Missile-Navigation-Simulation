@@ -4,8 +4,6 @@ import numpy as np
 from pathlib import Path
 from src.terrain.dem_loader import DEMLoader
 from numpy.lib.stride_tricks import sliding_window_view
-from src.terrain.dem_loader import DEMLoader
-from numpy.lib.stride_tricks import sliding_window_view
 
 class TERCOM:
     """
