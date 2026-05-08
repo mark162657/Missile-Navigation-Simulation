@@ -1,9 +1,9 @@
-from matplotlib import axis
-from click import decorators
-from asyncio import base_events
-import math
+from fastplotlib.graphics.features import _selection_features
 import numpy as np
 
+from pathlib import Path
+from src.terrain.dem_loader import DEMLoader
+from numpy.lib.stride_tricks import sliding_window_view
 from src.terrain.dem_loader import DEMLoader
 from numpy.lib.stride_tricks import sliding_window_view
 
@@ -64,37 +64,59 @@ class TERCOM:
 
         denominator = np.sqrt(a_sqr_diff * b_sqr_diff + 1e-10)
 
-        return numerator / denominator 
-
+        return numerator / denominator
 
 
     def process_update(self, sensed_patch: np.ndarray, est_lat: float, est_lon: float, search_size: int=125) \
-            -> tuple[float, float, float]:
+            -> tuple[float, float, np.ndarray]:
         """
         We already obtained the normalized sensed patch 7 * 7 grid underneath our missile, now we will
         search for the certain grid size from our tif for pattern and determine where we might have been.
 
-        Complexity:
-            - for the nested for loop iteration: O(N^2 * M^2)
+        Args:
+            sensed_patch: the smaller patched sensed; default: 7 * 7
+            est_lat: 
+            est_lon
+
         """
+        # Initialisation
+        found_match = False
+        best_correlation = 0
+        best_offset = (0, 0)
 
+        # Convert INS guess to DEM pixel, define search box boundaries
         center_row, center_col = self.dem_loader.lat_lon_to_pixel(est_lat, est_lon)
+        half_search = search_size // 2
+        row_start = max(0, center_row - half_search)
+        col_start = max(0, center_col - half_search)
 
+        # Load database terrain chunk from INS guess from DEM       
         db_search_patch = self.dem_loader.get_elevation_patch(est_lat, est_lon, search_size, normalized=False)
         snsr_patch_height, snsr_patch_width = sensed_patch.shape
 
-        best_correlation = -1.0 # -1.0 ~ 1.0
-        best_offset = (0, 0)
-        found_match = False
-
+        # Create sliding window by numpy.sliding_window_view and compute NCC
+        # window = (199, 199, 7, 7), for example, last two 7 are dimensions 7 * 7
         window = sliding_window_view(db_search_patch, (snsr_patch_height, snsr_patch_width))
-
-        # temp1, temp2 is not used, and is only used to handle ValueError: too many values to unpack
-        win_rows, win_cols, temp1, temp2 = window.shape
-
         ncc_map = self.cross_correlation(window, sensed_patch) # return score of all each window
-        
 
+        # Find best matching window position
+        best_r, best_c = np.unravel_index(np.argmax(ncc_map), ncc_map.shape)
+        best_correlation = ncc_map[best_r, best_c]
+        found_match = best_correlation > 0.9999
+
+        # Shift from top-left corner -> centre pixel of matched window
+        best_offset = (best_r + snsr_patch_height // 2, best_c + snsr_patch_width // 2)
+        
+        # If matched found, returned the matching lat/lon coordinate and noise covariance
+        if found_match:
+            matched_row = row_start + best_offset[0]
+            matched_col = col_start + best_offset[1]
+            matched_lat, matched_lon = self.dem_loader.pixel_to_lat_lon(matched_row, matched_col)
+            return matched_lat, matched_lon, self.get_noise_covariance()
+
+
+        return None, None, None
+        
     def get_noise_covariance(self) -> np.ndarray:
         """
         Calculates the noise covariance matrix.
