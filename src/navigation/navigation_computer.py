@@ -1,22 +1,30 @@
 import numpy as np
 
+from pathlib import Path
 from navigation.kalman_filter import KalmanFilter
 from navigation.tercom import TERCOM
 from navigation.gps import GPS
 from navigation.ins import INS
 from src.control.timer import InternalTimer
+from src.terrain.dem_loader import DEMLoader
 
 class NavigationComputer:
-    def __init__(self, start_gps: tuple[float, float, float], gps_freq_hz: int=5, ins_freq_hz: int=500, tercom_freq_hz: int=1,):
+    def __init__(self, start_gps: tuple[float, float, float],  dem_name: str, gps_freq_hz: int=5, ins_freq_hz: int=500,
+                 tercom_freq_hz: int=1):
         """
         Args:
             start_gps: Starting GPS coordinates [lat, lon, altitude] corespondent to [x, y, z]
+            dem_name: name of DEM
             gps_freq_hz: frequency of GPS measurements in Hz
             ins_freq_hz: frequency of INS measurements in Hz
             tercom_freq_hz: frequency of TERCOM measurements in Hz
         """
 
         self.start_gps = start_gps
+
+        tif_path = Path(__file__).parent.parent.parent / 'data' / 'dem' / f'{dem_name}'
+        dem = DEMLoader(tif_path)
+        self.dem_loader = dem
 
         # Set the update freq
         self.gps_period = 1.0 / gps_freq_hz
@@ -68,6 +76,26 @@ class NavigationComputer:
             if now >= self.next_tercom:
                 # TODO: basic TERCOM and kf check and update
                 self.next_tercom += self.tercom_period
+
+    def get_filtered_position(self) -> tuple[float, float, float]:
+        """
+        Return:
+            Returns best-estimated location by Kalman Filter, tuple(lat, lon, alt).
+        """
+
+
+
+    def _check_terrain_roughness(self, half_search_size: int=25) -> bool:
+        """
+        Check for terrain roughness to determine whether the terrain is rough enough to conduct accurate TERCOM.
+        TERCOM is highly based on terrain signature, a flat terrain with cause error and inaccuracy.
+
+        Args:
+            half_search_size: half-search size of terrain for roughness determination, in pixel.
+        """
+
+        # Check for ocean or not
+        self.dem_loader.get_elevation_patch(half_search_size)
 
 
 
