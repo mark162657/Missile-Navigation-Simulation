@@ -43,7 +43,12 @@ class NavigationComputer:
         self.next_gps = 0.0
         self.next_tercom = 0.0
 
-    def run_navigation_loop(self, mission_terminated: bool=False, run_seconds: int=10000) -> None:
+    def run_navigation_loop(
+        self, 
+        acceleration: np.ndarray | list[float], 
+        mission_terminated: bool=False, 
+        angular_velocity: list[float] | None = None,
+        run_seconds: int=10000) -> None:
         """
         Run the navigation loop for a fixed amount of elapsed time.
 
@@ -67,6 +72,7 @@ class NavigationComputer:
 
             if now >= self.next_ins:
                 # TODO: basic ins and kf prediction and update
+                self.ins.predict(acceleration)
                 self.next_ins += self.ins_period
 
             if now >= self.next_gps and self.gps.detect_jammed() is False:
@@ -82,7 +88,7 @@ class NavigationComputer:
         Return:
             Returns best-estimated location by Kalman Filter, tuple(lat, lon, alt).
         """
-
+        
 
 
     def _check_terrain_roughness(self, half_search_size: int=25) -> bool:
