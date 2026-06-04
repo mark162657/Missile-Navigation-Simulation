@@ -90,7 +90,7 @@ class KalmanFilter:
         error = y - (self.H @ self.x)
     
         # Kalman gain (KG)
-        KG = self.P @ self.H.T @ np.linalg.inv((self.H @ self.P @ self.H.T) + R_current) # use np.linalg.inv() to sorta acheive division (x inverse)
+        KG = self.P @ self.H.T @ np.linalg.inv((self.H @ self.P @ self.H.T) + R_current) # use np.linalg.inv() to sorta achieve division (x inverse)
 
         # Update state (x)
         self.x = self.x + (KG @ error)
