@@ -23,25 +23,6 @@ class GPS:
         # GPS receiver
         self.receiver = GPSReceiver()
 
-    # def is_ready(self) -> bool:
-    #     """
-    #     Check if GPS is ready for next measurement by:
-    #         1. Check if GPS has signal
-    #         2. Minus the current time by the last timestamp which we update
-    #             our GPS state, and see if its time interval exceeds our standard fixed time interval
-    #             between each measurement.
-    #     Args:
-    #         - current_time: current time recorded in our InternalTimer system
-    #     """
-    #
-    #     if not self.has_signal:
-    #         return False
-    #
-    #     current_time = self.timer.get_time_elapsed()
-    #
-    #     # Return if time elapsed since last GPS check is greater than the time_interval (see __init__ for definition)
-    #     return (current_time - self.last_update_time) >= self.time_interval
-
     def get_gps_location(self, location: list[float, float]) -> list[float, float]:
         if not self.is_ready():
             return None, None

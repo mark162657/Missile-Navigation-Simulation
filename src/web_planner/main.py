@@ -3,15 +3,17 @@ import queue as queue_module
 import sys
 import threading
 import time
+import asyncio
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional
+from uuid import uuid4
 
 import numpy as np
 import rasterio
 from rasterio.enums import Resampling
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, WebSocket
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
@@ -20,11 +22,19 @@ import uvicorn
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
+SRC_ROOT = PROJECT_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.append(str(SRC_ROOT))
 
 from src.terrain.dem_loader import DEMLoader
 from src.pathfinder.pathfinding_backend import Pathfinding
 from src.pathfinder.trajectory import TrajectoryGenerator
-from src.missile.config_store import load_configurations
+from src.missile.config_store import get_configuration, load_configurations
+from missile_guidance.domain import GeoPoint, Mission, MissionPoint, MissileSpec
+from missile_guidance.planning import PlannerService
+from missile_guidance.simulation import SimulationEngine, SimulationScenario
+from missile_guidance.simulation.replay import load_run
+from missile_guidance.terrain import dem_coverage, terrain_roughness_std, tercom_suitable
 
 app = FastAPI(title="Missile Guidance Web Planner Pro")
 
@@ -35,6 +45,8 @@ app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets"), check_d
 app.mount("/static", StaticFiles(directory=str(LEGACY_FRONTEND_DIR), check_dir=False), name="static")
 
 DEM_DIR = PROJECT_ROOT / "data" / "dem"
+MISSIONS_DIR = PROJECT_ROOT / "data" / "missions"
+RUNS_DIR = PROJECT_ROOT / "data" / "runs"
 TERMINAL_MAX_LINES = 400
 PATHFINDING_TIMEOUT_SECONDS = None
 
@@ -55,6 +67,8 @@ terminal_seq = 0
 cancelled_runs: set[str] = set()
 active_runs: dict[str, dict] = {}
 active_runs_lock = threading.Lock()
+simulation_results: dict[str, dict] = {}
+simulation_results_lock = threading.Lock()
 
 ELEVATION_RAMP = np.array(
     [
@@ -310,6 +324,7 @@ def _terminate_run(run_id: str, reason: str) -> None:
 class Point(BaseModel):
     lat: float
     lon: float
+    alt: float = 0.0
 
 class PathRequest(BaseModel):
     run_id: Optional[str] = None
@@ -320,6 +335,60 @@ class PathRequest(BaseModel):
     heuristic_weight: float = 1.5
     min_altitude: float = 30.0
     mode: str = "full"
+
+class MissionPointRequest(BaseModel):
+    name: str = ""
+    lat: float
+    lon: float
+    alt: float = 0.0
+
+class MissionRequest(BaseModel):
+    mission_id: Optional[str] = None
+    name: str
+    start: MissionPointRequest
+    target: MissionPointRequest
+    missile_name: str
+    waypoints: List[MissionPointRequest] = []
+    dem_name: Optional[str] = None
+
+class RunRequest(BaseModel):
+    mission: Optional[MissionRequest] = None
+    mission_id: Optional[str] = None
+    dt: float = 0.25
+    max_time_s: float = 120.0
+
+
+def _mission_point_from_request(point: MissionPointRequest, fallback_name: str) -> MissionPoint:
+    return MissionPoint(
+        name=point.name or fallback_name,
+        location=GeoPoint(point.lat, point.lon, point.alt),
+    )
+
+
+def _mission_from_request(request: MissionRequest) -> Mission:
+    return Mission(
+        name=request.name,
+        start=_mission_point_from_request(request.start, "Launch"),
+        target=_mission_point_from_request(request.target, "Target"),
+        missile_name=request.missile_name,
+        waypoints=[
+            _mission_point_from_request(point, f"Waypoint {index + 1}")
+            for index, point in enumerate(request.waypoints)
+        ],
+        dem_name=request.dem_name,
+        mission_id=request.mission_id or str(uuid4()),
+    )
+
+
+def _mission_file(mission_id: str) -> Path:
+    return MISSIONS_DIR / f"{mission_id}.json"
+
+
+def _load_mission(mission_id: str) -> Mission:
+    path = _mission_file(mission_id)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+    return Mission.load(path)
 
 @app.get("/")
 async def read_index():
@@ -341,6 +410,78 @@ async def list_dems():
 @app.get("/api/missile-configs")
 async def list_configs():
     return {"configs": load_configurations()}
+
+@app.get("/api/missions")
+async def list_missions():
+    MISSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    missions = []
+    for path in sorted(MISSIONS_DIR.glob("*.json")):
+        try:
+            mission = Mission.load(path)
+            missions.append(
+                {
+                    "mission_id": mission.mission_id,
+                    "name": mission.name,
+                    "missile_name": mission.missile_name,
+                    "dem_name": mission.dem_name,
+                    "status": mission.status.value,
+                    "updated_at": mission.updated_at,
+                }
+            )
+        except Exception as exc:
+            missions.append({"mission_id": path.stem, "error": str(exc)})
+    return {"missions": missions}
+
+@app.post("/api/missions")
+async def save_mission(request: MissionRequest):
+    mission = _mission_from_request(request)
+    path = mission.save(MISSIONS_DIR)
+    return {"mission": mission.to_dict(), "path": str(path)}
+
+@app.get("/api/missions/{mission_id}")
+async def get_mission(mission_id: str):
+    return {"mission": _load_mission(mission_id).to_dict()}
+
+@app.get("/api/terrain/coverage/{dem_name}")
+async def get_terrain_coverage(dem_name: str):
+    return dem_coverage(_dem_path(dem_name))
+
+@app.get("/api/terrain/roughness/{dem_name}")
+async def get_terrain_roughness(dem_name: str, lat: float, lon: float, patch_size: int = 25, threshold_m: float = 5.0):
+    dem = DEMLoader(_dem_path(dem_name))
+    patch = dem.get_elevation_patch(lat, lon, patch_size, normalized=False)
+    if patch is None:
+        raise HTTPException(status_code=404, detail="Terrain patch is outside DEM coverage")
+    roughness = terrain_roughness_std(patch)
+    return {
+        "roughness_std_m": roughness,
+        "tercom_suitable": tercom_suitable(patch, threshold_m),
+        "threshold_m": threshold_m,
+    }
+
+@app.post("/api/plan")
+def plan_with_service(request: PathRequest):
+    mission = Mission(
+        name=request.run_id or "ad-hoc-plan",
+        start=MissionPoint("Launch", GeoPoint(request.start.lat, request.start.lon, request.start.alt)),
+        target=MissionPoint("Target", GeoPoint(request.target.lat, request.target.lon, request.target.alt)),
+        missile_name="",
+        waypoints=[
+            MissionPoint(f"Waypoint {index + 1}", GeoPoint(point.lat, point.lon, point.alt))
+            for index, point in enumerate(request.waypoints)
+        ],
+        dem_name=request.dem_name,
+    )
+    result = PlannerService(request.dem_name).plan_mission(
+        mission,
+        heuristic_weight=request.heuristic_weight,
+        min_altitude=request.min_altitude,
+    )
+    return {
+        "run_id": request.run_id,
+        "path": result.path,
+        "bounds": result.bounds,
+    }
 
 @app.get("/api/pathfinding-terminal")
 async def get_pathfinding_terminal(after: int = 0):
@@ -460,6 +601,82 @@ def plan_path(request: PathRequest):
             _cleanup_run(run_id)
         elif is_cancelled(run_id):
             _terminate_run(run_id, "Abort acknowledged. Worker process terminated.")
+
+@app.get("/api/runs")
+async def list_simulation_runs():
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    runs = [
+        {
+            "run_id": path.stem,
+            "path": str(path),
+            "updated_at": path.stat().st_mtime,
+        }
+        for path in sorted(RUNS_DIR.glob("*.jsonl"))
+    ]
+    return {"runs": runs}
+
+@app.post("/api/runs")
+def launch_simulation_run(request: RunRequest):
+    if request.mission is not None:
+        mission = _mission_from_request(request.mission)
+    elif request.mission_id is not None:
+        mission = _load_mission(request.mission_id)
+    else:
+        raise HTTPException(status_code=400, detail="Provide either mission or mission_id")
+
+    config = get_configuration(mission.missile_name)
+    if config is None:
+        raise HTTPException(status_code=404, detail=f"Missile configuration {mission.missile_name} not found")
+
+    scenario = SimulationScenario(
+        mission=mission,
+        missile_spec=MissileSpec.from_mapping(config),
+        dt=max(0.01, request.dt),
+        max_time_s=max(0.01, request.max_time_s),
+    )
+    result = SimulationEngine(scenario, runs_dir=RUNS_DIR).run()
+    payload = {
+        "run_id": result.run_id,
+        "mission_id": mission.mission_id,
+        "samples": len(result.telemetry),
+        "replay_path": str(result.replay_path) if result.replay_path is not None else None,
+        "latest": result.telemetry[-1].to_dict() if result.telemetry else None,
+    }
+    with simulation_results_lock:
+        simulation_results[result.run_id] = {
+            "summary": payload,
+            "telemetry": [sample.to_dict() for sample in result.telemetry],
+        }
+    return payload
+
+@app.get("/api/runs/{run_id}")
+async def get_simulation_run(run_id: str):
+    with simulation_results_lock:
+        cached = simulation_results.get(run_id)
+    if cached is not None:
+        return cached
+
+    path = RUNS_DIR / f"{run_id}.jsonl"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    telemetry = load_run(path)
+    return {
+        "summary": {"run_id": run_id, "samples": len(telemetry), "replay_path": str(path)},
+        "telemetry": telemetry,
+    }
+
+@app.websocket("/api/runs/{run_id}/stream")
+async def stream_simulation_run(websocket: WebSocket, run_id: str):
+    await websocket.accept()
+    try:
+        payload = await get_simulation_run(run_id)
+        for sample in payload["telemetry"]:
+            await websocket.send_json(sample)
+            await asyncio.sleep(0.05)
+        await websocket.close()
+    except Exception as exc:
+        await websocket.send_json({"error": str(exc)})
+        await websocket.close()
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

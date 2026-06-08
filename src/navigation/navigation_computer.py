@@ -43,6 +43,8 @@ class NavigationComputer:
         self.next_gps = 0.0
         self.next_tercom = 0.0
 
+        # Setting threshold for stdev of patch height to determine if terrain is rough enough for TERCOM
+        self.tercom_roughness_threshold_m = 5
     def run_navigation_loop(
         self, 
         acceleration: np.ndarray | list[float], 
@@ -71,39 +73,50 @@ class NavigationComputer:
                 break
 
             if now >= self.next_ins:
-                # TODO: basic ins and kf prediction and update
-                self.ins.predict(acceleration)
+                dt = self.ins_period # = 1.0 / 500 = 0.002s
+                pos, vel, att = self.ins.predict(acceleration, dt)
+
+                self.KF.predict(acceleration)
                 self.next_ins += self.ins_period
 
             if now >= self.next_gps and self.gps.detect_jammed() is False:
-                # TODO: basic gps and kf check and update
+                est_pos, _ = self.KF.get_state()
+                mea = self.
                 self.next_gps += self.gps_period
 
             if now >= self.next_tercom:
                 # TODO: basic TERCOM and kf check and update
                 self.next_tercom += self.tercom_period
 
-    def get_filtered_position(self) -> tuple[float, float, float]:
-        """
-        Return:
-            Returns best-estimated location by Kalman Filter, tuple(lat, lon, alt).
-        """
-        
-
-
-    def _check_terrain_roughness(self, half_search_size: int=25) -> bool:
+    def _is_terrain_suitable(self,
+        terrain_patch: np.ndarray,
+        lat: float,
+        lon: float,
+        patch_size: int=25) -> bool:
         """
         Check for terrain roughness to determine whether the terrain is rough enough to conduct accurate TERCOM.
         TERCOM is highly based on terrain signature, a flat terrain with cause error and inaccuracy.
-
-        Args:
-            half_search_size: half-search size of terrain for roughness determination, in pixel.
+        Determined by standard deviation.
         """
 
-        # Check for ocean or not
-        self.dem_loader.get_elevation_patch(half_search_size)
+        patch = terrain_patch
+
+        if patch is None and self.dem_loader is not None and lat is not None and lon is not None:
+            patch = self.dem_loader.get_elevation_patch(lat, lon, patch_size, normalized=False)
+        if patch is None:
+            return False
+
+        values = np.asarray(patch, dtype=float)
+        values = values[np.isfinite(values)] # filter inf
+
+        if values.size == 0:
+            return False
+        return float(np.std(values)) >= self.tercom_roughness_threshold_m
 
 
+
+    def _run_kf(self):
+        pass
 
 
 

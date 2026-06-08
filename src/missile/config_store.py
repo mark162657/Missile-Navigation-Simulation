@@ -111,3 +111,28 @@ def get_configuration(name: str) -> dict | None:
         if config["name"].lower() == target:
             return config
     return None
+
+
+def load_missile_specs():
+    """
+    Return configurations as the forward-path MissileSpec model.
+
+    Kept here so existing UI/config code can remain the source of truth while
+    new planner and simulation services use typed contracts.
+    """
+    try:
+        from missile_guidance.domain import MissileSpec
+    except ImportError:
+        from src.missile_guidance.domain import MissileSpec
+
+    return [MissileSpec.from_mapping(config) for config in load_configurations()]
+
+
+def get_missile_spec(name: str):
+    try:
+        from missile_guidance.domain import MissileSpec
+    except ImportError:
+        from src.missile_guidance.domain import MissileSpec
+
+    config = get_configuration(name)
+    return MissileSpec.from_mapping(config) if config is not None else None

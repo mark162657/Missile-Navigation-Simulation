@@ -54,14 +54,14 @@ class KalmanFilter:
         # Process covariance matrix (~50m initial error)
         self.P = np.eye(6) * 100
     
-    def predict(self, acc_input: list[float]) -> None:
+    def predict(self, acc_vec_input: list[float]) -> None:
         """
         Generate a prediction of the next location of the missile, based on speed, acceleration, current position...
         The prediction will be implemented using ins.py, so INS will handle prediction instead of Kalman Filter itself.
         Arg:
-            acc_input: list[x, y, z]
+            acc_vec_input: raw acceleration vector input, list[x, y, z]
         """
-        u = np.array(acc_input)
+        u = np.array(acc_vec_input)
 
         # Predictive state x = Ax + Bu:
         self.x = (self.A @ self.x) + (self.B @ u)
@@ -100,4 +100,11 @@ class KalmanFilter:
         self.P = (I - (KG @ self.H)) @ self.P
 
     def get_state(self) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Return the current best-estimated position and velocity of missile, computed by kalman filter.
+
+        Return: two slices of array with
+            - slice 1: [x, y, z]: position
+            - slice 2: [vx, vy, vz]: velocity
+        """
         return self.x[:3], self.x[3:]
