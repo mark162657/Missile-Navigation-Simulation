@@ -2,24 +2,24 @@ import math
 from typing import Tuple
 
 
-_METER_PER_DEG_LAT = 111_320.0
-
-
 class CoordinateSystem:
     """
     Local tangent-plane ENU offsets from a fixed geographic origin.
 
     Returns (east_m, north_m) in meters:
-        - east_m  > 0  →  east of origin  |  < 0  →  west of origin
-        - north_m > 0  →  north of origin |  < 0  →  south of origin
+        - east_m  > 0  ->  east of origin  |  < 0  ->  west of origin
+        - north_m > 0  ->  north of origin |  < 0  ->  south of origin
 
     South and west are handled by **signed** latitude/longitude deltas, not by
     taking absolute values of the scale factors. Example: origin (55°N, 100°E),
-    point (54°N, 99°E) → negative north_m and negative east_m.
+    point (54°N, 99°E) -> negative north_m and negative east_m.
 
     This is **not** the missile-state x/y convention (x=lat°, y=lon°) and it is
     **not** the pathfinder pixel frame (which measures southward row offset as
     positive y from the DEM top-left).
+
+    For meter_per_deg_lat/lon, test are performed on https://www.cqsrg.org/tools/GCDistance/
+    Has proven to have only minor offset, and mostly accurate. Especially in polar area.
     """
 
     def __init__(self, origin_lat: float, origin_lon: float) -> None:
@@ -27,7 +27,7 @@ class CoordinateSystem:
         self.origin_lon = origin_lon
 
         # Scale at the origin (used when no target latitude is available).
-        self.meter_per_deg_lat = _METER_PER_DEG_LAT
+        self.meter_per_deg_lat = _meter_per_deg_lat(origin_lat)
         self.meter_per_deg_lon = _meter_per_deg_lon_at(origin_lat)
 
     @staticmethod
@@ -101,7 +101,7 @@ class CoordinateSystem:
 
     def get_heading(self, lat1: float, long1: float, lat2: float, long2: float) -> float:
         """Initial bearing from point 1 to point 2, degrees clockwise from north."""
-        
+
         # convert lat1, lon1, lat2, lon2 into radian
         lat1, lat2 = math.radians(lat1), math.radians(lat2)
         long1, long2 = math.radians(long1), math.radians(long2)
@@ -117,7 +117,81 @@ class CoordinateSystem:
         
         return (math.degrees(theta) + 360) % 360
 
+def _meter_per_deg_lat(lat: float) -> float:
+    """
+    Meter per latitude degree is similar, but not constant. To prevent any error, we will calculate meter_per_deg_lat manually using WGS-84 ellipsoid constants and further calculations.
+    
+    Formula used:
+        -> Eccentricity Squared
+        -> Degree to Radian
+        -> Meridian Radius of Curvature
+        -> Meters per Degree
+    Sources:
+        - WGS-84 Equatorial radius in meters:
+            https://www.vcalc.com/wiki/vCalc/WGS-84-Earth-equatorial-radius-meters
+        - WGS-84 Polar radius in meters:
+            https://www.vcalc.com/wiki/vCalc/WGS-84-Earth-polar-radius
+    """
+    
+    # equatorial radius in meters source
+    a = 6378137.0
+    # polar radius in meters
+    b = 6356752.31424518
+    
+    # eccentricity squared
+    e2 = (a ** 2 - b ** 2) / (a ** 2)
+    
+    phi = lat * (math.pi / 180)
+
+    # meridian radius of curvature
+    num = a * (1 - e2)
+    den = (1 - e2 * (math.sin(phi) ** 2)) ** 1.5
+    m_rho = num / den
+
+    # final meter_per_degree
+    return m_rho * (math.pi / 180)
 
 def _meter_per_deg_lon_at(lat_deg: float) -> float:
-    """Meters per degree of longitude at a given latitude (always positive)."""
-    return _METER_PER_DEG_LAT * math.cos(math.radians(lat_deg))
+    """
+    Meters per degree of longitude at a given latitude. Calculated using the WGS-84 Prime vertical radius of curvature
+    
+    Source:
+        https://www.oc.nps.edu/oc2902w/geodesy/radiigeo.pdf
+    """
+
+    a = 6378137.0
+    b = 6356752.31424518
+
+    e2 = (a ** 2 - b ** 2) / (a ** 2)
+    phi = math.radians(lat_deg)
+
+    # calculate prime vertical radius of curvature (N)
+    n = a / math.sqrt(1 - e2 * (math.sin(phi) ** 2))
+
+    return n * math.cos(phi) * (math.pi / 180)
+
+
+if __name__ == "__main__":
+    # Instantiate the class with dummy origin coordinates to satisfy __init__
+    calc = CoordinateSystem(origin_lat=0.0, origin_lon=0.0)
+    
+    # Define globally accepted reference targets for validation
+    test_cases = [
+        {"name": "Equator", "lat": 0.0, "exp_lat": 110574.38, "exp_lon": 111319.49},
+        {"name": "Melbourne", "lat": -37.8136, "exp_lat": 110985.64, "exp_lon": 87944.37},
+        {"name": "North Pole", "lat": 90.0, "exp_lat": 111693.90, "exp_lon": 0.0}
+    ]
+    
+    print("=" * 65)
+    print(f"{'Location':<12} | {'Latitude Dist (m)':<18} | {'Longitude Dist (m)':<18}")
+    print("=" * 65)
+    
+    for case in test_cases:
+        # Call the standalone functions directly with just the latitude argument
+        lat_res = _meter_per_deg_lat(case["lat"])
+        lon_res = _meter_per_deg_lon_at(case["lat"])
+        
+        # Formatting to 2 decimal places matching real-world benchmarks
+        print(f"{case['name']:<12} | {lat_res:<18,.2f} | {abs(lon_res):<18,.2f}")
+        
+    print("=" * 65)
