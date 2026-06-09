@@ -13,7 +13,7 @@ class NavigationComputer:
                  tercom_freq_hz: int=1):
         """
         Args:
-            start_gps: Starting GPS coordinates [lat, lon, altitude] corespondent to [x, y, z]
+            start_gps: Starting position (lat, lon, alt) — maps to state x, y, z
             dem_name: name of DEM
             gps_freq_hz: frequency of GPS measurements in Hz
             ins_freq_hz: frequency of INS measurements in Hz
@@ -33,7 +33,10 @@ class NavigationComputer:
 
         # Initialise each navigation system
         self.gps = GPS()
-        self.ins = INS(0.0, 0.0, 0.0) # initiate default relative position at 0, 0, 0
+        self.ins = INS(
+            init_pos=[start_gps[0], start_gps[1], start_gps[2]],
+            init_vel=[0.0, 0.0, 0.0],
+        )
         self.tercom = TERCOM()
         self.KF = KalmanFilter()
 

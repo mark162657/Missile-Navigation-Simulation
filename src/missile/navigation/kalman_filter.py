@@ -9,6 +9,7 @@ class KalmanFilter:
         """
         # Sampling time
         self.dt = dt
+        self._process_noise_std = process_noise_std
 
         # Measurement error (GPS/TERCOM)
         self.std_mea = std_mea
@@ -17,26 +18,21 @@ class KalmanFilter:
         if init_velocity is None:
             init_velocity = [0.0, 0.0, 0.0] # 0.0 for x, y, z
 
-        # State matrix (X)
+        # State vector: [lat, lon, alt, vx east, vy north, vz up]
         self.x = np.array([
             init_position[0], init_position[1], init_position[2],
             init_velocity[0], init_velocity[1], init_velocity[2]
         ])
 
-        # Initialise INS
-        ins = INS(init_pos=init_position, init_vel=init_velocity)
-
-        # Replace A with what we have in ins.py
-        self.A = ins.get_transition_matrix(dt)
-
-        # Replace B with what we have in ins.py
-        self.B = ins.get_control_matrix(dt)
+        ref_lat = float(init_position[0])
+        self.A = INS.get_transition_matrix(dt, reference_lat=ref_lat)
+        self.B = INS.get_control_matrix(dt, reference_lat=ref_lat)
 
         # Observation matrix (H) - transformation matrix
         self.H = np.zeros((3, 6))
-        self.H[0, 0] = 1  # observe x
-        self.H[1, 1] = 1  # observe y
-        self.H[2, 2] = 1  # observe z
+        self.H[0, 0] = 1  # observe lat (x)
+        self.H[1, 1] = 1  # observe lon (y)
+        self.H[2, 2] = 1  # observe alt (z)
 
         # Process noise covariance matrix (Q)
         # internal uncertainty: how weather / physic disturb the missile
@@ -59,9 +55,13 @@ class KalmanFilter:
         Generate a prediction of the next location of the missile, based on speed, acceleration, current position...
         The prediction will be implemented using ins.py, so INS will handle prediction instead of Kalman Filter itself.
         Arg:
-            acc_vec_input: raw acceleration vector input, list[x, y, z]
+            acc_vec_input: [ax east, ay north, az up] in m/s^2
         """
         u = np.array(acc_vec_input)
+        ref_lat = float(self.x[0])
+        self.A = INS.get_transition_matrix(self.dt, reference_lat=ref_lat)
+        self.B = INS.get_control_matrix(self.dt, reference_lat=ref_lat)
+        self.Q = (self.B @ self.B.T) * (getattr(self, "_process_noise_std", 0.05) ** 2)
 
         # Predictive state x = Ax + Bu:
         self.x = (self.A @ self.x) + (self.B @ u)
@@ -104,7 +104,7 @@ class KalmanFilter:
         Return the current best-estimated position and velocity of missile, computed by kalman filter.
 
         Return: two slices of array with
-            - slice 1: [x, y, z]: position
-            - slice 2: [vx, vy, vz]: velocity
+            - slice 1: [lat, lon, alt]
+            - slice 2: [vx east, vy north, vz up]
         """
         return self.x[:3], self.x[3:]

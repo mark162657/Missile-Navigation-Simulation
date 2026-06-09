@@ -14,7 +14,7 @@ class RadarAltimeter:
     def get_altimeter_agl(self, true_curr_agl, true_dem_elev) -> float:
         """
         Args:
-            - true_curr_agl: the current altitude above ground in meters of the missile
+            - true_curr_agl: the current 'altitude above ground' in meters of the missile
             - true_dem_elev: the ground elevation of the dem map
         """
 

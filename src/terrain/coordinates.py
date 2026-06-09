@@ -14,17 +14,25 @@ class CoordinateSystem:
 
     def latlong_to_xy(self, lat: float, lon: float) -> Tuple[float, float]:
         """
-        Convert lat/lon coordinates to x,y coordinates.
+        Convert geographic coordinates to local ENU meters from the origin.
+
+        Returns (east_m, north_m). This is **not** the missile-state x/y
+        convention (x=lat, y=lon); use those fields only on MissileState/INS/KF.
         """
 
         delta_lat = lat - self.origin_lat
         delta_lon = lon - self.origin_lon
 
-        y = delta_lat * 111320
+        north_m = delta_lat * self.meter_per_deg_lat
+        east_m = delta_lon * self.meter_per_deg_lon
 
-        x = delta_lon * 111320 * math.cos(math.radians(self.origin_lat)) # Earth curvature correction factor
+        return east_m, north_m
 
-        return x, y
+    def xy_to_latlong(self, east_m: float, north_m: float) -> Tuple[float, float]:
+        """Convert local ENU meters from the origin back to (lat, lon) degrees."""
+        lat = self.origin_lat + north_m / self.meter_per_deg_lat
+        lon = self.origin_lon + east_m / self.meter_per_deg_lon
+        return lat, lon
 
     def get_distance(self, orig_lon: float, orig_lat: float, dest_lon: float, dest_lat: float) -> float:
         """
@@ -69,7 +77,3 @@ class CoordinateSystem:
         bearing = (math.degrees(math.atan2(x, y)) + 360) % 360 # normalising the degree (prevent negative)
 
         return bearing
-
-if __name__ == '__main__':
-    pass
-
