@@ -6,6 +6,7 @@ from missile.navigation.tercom import TERCOM
 from missile.navigation.gps import GPS
 from missile.navigation.ins import INS
 from missile.navigation.timer import InternalTimer
+from missile.state import MissileState
 from terrain.dem_loader import DEMLoader
 
 class NavigationComputer:
@@ -49,6 +50,7 @@ class NavigationComputer:
         self.tercom_roughness_threshold_m = 5
 
         self.timer = InternalTimer()
+        self.state = MissileState()
 
     def run_navigation_loop(
         self, 
@@ -85,7 +87,8 @@ class NavigationComputer:
                 self.next_ins += self.ins_period
 
             if now >= self.next_gps and self.gps.detect_jammed() is False:
-                mea = self.gps.get_gps_location()
+                true_lat, true_lon, _ = self.state.true_position()
+                mea = self.gps.get_gps_location(true_lat, true_lon)
                 self.next_gps += self.gps_period
 
             if now >= self.next_tercom:

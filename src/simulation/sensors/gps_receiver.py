@@ -35,16 +35,14 @@ class GPSReceiver():
 
         # Obtain latitude and longitude from pixel, and altitude from lon, lat using get_elevation
         lat, lon = location[0], location[1]
-        alt = self.dem_loader.get_elevation(lat, lon)
 
         # Wrap true position into a matrix
-        true_pos = np.array([lat, lon, alt])
+        true_pos = np.array([lat, lon])
 
         # Define normalized random noise
         noise = np.array([
             np.random.normal(0, self.h_std),
-            np.random.normal(0, self.h_std),
-            np.random.normal(0, self.v_std)
+            np.random.normal(0, self.h_std)
         ])
 
         return true_pos + noise
