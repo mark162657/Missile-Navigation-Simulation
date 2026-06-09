@@ -13,12 +13,11 @@ import numpy as np
 from pathlib import Path
 import fastplotlib as fpl
 
-from src.pathfinder.pathfinding_backend import Pathfinding
+# Add src package root to path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from ..src.terrain.dem_loader import DEMLoader
+from missile.planning.pathfinding_backend import Pathfinding
+from terrain.dem_loader import DEMLoader
 
 
 class Fastplotlib2DDEMViewer:

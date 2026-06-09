@@ -1,7 +1,7 @@
 import numpy as np
 import time
 from pathlib import Path
-from ..terrain.dem_loader import DEMLoader
+from terrain.dem_loader import DEMLoader
 
 # --- Import C++ Backend ---
 try:
@@ -10,9 +10,9 @@ try:
 except ImportError as e:
     print("---------- ERROR! ----------")
     print(f"  WARNING: C++ Engine not found ({e}).")
-    print("   Please compile the C++ code in src/pathfinder/cpp/ first.")
-    print("   Locate src/pathfinder/cpp/ folder at terminal and enter 'make'.")
-    print("   Ensure the .so file is in src/pathfinder/")
+    print("   Please compile the C++ code in src/missile/planning/cpp/ first.")
+    print("   Locate src/missile/planning/cpp/ folder at terminal and enter 'make'.")
+    print("   Ensure the .so file is in src/missile/planning/")
     print("----------------------------")
 
     CPP_AVAILABLE = False
@@ -26,7 +26,7 @@ class Pathfinding:
         """
         
         # Load dem, requesting dem file name:
-        tif_path = Path(__file__).parent.parent.parent / 'data' / 'dem' / f'{DEM_NAME}'
+        tif_path = Path(__file__).resolve().parents[3] / 'data' / 'dem' / f'{DEM_NAME}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 

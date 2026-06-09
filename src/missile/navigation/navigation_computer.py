@@ -1,12 +1,12 @@
 import numpy as np
 
 from pathlib import Path
-from navigation.kalman_filter import KalmanFilter
-from navigation.tercom import TERCOM
-from navigation.gps import GPS
-from navigation.ins import INS
-from src.control.timer import InternalTimer
-from src.terrain.dem_loader import DEMLoader
+from missile.navigation.kalman_filter import KalmanFilter
+from missile.navigation.tercom import TERCOM
+from missile.navigation.gps import GPS
+from missile.navigation.ins import INS
+from missile.navigation.timer import InternalTimer
+from terrain.dem_loader import DEMLoader
 
 class NavigationComputer:
     def __init__(self, start_gps: tuple[float, float, float],  dem_name: str, gps_freq_hz: int=5, ins_freq_hz: int=500,
@@ -22,7 +22,7 @@ class NavigationComputer:
 
         self.start_gps = start_gps
 
-        tif_path = Path(__file__).parent.parent.parent / 'data' / 'dem' / f'{dem_name}'
+        tif_path = Path(__file__).resolve().parents[3] / 'data' / 'dem' / f'{dem_name}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 
@@ -45,6 +45,8 @@ class NavigationComputer:
 
         # Setting threshold for stdev of patch height to determine if terrain is rough enough for TERCOM
         self.tercom_roughness_threshold_m = 5
+
+        self.timer = InternalTimer()
     def run_navigation_loop(
         self, 
         acceleration: np.ndarray | list[float], 

@@ -9,10 +9,10 @@ import sys
 import time
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add src package root to path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from src.pathfinder.pathfinding_backend import Pathfinding
+from missile.planning.pathfinding_backend import Pathfinding
 
 def test_pathfinding_gps(start: tuple[float, float], end: tuple[float, float]):
 

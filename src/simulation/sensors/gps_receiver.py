@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.terrain.dem_loader import DEMLoader
+from terrain.dem_loader import DEMLoader
 
 class GPSReceiver():
     def __init__(self, horizontal_accuracy: float=2.3, vertical_accuracy: float=3.1):

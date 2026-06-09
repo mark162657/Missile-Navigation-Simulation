@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Attempt to import DEMLoader
 try:
-    from src.terrain.dem_loader import DEMLoader
+    from terrain.dem_loader import DEMLoader
 except ImportError:
     print("Warning: Could not import DEMLoader. Terrain background will be disabled.")
     DEMLoader = None

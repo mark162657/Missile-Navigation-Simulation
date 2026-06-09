@@ -1,7 +1,7 @@
 import numpy as np
 
 from pathlib import Path
-from src.terrain.dem_loader import DEMLoader
+from terrain.dem_loader import DEMLoader
 from numpy.lib.stride_tricks import sliding_window_view
 
 class TERCOM:
@@ -22,7 +22,7 @@ class TERCOM:
         """
         self.location = location
 
-        tif_path = Path(__file__).parent.parent.parent / 'data' / 'dem' / f'{dem_name}'
+        tif_path = Path(__file__).resolve().parents[3] / 'data' / 'dem' / f'{dem_name}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 
@@ -129,9 +129,9 @@ class TERCOM:
 # if __name__ == "__main__":
 #     import time
 #     from pathlib import Path
-#     from src.terrain.dem_loader import DEMLoader
+#     from terrain.dem_loader import DEMLoader
 #
-#     dem_path = Path(__file__).parents[2] / "data" / "dem" / "merged_dem_sib_N54_N59_E090_E100.tif"
+#     dem_path = Path(__file__).resolve().parents[3] / "data" / "dem" / "merged_dem_sib_N54_N59_E090_E100.tif"
 #     dem = DEMLoader(dem_path)
 #     tercom = TERCOM(location=(54.9, 98.7), dem_name="merged_dem_sib_N54_N59_E090_E100.tif")
 #     tercom.dem_loader = dem
@@ -164,9 +164,9 @@ if __name__ == "__main__":
     import time
     import numpy as np
     from pathlib import Path
-    from src.terrain.dem_loader import DEMLoader
+    from terrain.dem_loader import DEMLoader
 
-    dem_path = Path(__file__).parents[2] / "data" / "dem" / "merged_dem_sib_N54_N59_E090_E100.tif"
+    dem_path = Path(__file__).resolve().parents[3] / "data" / "dem" / "merged_dem_sib_N54_N59_E090_E100.tif"
     dem = DEMLoader(dem_path)
     tercom = TERCOM(location=(54.9, 98.7), dem_name="merged_dem_sib_N54_N59_E090_E100.tif")
     tercom.dem_loader = dem

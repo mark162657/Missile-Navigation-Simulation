@@ -10,13 +10,12 @@ import numpy as np
 from pathlib import Path
 import fastplotlib as fpl
 
-# Add project root to path (Parent of 'tests' is root)
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add src package root to path
+SRC_ROOT = str(Path(__file__).resolve().parent.parent / "src")
+sys.path.insert(0, SRC_ROOT)
 
-# UPDATED IMPORTS
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.pathfinder.pathfinding_backend import Pathfinding
-from src.pathfinder.trajectory import TrajectoryGenerator
+from missile.planning.pathfinding_backend import Pathfinding
+from missile.planning.trajectory import TrajectoryGenerator
 def calculate_geo_distance(p1, p2):
     """Simple Euclidean distance for stats (using lat/lon approx)"""
     # Note: This is a rough approx for visualization stats only.

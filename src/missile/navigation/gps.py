@@ -1,8 +1,8 @@
 import numpy as np
 import math
 
-from src.terrain.dem_loader import DEMLoader
-from src.sensors.gps_receiver import GPSReceiver
+from terrain.dem_loader import DEMLoader
+from simulation.sensors.gps_receiver import GPSReceiver
 
 class GPS:
     def __init__(self):

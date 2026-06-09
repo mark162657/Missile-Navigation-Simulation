@@ -1,5 +1,5 @@
 import numpy as np
-from ..terrain.dem_loader import DEMLoader
+from terrain.dem_loader import DEMLoader
 from itertools import groupby
 from scipy.interpolate import splprep, splev
 
