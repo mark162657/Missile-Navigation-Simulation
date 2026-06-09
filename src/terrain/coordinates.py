@@ -70,14 +70,28 @@ class CoordinateSystem:
 
     def get_distance(self, orig_lon: float, orig_lat: float, dest_lon: float, dest_lat: float) -> float:
         """
-        Distance between two points using the Haversine formula (meters).
+            Get the distance between two points using Haversine Distance (meters).
+            Which takes consider of the Earth radius and scale.
+
+            Args:
+                - orig_lon: longitude for start (origin)
+                - orig_lat: latitude for start (origin)
+                - dest_lon: longitude for destination
+                - dest_lat: latitude for destination
+
+            Return:
+                the distance in meters
         """
+
+        # distance between latitudes and longitudes
         d_lat = (dest_lat - orig_lat) * math.pi / 180.0
         d_lon = (dest_lon - orig_lon) * math.pi / 180.0
 
-        orig_lat_rad = orig_lat * math.pi / 180.0
-        dest_lat_rad = dest_lat * math.pi / 180.0
+        # convert to radians
+        orig_lat_rad = (orig_lat) * math.pi / 180.0
+        dest_lat_rad = (dest_lat) * math.pi / 180.0
 
+        # apply formulae
         a = (
             math.sin(d_lat / 2) ** 2
             + math.sin(d_lon / 2) ** 2 * math.cos(orig_lat_rad) * math.cos(dest_lat_rad)
