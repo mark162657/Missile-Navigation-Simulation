@@ -9,11 +9,10 @@ from missile.navigation.timer import InternalTimer
 from terrain.dem_loader import DEMLoader
 
 class NavigationComputer:
-    def __init__(self, start_gps: tuple[float, float, float],  dem_name: str, gps_freq_hz: int=5, ins_freq_hz: int=500,
-                 tercom_freq_hz: int=1):
+    def __init__(self, start_gps: tuple[float, float, float],  dem_name: str, gps_freq_hz: int=5, ins_freq_hz: int=500, tercom_freq_hz: int=1):
         """
         Args:
-            start_gps: Starting position (lat, lon, alt) — maps to state x, y, z
+            start_gps: Starting position (lat, lon, alt) — maps to state est_lat, est_lon, est_alt
             dem_name: name of DEM
             gps_freq_hz: frequency of GPS measurements in Hz
             ins_freq_hz: frequency of INS measurements in Hz
@@ -35,7 +34,7 @@ class NavigationComputer:
         self.gps = GPS()
         self.ins = INS(
             init_pos=[start_gps[0], start_gps[1], start_gps[2]],
-            init_vel=[0.0, 0.0, 0.0],
+            init_vel=[0.0, 0.0, 0.0]
         )
         self.tercom = TERCOM()
         self.KF = KalmanFilter()
@@ -50,6 +49,7 @@ class NavigationComputer:
         self.tercom_roughness_threshold_m = 5
 
         self.timer = InternalTimer()
+
     def run_navigation_loop(
         self, 
         acceleration: np.ndarray | list[float], 
@@ -85,7 +85,6 @@ class NavigationComputer:
                 self.next_ins += self.ins_period
 
             if now >= self.next_gps and self.gps.detect_jammed() is False:
-                est_pos, _ = self.KF.get_state()
                 mea = self.gps.get_gps_location()
                 self.next_gps += self.gps_period
 

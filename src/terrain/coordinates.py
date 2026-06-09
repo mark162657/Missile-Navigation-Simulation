@@ -14,9 +14,8 @@ class CoordinateSystem:
     taking absolute values of the scale factors. Example: origin (55°N, 100°E),
     point (54°N, 99°E) -> negative north_m and negative east_m.
 
-    This is **not** the missile-state x/y convention (x=lat°, y=lon°) and it is
-    **not** the pathfinder pixel frame (which measures southward row offset as
-    positive y from the DEM top-left).
+    This is **not** MissileState geographic fields (est_lat°, est_lon°) and it is
+    **not** the pathfinder pixel frame (row/col on the DEM grid).
 
     For meter_per_deg_lat/lon, test are performed on https://www.cqsrg.org/tools/GCDistance/
     Has proven to have only minor offset, and mostly accurate. Especially in polar area.

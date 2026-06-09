@@ -21,7 +21,7 @@ class INS:
     behaves as a clean, deterministic dead-reckoner.
 
     Frame (unified project convention):
-      - position : [x, y, z] = [lat, lon, alt] — degrees, degrees, meters MSL
+      - position : [lat, lon, alt] — degrees, degrees, meters MSL (maps to MissileState est_* / INS pos[])
       - velocity : [vx, vy, vz] = [east, north, up] in m/s
       - attitude : [roll, pitch, yaw] in radians
 

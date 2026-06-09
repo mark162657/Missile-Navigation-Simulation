@@ -38,7 +38,7 @@ class GPSReceiver():
         alt = self.dem_loader.get_elevation(lat, lon)
 
         # Wrap true position into a matrix
-        true_pos = np.array([lat, lon, alt])  # x=lat, y=lon, z=alt
+        true_pos = np.array([lat, lon, alt])
 
         # Define normalized random noise
         noise = np.array([

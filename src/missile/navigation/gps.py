@@ -30,9 +30,9 @@ class GPS:
         # Pull measurement data from GPS receiver
         raw_measurement = self.receiver.get_raw_measurement(location)
 
-        # if self.detect_jammed(raw_measurement):
-        #     self.is_jammed = True
-        #     return None
+        if self.detect_jammed(raw_measurement):
+            self.is_jammed = True
+            return None
 
         self.last_update_time = self.timer.get_time_elapsed()
         return raw_measurement

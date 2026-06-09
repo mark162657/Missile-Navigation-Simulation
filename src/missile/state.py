@@ -29,41 +29,43 @@ class MissileState:
     """
     Shared missile state for simulation and navigation.
 
-    Position convention (everywhere in this project):
-        x = latitude (degrees)
-        y = longitude (degrees)
-        z = altitude MSL (meters)
+    Geographic position (degrees, degrees, meters MSL):
+        true_lat / true_lon / true_alt  — simulation ground truth only
+        est_lat  / est_lon  / est_alt   — navigation estimate (INS + KF)
 
-    Velocity convention (local ENU, m/s):
-        vx = east, vy = north, vz = up
+    Velocity (local ENU, m/s — not lat/lon rates):
+        vel_east, vel_north, vel_up
 
-    Attitude convention (radians, matches INS):
-        roll, pitch, heading (yaw)
+    Attitude (radians, matches INS):
+        roll, pitch, yaw
 
-    True position (tx, ty, tz) is simulation-universe ground truth only.
-    The INS never reads tx/ty/tz — the simulation feeds truth to sensor models
-    (GPS, radar altimeter, TERCOM) which return noisy measurements to nav.
+    The INS never reads true_lat/true_lon/true_alt. The simulation feeds truth
+    to sensor models (GPS, radar altimeter, TERCOM), which return noisy
+    measurements to the nav computer.
+
+    Pixel (row, col) and ENU meter offsets (east_m, north_m) are not stored
+    here — use DEMLoader and CoordinateSystem at conversion boundaries.
     """
 
-    # Simulation ground truth (lat, lon, alt) — not visible to INS / nav brain
-    tx: float
-    ty: float
-    tz: float
+    # Simulation ground truth (lat, lon, alt MSL)
+    true_lat: float
+    true_lon: float
+    true_alt: float
 
-    # Navigation estimate (lat, lon, alt)
-    x: float
-    y: float
-    z: float
+    # Navigation estimate (lat, lon, alt MSL)
+    est_lat: float
+    est_lon: float
+    est_alt: float
 
     # Velocity (east, north, up) in m/s
-    vx: float
-    vy: float
-    vz: float
+    vel_east: float
+    vel_north: float
+    vel_up: float
 
-    # Orientation (radians) — roll, pitch, yaw/heading
+    # Orientation (radians)
     roll: float
     pitch: float
-    heading: float
+    yaw: float
 
     # Time and bookkeeping (mirrors INS where applicable)
     time: float
@@ -77,74 +79,84 @@ class MissileState:
 
     def get_speed(self) -> float:
         """Return speed magnitude from velocity components, m/s."""
-        return float(np.linalg.norm([self.vx, self.vy, self.vz]))
+        return float(np.linalg.norm([self.vel_east, self.vel_north, self.vel_up]))
 
-    def current_position(self) -> np.ndarray:
-        """Return estimated position [lat, lon, alt]."""
-        return np.array([self.x, self.y, self.z])
+    def est_position(self) -> np.ndarray:
+        """Return estimated geographic position [lat, lon, alt]."""
+        return np.array([self.est_lat, self.est_lon, self.est_alt])
 
     def true_position(self) -> np.ndarray:
         """Return simulation ground truth [lat, lon, alt]."""
-        return np.array([self.tx, self.ty, self.tz])
+        return np.array([self.true_lat, self.true_lon, self.true_alt])
 
     def get_velocity(self) -> np.ndarray:
-        """Return velocity [vx east, vy north, vz up] in m/s."""
-        return np.array([self.vx, self.vy, self.vz])
+        """Return ENU velocity [vel_east, vel_north, vel_up] in m/s."""
+        return np.array([self.vel_east, self.vel_north, self.vel_up])
 
     def get_attitude(self) -> np.ndarray:
-        """Return attitude [roll, pitch, heading] in radians."""
-        return np.array([self.roll, self.pitch, self.heading])
+        """Return attitude [roll, pitch, yaw] in radians."""
+        return np.array([self.roll, self.pitch, self.yaw])
 
     def apply_ins_estimate(self, ins: INS) -> None:
         """Copy INS dead-reckoned / corrected state into the nav estimate fields."""
         pos, vel, att = ins.get_state()
-        self.x, self.y, self.z = float(pos[0]), float(pos[1]), float(pos[2])
-        self.vx, self.vy, self.vz = float(vel[0]), float(vel[1]), float(vel[2])
-        self.roll, self.pitch, self.heading = float(att[0]), float(att[1]), float(att[2])
+        self.est_lat = float(pos[0])
+        self.est_lon = float(pos[1])
+        self.est_alt = float(pos[2])
+        self.vel_east = float(vel[0])
+        self.vel_north = float(vel[1])
+        self.vel_up = float(vel[2])
+        self.roll = float(att[0])
+        self.pitch = float(att[1])
+        self.yaw = float(att[2])
         self.time = ins.time
         self.distance_traveled = ins.distance_traveled
 
     def apply_kf_position(self, position: np.ndarray | list[float]) -> None:
         """Update estimated geographic position from Kalman filter output."""
         pos = np.asarray(position, dtype=float)
-        self.x, self.y, self.z = float(pos[0]), float(pos[1]), float(pos[2])
+        self.est_lat = float(pos[0])
+        self.est_lon = float(pos[1])
+        self.est_alt = float(pos[2])
 
     def update_physics(
         self,
         dt: float,
         acceleration: np.ndarray | list[float],
-        heading_rate: float,
+        yaw_rate: float,
         *,
         reference_lat: float | None = None,
     ) -> None:
         """
-        Advance simulation ground truth (tx, ty, tz) and kinematics.
+        Advance simulation ground truth (true_lat, true_lon, true_alt) and kinematics.
 
-        Does **not** modify the navigation estimate (x, y, z). That is owned
-        by INS + Kalman filter. Only the simulation layer calls this.
+        Does **not** modify the navigation estimate (est_lat, est_lon, est_alt).
+        That is owned by INS + Kalman filter. Only the simulation layer calls this.
 
         Args:
             dt: timestep in seconds
             acceleration: [ax east, ay north, az up] in m/s^2
-            heading_rate: yaw rate in rad/s
-            reference_lat: latitude for lon scaling; defaults to current tx
+            yaw_rate: yaw rate in rad/s
+            reference_lat: latitude for lon scaling; defaults to current true_lat
         """
         acc = np.asarray(acceleration, dtype=float)
-        lat_ref = float(self.tx if reference_lat is None else reference_lat)
+        lat_ref = float(self.true_lat if reference_lat is None else reference_lat)
         m_lon = _meter_per_deg_lon(lat_ref)
 
-        prev_vx, prev_vy, prev_vz = self.vx, self.vy, self.vz
+        prev_east = self.vel_east
+        prev_north = self.vel_north
+        prev_up = self.vel_up
 
         # Integrate truth position in geographic frame.
-        self.tx += (prev_vy * dt + 0.5 * float(acc[1]) * dt ** 2) / _METER_PER_DEG_LAT
-        self.ty += (prev_vx * dt + 0.5 * float(acc[0]) * dt ** 2) / m_lon
-        self.tz += prev_vz * dt + 0.5 * float(acc[2]) * dt ** 2
+        self.true_lat += (prev_north * dt + 0.5 * float(acc[1]) * dt ** 2) / _METER_PER_DEG_LAT
+        self.true_lon += (prev_east * dt + 0.5 * float(acc[0]) * dt ** 2) / m_lon
+        self.true_alt += prev_up * dt + 0.5 * float(acc[2]) * dt ** 2
 
-        self.vx += float(acc[0]) * dt
-        self.vy += float(acc[1]) * dt
-        self.vz += float(acc[2]) * dt
+        self.vel_east += float(acc[0]) * dt
+        self.vel_north += float(acc[1]) * dt
+        self.vel_up += float(acc[2]) * dt
 
-        self.heading = (self.heading + heading_rate * dt) % (2 * math.pi)
+        self.yaw = (self.yaw + yaw_rate * dt) % (2 * math.pi)
 
         self.time += dt
         self.distance_traveled += self.get_speed() * dt
