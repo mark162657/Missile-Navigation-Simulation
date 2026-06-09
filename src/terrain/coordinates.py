@@ -101,13 +101,21 @@ class CoordinateSystem:
 
     def get_heading(self, lat1: float, long1: float, lat2: float, long2: float) -> float:
         """Initial bearing from point 1 to point 2, degrees clockwise from north."""
-        d_lon = long2 - long1
-        x = math.cos(math.radians(lat2)) * math.sin(math.radians(d_lon))
-        y = (
-            math.cos(math.radians(lat1)) * math.sin(math.radians(lat2))
-            - math.sin(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.cos(math.radians(d_lon))
-        )
-        return (math.degrees(math.atan2(x, y)) + 360.0) % 360.0
+        
+        # convert lat1, lon1, lat2, lon2 into radian
+        lat1, lat2 = math.radians(lat1), math.radians(lat2)
+        long1, long2 = math.radians(long1), math.radians(long2)
+        
+        # calculate bearing/heading in degrees
+        d_long = long2 - long1
+        x = math.sin(d_long) * math.cos(lat2)
+        y = (math.cos(lat1) * math.sin(lat2) - 
+             math.sin(lat1) * math.cos(lat2) *
+             math.cos(d_long))
+        
+        theta = math.atan2(x, y)
+        
+        return (math.degrees(theta) + 360) % 360
 
 
 def _meter_per_deg_lon_at(lat_deg: float) -> float:
