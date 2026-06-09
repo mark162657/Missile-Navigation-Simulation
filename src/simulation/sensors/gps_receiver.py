@@ -1,7 +1,5 @@
 import numpy as np
 
-from terrain.dem_loader import DEMLoader
-
 class GPSReceiver():
     def __init__(self, horizontal_accuracy: float=2.3, vertical_accuracy: float=3.1):
         """
@@ -10,13 +8,11 @@ class GPSReceiver():
         so based on Perplexity Pro Research's document currently (will definitely be updated or be filled by user)
 
         Args:
-            - dem_loader: DEMLoader object
             - horizontal_accuracy: horizontal accuracy in meter
             - vertical_accuracy: vertical accuracy in meter (was kinda surprised to know GPS can measure altitude by
             trilateration of satellite).
         """
 
-        self.dem_loader = DEMLoader()
         self.h_std = horizontal_accuracy
         self.v_std = vertical_accuracy
 

@@ -26,6 +26,10 @@ class NavigationComputer:
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 
+        # Initialise basic missile systems
+        self.timer = InternalTimer()
+        self.state = MissileState()
+
         # Set the update freq
         self.gps_period = 1.0 / gps_freq_hz
         self.ins_period = 1.0 / ins_freq_hz
@@ -37,7 +41,8 @@ class NavigationComputer:
             init_pos=[start_gps[0], start_gps[1], start_gps[2]],
             init_vel=[0.0, 0.0, 0.0]
         )
-        self.tercom = TERCOM()
+
+        self.tercom = TERCOM(self.state.est_lat, self.state.est_lon)
         self.KF = KalmanFilter()
 
 
@@ -49,8 +54,6 @@ class NavigationComputer:
         # Setting threshold for stdev of patch height to determine if terrain is rough enough for TERCOM
         self.tercom_roughness_threshold_m = 5
 
-        self.timer = InternalTimer()
-        self.state = MissileState()
 
     def run_navigation_loop(
         self, 
@@ -89,6 +92,7 @@ class NavigationComputer:
             if now >= self.next_gps and self.gps.detect_jammed() is False:
                 true_lat, true_lon, _ = self.state.true_position()
                 mea = self.gps.get_gps_location(true_lat, true_lon)
+                
                 self.next_gps += self.gps_period
 
             if now >= self.next_tercom:
