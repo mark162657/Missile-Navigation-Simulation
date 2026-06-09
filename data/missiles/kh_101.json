@@ -1,0 +1,33 @@
+{
+  "name": "Kh-101",
+  "basic": {
+    "cruise_speed": 720.0,
+    "min_speed": 450.0,
+    "max_speed": 970.0,
+    "max_acceleration": 9.8,
+    "min_altitude": 30.0,
+    "max_altitude": 10000.0,
+    "max_g_force": 5.0,
+    "sustained_turn_rate": 6.0,
+    "sustained_g_force": 2.0,
+    "evasive_turn_rate": 20.0,
+    "max_range": 5500.0,
+    "cruise_agl_min": 30.0,
+    "cruise_agl_max": 70.0
+  },
+  "detailed": {
+    "mass_kg": 2400.0,
+    "imu_grade": "tactical",
+    "fuel_capacity_kg": 1250.0,
+    "fuel_burn_rate_kgps": 0.15,
+    "accel_bias_sigma": 0.02,
+    "gyro_bias_sigma_dph": 5.0,
+    "accel_noise_std": 0.05,
+    "gyro_noise_std_dps": 0.1,
+    "accel_bias_walk_std": 0.001,
+    "gyro_bias_walk_std_dpm": 0.01,
+    "ins_update_rate_hz": 500.0,
+    "gps_update_rate_hz": 5.0,
+    "tercom_update_rate_hz": 1.0
+  }
+}

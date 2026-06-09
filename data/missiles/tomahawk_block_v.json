@@ -1,0 +1,33 @@
+{
+  "name": "Tomahawk Block V",
+  "basic": {
+    "cruise_speed": 880.0,
+    "min_speed": 400.0,
+    "max_speed": 920.0,
+    "max_acceleration": 9.8,
+    "min_altitude": 30.0,
+    "max_altitude": 1500.0,
+    "max_g_force": 6.0,
+    "sustained_turn_rate": 8.0,
+    "sustained_g_force": 2.0,
+    "evasive_turn_rate": 25.0,
+    "max_range": 1600.0,
+    "cruise_agl_min": 20.0,
+    "cruise_agl_max": 70.0
+  },
+  "detailed": {
+    "mass_kg": 1315.0,
+    "imu_grade": "tactical",
+    "fuel_capacity_kg": 450.0,
+    "fuel_burn_rate_kgps": 0.12,
+    "accel_bias_sigma": 0.02,
+    "gyro_bias_sigma_dph": 3.0,
+    "accel_noise_std": 0.05,
+    "gyro_noise_std_dps": 0.1,
+    "accel_bias_walk_std": 0.001,
+    "gyro_bias_walk_std_dpm": 0.01,
+    "ins_update_rate_hz": 500.0,
+    "gps_update_rate_hz": 5.0,
+    "tercom_update_rate_hz": 1.0
+  }
+}

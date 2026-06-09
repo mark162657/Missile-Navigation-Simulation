@@ -1,13 +1,21 @@
 import json
+import re
+from dataclasses import asdict
 from pathlib import Path
+
+from missile.profile import DetailedSpec, MissileProfile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = PROJECT_ROOT / "data" / "missiles"
-CONFIG_PATH = CONFIG_DIR / "configurations.json"
+
+# Legacy single-file store (an array of configs). Migrated on first access to
+# the new layout: one JSON file per missile in CONFIG_DIR.
+LEGACY_CONFIG_PATH = CONFIG_DIR / "configurations.json"
 
 
-FIELD_ORDER = [
+# SECTION 1 — fields the user must provide (publicly findable).
+BASIC_FIELDS = [
     "cruise_speed",
     "min_speed",
     "max_speed",
@@ -18,91 +26,206 @@ FIELD_ORDER = [
     "sustained_turn_rate",
     "sustained_g_force",
     "evasive_turn_rate",
+    "max_range",
+    "cruise_agl_min",
+    "cruise_agl_max",
 ]
 
-
-FIELD_UNITS = {
+BASIC_UNITS = {
     "cruise_speed": "km/h",
     "min_speed": "km/h",
     "max_speed": "km/h",
     "max_acceleration": "m/s^2",
-    "min_altitude": "m AGL",
-    "max_altitude": "m AGL",
+    "min_altitude": "m MSL",
+    "max_altitude": "m MSL",
     "max_g_force": "g",
     "sustained_turn_rate": "deg/s",
     "sustained_g_force": "g",
     "evasive_turn_rate": "deg/s",
+    "max_range": "km",
+    "cruise_agl_min": "m AGL",
+    "cruise_agl_max": "m AGL",
 }
 
-
-DEFAULT_CONFIGURATION = {
-    "name": "Tomahawk Block V",
-    "cruise_speed": 800.0,
-    "min_speed": 400.0,
-    "max_speed": 920.0,
-    "max_acceleration": 9.8,
-    "min_altitude": 30.0,
-    "max_altitude": 1200.0,
-    "max_g_force": 6.89,
-    "sustained_turn_rate": 8.0,
-    "sustained_g_force": 2.0,
-    "evasive_turn_rate": 25.0,
+# Defaults for basic fields added after the initial schema, so older config
+# files (and migrations) still load instead of hard-failing.
+BASIC_DEFAULTS = {
+    "max_range": 0.0,
+    "cruise_agl_min": 30.0,
+    "cruise_agl_max": 100.0,
 }
 
+# SECTION 2 — detailed / INS-facing fields (all optional, defaults applied).
+DETAILED_FIELDS = [
+    "mass_kg",
+    "imu_grade",
+    "fuel_capacity_kg",
+    "fuel_burn_rate_kgps",
+    "accel_bias_sigma",
+    "gyro_bias_sigma_dph",
+    "accel_noise_std",
+    "gyro_noise_std_dps",
+    "accel_bias_walk_std",
+    "gyro_bias_walk_std_dpm",
+    "ins_update_rate_hz",
+    "gps_update_rate_hz",
+    "tercom_update_rate_hz",
+]
 
-def _default_payload() -> dict:
-    return {"configurations": [DEFAULT_CONFIGURATION.copy()]}
+
+# ----------------------------------------------------------------------
+# Default profiles
+#
+# These are NOT hard-coded here. The defaults live as editable JSON files in
+# CONFIG_DIR (data/missiles/), version-controlled with the repo. Update those
+# files with accurate data — no code change needed. This is the same path a
+# future frontend uses: each missile is just a JSON file in this folder.
+# ----------------------------------------------------------------------
+DEFAULT_PROFILE_FILENAMES = (
+    "tomahawk_block_v.json",
+    "kh_101.json",
+)
+
+# Missile selected when none is specified.
+DEFAULT_PROFILE_NAME = "Tomahawk Block V"
 
 
-def ensure_store() -> Path:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    if not CONFIG_PATH.exists():
-        with open(CONFIG_PATH, "w", encoding="utf-8") as handle:
-            json.dump(_default_payload(), handle, indent=2)
-    return CONFIG_PATH
+def default_profile_paths() -> list[Path]:
+    """Paths to the bundled default missile JSON files."""
+    return [CONFIG_DIR / name for name in DEFAULT_PROFILE_FILENAMES]
 
 
+# ----------------------------------------------------------------------
+# Filename helpers (one file per missile)
+# ----------------------------------------------------------------------
+def slugify(name: str) -> str:
+    """Turn a missile name into a safe filename stem."""
+    slug = name.strip().lower()
+    slug = re.sub(r"[^a-z0-9]+", "_", slug).strip("_")
+    return slug or "missile"
+
+
+def config_path_for(name: str) -> Path:
+    """Path to the JSON file that stores the missile with this name."""
+    return CONFIG_DIR / f"{slugify(name)}.json"
+
+
+def _iter_config_files() -> list[Path]:
+    """All per-missile JSON files, excluding the legacy combined store."""
+    if not CONFIG_DIR.exists():
+        return []
+    return sorted(p for p in CONFIG_DIR.glob("*.json") if p != LEGACY_CONFIG_PATH)
+
+
+def _migrate_legacy_store() -> None:
+    """
+    Split a legacy `configurations.json` (array) into one file per missile,
+    then remove the legacy file. Safe to call repeatedly.
+    """
+    if not LEGACY_CONFIG_PATH.exists():
+        return
+
+    try:
+        with open(LEGACY_CONFIG_PATH, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        for config in payload.get("configurations", []):
+            normalized = validate_configuration(config)
+            _write_config_file(normalized)
+    finally:
+        LEGACY_CONFIG_PATH.unlink(missing_ok=True)
+
+
+# ----------------------------------------------------------------------
+# Validation
+# ----------------------------------------------------------------------
 def validate_configuration(config: dict) -> dict:
+    """
+    Validate and normalize a stored configuration into the two-section layout.
+
+    SECTION 1 (basic) is required in full. SECTION 2 (detailed) is optional;
+    any missing keys are filled from DetailedSpec defaults. Accepts both the
+    nested {"basic": {...}, "detailed": {...}} layout and a flat legacy dict.
+    """
     name = str(config.get("name", "")).strip()
     if not name:
         raise ValueError("Configuration name is required.")
 
-    normalized = {"name": name}
-    for field in FIELD_ORDER:
-        if field not in config:
-            raise ValueError(f"Missing field: {field}")
+    basic_in = config.get("basic", config)
+
+    basic_norm = {}
+    for f in BASIC_FIELDS:
+        if f not in basic_in:
+            raise ValueError(f"Missing basic field: {f}")
         try:
-            normalized[field] = float(config[field])
+            basic_norm[f] = float(basic_in[f])
         except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid numeric value for {field}.") from exc
-    return normalized
+            raise ValueError(f"Invalid numeric value for {f}.") from exc
+
+    detailed_in = config.get("detailed") or {}
+    detailed = DetailedSpec(**{k: v for k, v in detailed_in.items() if k in DETAILED_FIELDS})
+
+    return {
+        "name": name,
+        "basic": basic_norm,
+        "detailed": asdict(detailed),
+    }
+
+
+# ----------------------------------------------------------------------
+# Read / write
+# ----------------------------------------------------------------------
+def _write_config_file(normalized: dict) -> Path:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    path = config_path_for(normalized["name"])
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(normalized, handle, indent=2)
+    return path
+
+
+def ensure_store() -> Path:
+    """
+    Make sure the store directory exists and migrate any legacy combined file.
+
+    Does NOT seed defaults from code — the default missiles are the JSON files
+    shipped in CONFIG_DIR. Returns CONFIG_DIR.
+    """
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    _migrate_legacy_store()
+    return CONFIG_DIR
 
 
 def load_configurations() -> list[dict]:
+    """Load every missile config file as a normalized dict."""
     ensure_store()
-    with open(CONFIG_PATH, "r", encoding="utf-8") as handle:
-        payload = json.load(handle)
-
-    configs = payload.get("configurations", [])
-    normalized = [validate_configuration(config) for config in configs]
-    if not normalized:
-        normalized = [DEFAULT_CONFIGURATION.copy()]
-        save_configurations(normalized)
-    return normalized
+    configs = []
+    for path in _iter_config_files():
+        with open(path, "r", encoding="utf-8") as handle:
+            configs.append(validate_configuration(json.load(handle)))
+    return configs
 
 
-def save_configurations(configurations: list[dict]) -> None:
-    if not configurations:
-        raise ValueError("At least one missile configuration is required.")
+def save_configuration(config: dict) -> Path:
+    """
+    Persist a single missile configuration to its own JSON file.
 
-    normalized = [validate_configuration(config) for config in configurations]
-    names = [config["name"].lower() for config in normalized]
-    if len(names) != len(set(names)):
-        raise ValueError("Configuration names must be unique.")
+    This is the path the frontend will use: creating a missile writes one file.
+    """
+    normalized = validate_configuration(config)
+    return _write_config_file(normalized)
 
-    ensure_store()
-    with open(CONFIG_PATH, "w", encoding="utf-8") as handle:
-        json.dump({"configurations": normalized}, handle, indent=2)
+
+def save_profile(profile: MissileProfile) -> Path:
+    """Persist a MissileProfile to its own JSON file."""
+    return save_configuration(profile.to_config())
+
+
+def delete_configuration(name: str) -> bool:
+    """Remove a missile's JSON file. Returns True if a file was deleted."""
+    path = config_path_for(name)
+    if path.exists():
+        path.unlink()
+        return True
+    return False
 
 
 def get_configuration(name: str) -> dict | None:
@@ -113,26 +236,24 @@ def get_configuration(name: str) -> dict | None:
     return None
 
 
-def load_missile_specs():
-    """
-    Return configurations as the forward-path MissileSpec model.
-
-    Kept here so existing UI/config code can remain the source of truth while
-    new planner and simulation services use typed contracts.
-    """
-    try:
-        from missile_guidance.domain import MissileSpec
-    except ImportError:
-        from src.missile_guidance.domain import MissileSpec
-
-    return [MissileSpec.from_mapping(config) for config in load_configurations()]
+def load_profiles() -> list[MissileProfile]:
+    """Return stored configurations as MissileProfile objects."""
+    return [MissileProfile.from_config(config) for config in load_configurations()]
 
 
-def get_missile_spec(name: str):
-    try:
-        from missile_guidance.domain import MissileSpec
-    except ImportError:
-        from src.missile_guidance.domain import MissileSpec
-
+def get_profile(name: str) -> MissileProfile | None:
+    """Return a single stored configuration as a MissileProfile, or None."""
     config = get_configuration(name)
-    return MissileSpec.from_mapping(config) if config is not None else None
+    return MissileProfile.from_config(config) if config is not None else None
+
+
+def get_default_profile() -> MissileProfile | None:
+    """
+    Return the default missile profile (DEFAULT_PROFILE_NAME), falling back to
+    the first available profile if that name is not present.
+    """
+    profile = get_profile(DEFAULT_PROFILE_NAME)
+    if profile is not None:
+        return profile
+    profiles = load_profiles()
+    return profiles[0] if profiles else None

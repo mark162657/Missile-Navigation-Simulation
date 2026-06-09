@@ -1,101 +1,295 @@
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field, asdict
+
+import numpy as np
+
+from missile.navigation.ins import INS
+
+
+_KMH_TO_MS = 1.0 / 3.6
+_G = 9.80665
+
+
+@dataclass
+class BasicSpec:
+    """
+    SECTION 1 — basic performance envelope.
+
+    These are the fields the user is expected to fill in. They are the
+    "publicly findable" specs of a missile (open-source figures, datasheets,
+    news reporting). Every field is required; there are no defaults.
+
+    Units (chosen to match how the public usually reports them):
+        speeds        : km/h
+        accelerations : m/s^2
+        altitudes     : m (min/max are MSL ceiling/floor)
+        cruise AGL    : m (height ABOVE GROUND, terrain-relative)
+        g-forces      : g (multiples of 9.80665 m/s^2)
+        turn rates    : deg/s
+        range         : km
+
+    Altitude vs. AGL:
+        min_altitude / max_altitude  -> absolute envelope (MSL): the lowest and
+            highest the missile may ever be, regardless of terrain.
+        cruise_agl_min / cruise_agl_max -> the PREFERRED terrain-following band,
+            measured as relative height above the ground directly below (e.g. a
+            cruise missile likes to hug the terrain at ~20-50 m AGL). The
+            absolute altitude this implies changes constantly as terrain rises
+            and falls; only the height-above-ground stays in this band.
+    """
+    cruise_speed: float          # km/h
+    min_speed: float             # km/h
+    max_speed: float             # km/h
+    max_acceleration: float      # m/s^2
+    min_altitude: float          # m MSL (absolute floor)
+    max_altitude: float          # m MSL (absolute ceiling)
+    max_g_force: float           # g
+    sustained_turn_rate: float   # deg/s
+    sustained_g_force: float     # g
+    evasive_turn_rate: float     # deg/s
+    max_range: float             # km (max operational range)
+    cruise_agl_min: float        # m AGL (preferred terrain-following floor)
+    cruise_agl_max: float        # m AGL (preferred terrain-following ceiling)
+
+    # --- SI conversions used by the physics helpers ---
+    @property
+    def cruise_speed_ms(self) -> float:
+        return self.cruise_speed * _KMH_TO_MS
+
+    @property
+    def min_speed_ms(self) -> float:
+        return self.min_speed * _KMH_TO_MS
+
+    @property
+    def max_speed_ms(self) -> float:
+        return self.max_speed * _KMH_TO_MS
+
+    @property
+    def sustained_turn_rate_rads(self) -> float:
+        return math.radians(self.sustained_turn_rate)
+
+    @property
+    def evasive_turn_rate_rads(self) -> float:
+        return math.radians(self.evasive_turn_rate)
+
+
+@dataclass
+class DetailedSpec:
+    """
+    SECTION 2 — detailed / internal specs.
+
+    These are harder to source publicly, so every field carries a sensible
+    default (representative tactical-grade values). This section is closest to
+    what the INS needs: it describes the inertial measurement unit's error
+    behaviour, plus the navigation update rates.
+
+    Units are kept human-readable (datasheet style) and converted to SI inside
+    `create_ins()`:
+        accel bias / noise / walk : m/s^2  (and m/s^2/sqrt(s) for walk)
+        gyro bias                 : deg/hr
+        gyro noise                : deg/s
+        gyro bias walk            : deg/min/sqrt(s)
+        update rates              : Hz
+        mass                      : kg
+        fuel capacity             : kg
+        fuel burn rate            : kg/s (at cruise)
+    """
+    mass_kg: float = 1300.0
+    imu_grade: str = "tactical"
+
+    # Propulsion / endurance (used to model fuel-limited range)
+    fuel_capacity_kg: float = 450.0
+    fuel_burn_rate_kgps: float = 0.12
+
+    # IMU error model (1-sigma magnitudes / spectral densities)
+    accel_bias_sigma: float = 0.02            # m/s^2   (~2 mg turn-on bias)
+    gyro_bias_sigma_dph: float = 5.0          # deg/hr  (turn-on bias)
+    accel_noise_std: float = 0.05             # m/s^2   (white noise)
+    gyro_noise_std_dps: float = 0.1           # deg/s   (white noise)
+    accel_bias_walk_std: float = 1e-3         # m/s^2/sqrt(s) (in-run instability)
+    gyro_bias_walk_std_dpm: float = 0.01      # deg/min/sqrt(s)
+
+    # Navigation update rates
+    ins_update_rate_hz: float = 500.0
+    gps_update_rate_hz: float = 5.0
+    tercom_update_rate_hz: float = 1.0
+
 
 @dataclass
 class MissileProfile:
     """
-    Unit:
-        speed: m/s
-        distance: m
-        altitude: m (AGL)
-        acceleration: m/s^2
-        time: second
-        angle: radian
-        turn rate: radian/second
-        mass: kg
+    Full missile profile = SECTION 1 (basic) + SECTION 2 (detailed).
+
+    The user only has to provide `basic`. `detailed` defaults to representative
+    tactical-grade values and is mainly consumed by the INS.
     """
-    cruise_speed: float
-    min_speed: float
-    max_speed: float
-    max_acceleration: float
-    min_altitude: float
-    max_altitude: float
-    max_g_force: float
+    name: str
+    basic: BasicSpec
+    detailed: DetailedSpec = field(default_factory=DetailedSpec)
 
-    # missile have two maneuver types:
-    # sustained: log-g sustainable maneuver
-    sustained_turn_rate: float
-    sustained_g_force: float
-
-    # evasive jink (high-g evasion)
-    evasive_turn_rate: float
-
-    def calculate_turning_radius(self, speed: float, turn_rate: float) -> float:
+    # ------------------------------------------------------------------
+    # Construction from / to plain dicts (config_store / JSON bridge)
+    # ------------------------------------------------------------------
+    @classmethod
+    def from_config(cls, config: dict) -> "MissileProfile":
         """
-        Convert turn rate to turning radius. By formula: r = velocity / turn rate
+        Build a profile from a stored configuration dict.
+
+        Accepts the two-section layout ({"basic": {...}, "detailed": {...}}).
+        The detailed section is optional — missing keys fall back to defaults.
+        """
+        basic = BasicSpec(**config["basic"])
+        detailed_data = config.get("detailed") or {}
+        detailed = DetailedSpec(**detailed_data)
+        return cls(name=config["name"], basic=basic, detailed=detailed)
+
+    def to_config(self) -> dict:
+        """Serialize back to a nested dict suitable for JSON storage."""
+        return {
+            "name": self.name,
+            "basic": asdict(self.basic),
+            "detailed": asdict(self.detailed),
+        }
+
+    # ------------------------------------------------------------------
+    # INS factory — this is where SECTION 2 meets the navigation stack
+    # ------------------------------------------------------------------
+    def create_ins(
+        self,
+        init_pos: np.ndarray | list[float],
+        init_vel: np.ndarray | list[float],
+        init_att: np.ndarray | list[float] | None = None,
+        rng: np.random.Generator | None = None,
+    ) -> INS:
+        """
+        Build an INS configured from this profile's detailed IMU specs.
+
+        Turn-on biases are sampled once from the 1-sigma magnitudes, so each
+        constructed unit drifts differently (like INS.tactical_grade).
 
         Args:
-            - speed: current speed m/s
-            - turn_rate: current turn rate
+            init_pos: initial [lat, lon, alt]
+            init_vel: initial [vx east, vy north, vz up] in m/s
+            init_att: initial [roll, pitch, yaw] in radians
+            rng: optional Generator for reproducible error sampling
+        """
+        rng = rng if rng is not None else np.random.default_rng()
+        d = self.detailed
+
+        accel_bias = rng.normal(0.0, d.accel_bias_sigma, size=3)
+        gyro_bias = rng.normal(0.0, math.radians(d.gyro_bias_sigma_dph) / 3600.0, size=3)
+
+        return INS(
+            init_pos,
+            init_vel,
+            init_att,
+            accel_bias=accel_bias,
+            gyro_bias=gyro_bias,
+            accel_noise_std=d.accel_noise_std,
+            gyro_noise_std=math.radians(d.gyro_noise_std_dps),
+            accel_bias_walk_std=d.accel_bias_walk_std,
+            gyro_bias_walk_std=math.radians(d.gyro_bias_walk_std_dpm) / 60.0,
+            rng=rng,
+        )
+
+    # ------------------------------------------------------------------
+    # Maneuver / performance helpers (operate in SI internally)
+    # ------------------------------------------------------------------
+    def calculate_turning_radius(self, speed_ms: float, turn_rate_rads: float) -> float:
+        """
+        Convert turn rate to turning radius: r = v / omega.
+
+        Args:
+            speed_ms: current speed in m/s
+            turn_rate_rads: current turn rate in rad/s
 
         Return:
-            - turning radius (m): prevent km / m unit confusion
+            turning radius in meters (inf if turn rate ~ 0)
         """
-        if abs(turn_rate) < 1e-6: # prevent divide by 0 error, take into consideration of float point error
+        if abs(turn_rate_rads) < 1e-6:
             return float("inf")
-        
-        return speed / turn_rate
+        return speed_ms / turn_rate_rads
+
+    def min_turn_radius(self) -> float:
+        """Tightest sustained turn radius at cruise speed, in meters."""
+        return self.calculate_turning_radius(
+            self.basic.cruise_speed_ms, self.basic.sustained_turn_rate_rads
+        )
 
     def get_max_lateral_acceleration(self) -> float:
+        """Max lateral acceleration from max g-force, in m/s^2."""
+        return _G * self.basic.max_g_force
+
+    # ------------------------------------------------------------------
+    # Terrain-following helpers (operate on height ABOVE GROUND)
+    # ------------------------------------------------------------------
+    def preferred_agl(self) -> float:
+        """Midpoint of the preferred terrain-following band, in m AGL."""
+        return 0.5 * (self.basic.cruise_agl_min + self.basic.cruise_agl_max)
+
+    def is_within_cruise_band(self, agl_m: float) -> bool:
+        """True if a height-above-ground (m) is inside the preferred band."""
+        return self.basic.cruise_agl_min <= agl_m <= self.basic.cruise_agl_max
+
+    def clamp_to_cruise_band(self, agl_m: float) -> float:
+        """Clamp a desired height-above-ground (m) into the preferred band."""
+        return max(self.basic.cruise_agl_min, min(agl_m, self.basic.cruise_agl_max))
+
+    def target_msl_altitude(self, ground_elevation_m: float) -> float:
         """
-        Get max lateral acceleration based on max g-force
+        Convert the preferred AGL band to an absolute (MSL) altitude target for
+        the given ground elevation, then clamp to the absolute envelope.
 
-        Return:
-            - lateral acceleration (m/s^2)
+        Args:
+            ground_elevation_m: terrain height (MSL) directly below the missile
         """
-        g = 9.80665
-        return g * self.max_g_force
+        target = ground_elevation_m + self.preferred_agl()
+        return max(self.basic.min_altitude, min(target, self.basic.max_altitude))
 
-    def validate_maneuver (self, current_speed: float, desired_speed: float, turn_rate: float) -> bool:
-        # Check speed limits
-        if not (self.min_speed <= current_speed <= self.max_speed):
+    def estimate_endurance_s(self) -> float:
+        """Estimated powered flight time at cruise burn, in seconds."""
+        if self.detailed.fuel_burn_rate_kgps <= 0:
+            return float("inf")
+        return self.detailed.fuel_capacity_kg / self.detailed.fuel_burn_rate_kgps
+
+    def estimate_fuel_range_km(self) -> float:
+        """
+        Fuel-limited range estimate at cruise speed, in km.
+
+        This is the range implied by Section 2 (fuel) and may differ from the
+        publicly stated `basic.max_range`; the smaller of the two is the real
+        constraint in a mission.
+        """
+        return self.basic.cruise_speed * (self.estimate_endurance_s() / 3600.0)
+
+    def validate_maneuver(
+        self, current_speed_ms: float, desired_speed_ms: float, turn_rate_rads: float
+    ) -> bool:
+        """Check a requested maneuver against the basic performance envelope (SI inputs)."""
+        b = self.basic
+
+        if not (b.min_speed_ms <= current_speed_ms <= b.max_speed_ms):
             return False
 
-        # Check turn rates
-        max_allowed_turn_rate = max(self.sustained_turn_rate, self.sustained_g_force)
-        if turn_rate > max_allowed_turn_rate:
+        if turn_rate_rads > b.evasive_turn_rate_rads:
             return False
 
-        # Check and compute acceleration for speed change
-        acceleration_required = abs(desired_speed - current_speed)
-        if acceleration_required > self.max_acceleration:
+        acceleration_required = abs(desired_speed_ms - current_speed_ms)
+        if acceleration_required > b.max_acceleration:
             return False
 
-        # Check if turn rate is greater than evasive turn rate
-        if turn_rate > self.evasive_turn_rate:
-            return False
-
-        # Compute lateral acceleration
-        lateral_acceleration = desired_speed * turn_rate
-
-        max_lateral_acceleration = self.get_max_lateral_acceleration()
-
-        if lateral_acceleration > max_lateral_acceleration:
+        lateral_acceleration = desired_speed_ms * turn_rate_rads
+        if lateral_acceleration > self.get_max_lateral_acceleration():
             return False
 
         return True
 
-
     def get_turn_rate_for_maneuver(self, maneuver_type: str) -> float:
-        if maneuver_type.lower() == "manual":
-            return self.sustained_turn_rate
-        elif maneuver_type.lower() == "evasive":
-            return self.evasive_turn_rate
+        """Return the turn rate (rad/s) for a named maneuver type."""
+        kind = maneuver_type.lower()
+        if kind == "manual":
+            return self.basic.sustained_turn_rate_rads
+        elif kind == "evasive":
+            return self.basic.evasive_turn_rate_rads
         else:
             raise ValueError("Unknown maneuver type")
-    
-
-
-
-
-
-
