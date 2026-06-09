@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from .profile import MissileProfile
+from missile.profile import MissileProfile
 from enum import Enum, auto
 import math
 import numpy as np
@@ -17,6 +17,11 @@ class FlightStage(Enum):
 
 @dataclass
 class MissileState:
+    # true positions (used for some simulation as we lack of real device)
+    tx: float
+    ty: float
+    tz: float
+
     # positional fields
     x: float
     y: float

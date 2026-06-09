@@ -1,5 +1,4 @@
 import numpy as np
-import rasterio
 from ..terrain.dem_loader import DEMLoader
 from itertools import groupby
 from scipy.interpolate import splprep, splev

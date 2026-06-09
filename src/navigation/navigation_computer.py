@@ -81,7 +81,7 @@ class NavigationComputer:
 
             if now >= self.next_gps and self.gps.detect_jammed() is False:
                 est_pos, _ = self.KF.get_state()
-                mea = self.
+                mea = self.gps.get_gps_location()
                 self.next_gps += self.gps_period
 
             if now >= self.next_tercom:
