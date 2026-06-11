@@ -54,7 +54,7 @@ class CoordinateSystem:
         # Longitude scale shrinks toward the poles; evaluate at the midpoint
         # latitude of the segment so south/north offsets scale correctly.
         ref_lat = self.origin_lat + 0.5 * delta_lat
-        east_m = delta_lon * _meter_per_deg_lon_at(ref_lat)
+        east_m = delta_lon * meter_per_deg_lon_at(ref_lat)
 
         return east_m, north_m
 
@@ -63,7 +63,7 @@ class CoordinateSystem:
         lat = self.origin_lat + north_m / self.meter_per_deg_lat
 
         ref_lat = 0.5 * (self.origin_lat + lat)
-        lon = self.origin_lon + east_m / _meter_per_deg_lon_at(ref_lat)
+        lon = self.origin_lon + east_m / meter_per_deg_lon_at(ref_lat)
 
         return lat, lon
 
@@ -132,7 +132,7 @@ def meter_per_deg_lat(lat: float) -> float:
             https://www.vcalc.com/wiki/vCalc/WGS-84-Earth-polar-radius
     """
     
-    # equatorial radius in meters source
+    # equatorial radius in meters
     a = 6378137.0
     # polar radius in meters
     b = 6356752.31424518
