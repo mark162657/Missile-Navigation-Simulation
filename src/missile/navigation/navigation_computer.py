@@ -87,7 +87,6 @@ class NavigationComputer:
             ins_calibrated=True
         )
         
-
     def run_navigation_loop(
         self, 
         acceleration: np.ndarray | list[float], 
@@ -107,28 +106,32 @@ class NavigationComputer:
             mission_terminated: If True, the navigation loop will terminate
         """
 
-        # START THE TIMER at this point. Based on when Navigation Computer started while launched.
-        self.timer.start()
+        acceleration = np.asarray(acceleration, dtype=float)
 
-        while not mission_terminated:
-            now = self.timer.get_time_elapsed()
-            if now >= run_seconds:
-                break
+        # Reset schedule checkpoints to t = 0
+        self.next_ins = 0.0
+        self.next_gps = self.gps_period # first gps fix one period in
+        self.next_gps = self.tercom_period # first TERCOM fix one period in
+        
+        # Use our own sim_time instead of InternalTimer for accuracy
+        sim_time = 0.0
 
-            if now >= self.next_ins:
-                dt = self.ins_period # = 1.0 / 500 = 0.002s
-                pos, vel, att = self.ins.predict(acceleration, dt)
-
+        while not mission_terminated and sim_time < run_seconds:
+            
+            # -- INS update: predict (every tick) --
+            if sim_time >= self.next_ins:
+                self.ins.predict(acceleration, self.ins_period, angular_velocity)
                 self.KF.predict(acceleration)
+                self.state.apply_ins_estimate(self.ins)
                 self.next_ins += self.ins_period
 
-            if now >= self.next_gps and self.gps.detect_jammed() is False:
+            if sim_time >= self.next_gps and self.gps.detect_jammed() is False:
                 true_lat, true_lon, _ = self.state.true_position()
                 mea = self.gps.get_gps_location(true_lat, true_lon)
                 
                 self.next_gps += self.gps_period
 
-            if now >= self.next_tercom:
+            if sim_time >= self.next_tercom:
                 # TODO: basic TERCOM and kf check and update
                 self.next_tercom += self.tercom_period
 
