@@ -5,6 +5,7 @@ import math
 import numpy as np
 
 from missile.navigation.ins import INS
+from terrain import coordinates
 
 
 class FlightStage(Enum):
@@ -14,15 +15,6 @@ class FlightStage(Enum):
     CRUISE = auto()
     TERMINAL = auto()
     IMPACT = auto()
-
-
-# WGS84-ish local scale factors (meters per degree).
-_METER_PER_DEG_LAT = 111_320.0
-
-
-def _meter_per_deg_lon(lat_deg: float) -> float:
-    return _METER_PER_DEG_LAT * math.cos(math.radians(lat_deg))
-
 
 @dataclass
 class MissileState:
@@ -139,6 +131,7 @@ class MissileState:
             yaw_rate: yaw rate in rad/s
             reference_lat: latitude for lon scaling; defaults to current true_lat
         """
+        _meter_per_deg_lat = self.coordinates.CoordinateSystem
         acc = np.asarray(acceleration, dtype=float)
         lat_ref = float(self.true_lat if reference_lat is None else reference_lat)
         m_lon = _meter_per_deg_lon(lat_ref)

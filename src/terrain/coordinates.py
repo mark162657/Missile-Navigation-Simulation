@@ -26,8 +26,8 @@ class CoordinateSystem:
         self.origin_lon = origin_lon
 
         # Scale at the origin (used when no target latitude is available).
-        self.meter_per_deg_lat = _meter_per_deg_lat(origin_lat)
-        self.meter_per_deg_lon = _meter_per_deg_lon_at(origin_lat)
+        self.meter_per_deg_lat = meter_per_deg_lat(origin_lat)
+        self.meter_per_deg_lon = meter_per_deg_lon_at(origin_lat)
 
     @staticmethod
     def _delta_lon_deg(lon: float, origin_lon: float) -> float:
@@ -116,7 +116,7 @@ class CoordinateSystem:
         
         return (math.degrees(theta) + 360) % 360
 
-def _meter_per_deg_lat(lat: float) -> float:
+def meter_per_deg_lat(lat: float) -> float:
     """
     Meter per latitude degree is similar, but not constant. To prevent any error, we will calculate meter_per_deg_lat manually using WGS-84 ellipsoid constants and further calculations.
     
@@ -150,7 +150,7 @@ def _meter_per_deg_lat(lat: float) -> float:
     # final meter_per_degree
     return m_rho * (math.pi / 180)
 
-def _meter_per_deg_lon_at(lat_deg: float) -> float:
+def meter_per_deg_lon_at(lat_deg: float) -> float:
     """
     Meters per degree of longitude at a given latitude. Calculated using the WGS-84 Prime vertical radius of curvature
     
@@ -187,8 +187,8 @@ if __name__ == "__main__":
     
     for case in test_cases:
         # Call the standalone functions directly with just the latitude argument
-        lat_res = _meter_per_deg_lat(case["lat"])
-        lon_res = _meter_per_deg_lon_at(case["lat"])
+        lat_res = meter_per_deg_lat(case["lat"])
+        lon_res = meter_per_deg_lon_at(case["lat"])
         
         # Formatting to 2 decimal places matching real-world benchmarks
         print(f"{case['name']:<12} | {lat_res:<18,.2f} | {abs(lon_res):<18,.2f}")

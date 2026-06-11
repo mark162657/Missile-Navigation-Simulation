@@ -10,7 +10,15 @@ from missile.state import MissileState
 from terrain.dem_loader import DEMLoader
 
 class NavigationComputer:
-    def __init__(self, start_gps: tuple[float, float, float],  dem_name: str, gps_freq_hz: int=5, ins_freq_hz: int=500, tercom_freq_hz: int=1):
+    def __init__(
+        self,
+        start_gps: tuple[float, float, float],
+        dem_name: str,
+        gps_freq_hz: int = 5,
+        ins_freq_hz: int = 500,
+        tercom_freq_hz: int = 1,
+        process_noise_std: float = 0.05,
+    ):
         """
         Args:
             start_gps: Starting position (lat, lon, alt) — maps to state est_lat, est_lon, est_alt
@@ -22,38 +30,63 @@ class NavigationComputer:
 
         self.start_gps = start_gps
 
-        tif_path = PROJECT_ROOT / 'data' / 'dem' / f'{dem_name}'
-        dem = DEMLoader(tif_path)
-        self.dem_loader = dem
+        # Setup proper project root of DEM
+        self.dem_name = dem_name
+        tif_path = PROJECT_ROOT / "data" / "dem" / dem_name
+        self.dem_loader = DEMLoader(tif_path)
 
         # Initialise basic missile systems
         self.timer = InternalTimer()
-        self.state = MissileState()
+
+        # Initialise State through _build_initial_state method
+        self.state = self._build_initial_state(start_gps)
 
         # Set the update freq
         self.gps_period = 1.0 / gps_freq_hz
         self.ins_period = 1.0 / ins_freq_hz
         self.tercom_period = 1.0 / tercom_freq_hz
 
-        # Initialise each navigation system
+        # Initialise each navigation system and Kalman Filter
         self.gps = GPS()
         self.ins = INS(
             init_pos=[start_gps[0], start_gps[1], start_gps[2]],
             init_vel=[0.0, 0.0, 0.0]
         )
-
         self.tercom = TERCOM(self.state.est_lat, self.state.est_lon)
-        self.KF = KalmanFilter()
 
-
-        # Initialise timing checkpoints
-        self.next_ins = 0.0
-        self.next_gps = 0.0
-        self.next_tercom = 0.0
+        self.KF = KalmanFilter(
+            dt = self.ins_period,
+            init_position = list(start_gps),
+            init_velocity = [0.0, 0.0, 0.0],
+            process_noise_std = process_noise_std
+        )
 
         # Setting threshold for stdev of patch height to determine if terrain is rough enough for TERCOM
-        self.tercom_roughness_threshold_m = 5
+        self.tercom_roughness_threshold_m = 5.0
 
+    def _build_initial_state(start_gps: tuple[float, float, float]) -> MissileState:
+        lat, lon, alt = start_gps
+        return MissileState(
+            true_lat=lat,
+            true_lon=lon,
+            true_alt=alt,
+            est_lat=lat,
+            est_lon=lon,
+            est_alt=alt,
+            vel_east=0.0,
+            vel_north=0.0,
+            vel_up=0.0,
+            roll=0.0,
+            pitch=0.0,
+            yaw=0.0,
+            time=0.0,
+            distance_traveled=0.0,
+            distance_to_target=0.0,
+            gps_valud=True,
+            tercom_active=False,
+            ins_calibrated=True
+        )
+        
 
     def run_navigation_loop(
         self, 
