@@ -1,8 +1,14 @@
-import numpy as np
-
+import sys
 from pathlib import Path
-from terrain.dem_loader import DEMLoader
+
+# parents[2] -> src/  (allows: python src/missile/navigation/tercom.py)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
+
+from paths import PROJECT_ROOT
+from terrain.dem_loader import DEMLoader
 
 class TERCOM:
     """
@@ -22,7 +28,7 @@ class TERCOM:
         """
         self.location = location
 
-        tif_path = Path(__file__).resolve().parents[3] / 'data' / 'dem' / f'{dem_name}'
+        tif_path = PROJECT_ROOT / 'data' / 'dem' / f'{dem_name}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 
@@ -40,7 +46,7 @@ class TERCOM:
         Accepts all windows at once.
         Args:
             a_windows: all the patches segmented by np.sliding_window_view, shape (119, 119, 7, 7)
-            b_sensed_patch: TODO
+            b_sensed_patch: 
         Return:
             ncc_map: shape (119, 119)
 
@@ -70,7 +76,7 @@ class TERCOM:
         We already obtained the normalized sensed patch 7 * 7 grid underneath our missile, now we will
         search for the certain grid size from our tif for pattern and determine where we might have been.
 
-        TODO
+        
         Args:
             sensed_patch: the smaller patched sensed; default: 7 * 7
             est_lat:
@@ -126,47 +132,14 @@ class TERCOM:
             self.vertical_accuracy ** 2
         ])
 
-# if __name__ == "__main__":
-#     import time
-#     from pathlib import Path
-#     from terrain.dem_loader import DEMLoader
-#
-#     dem_path = Path(__file__).resolve().parents[3] / "data" / "dem" / "merged_dem_sib_N54_N59_E090_E100.tif"
-#     dem = DEMLoader(dem_path)
-#     tercom = TERCOM(location=(54.9, 98.7), dem_name="merged_dem_sib_N54_N59_E090_E100.tif")
-#     tercom.dem_loader = dem
-#
-#
-#     # true_loc = (54.7, 98.6)
-#     # ins_guess = (54.7005, 98.6007)
-#     true_loc = (57.850, 95.120)
-#     ins_guess = (57.854, 95.116)
-#
-#     sensed_patch = dem.get_elevation_patch(true_loc[0], true_loc[1], 7, True)
-#
-#     start_bench = time.perf_counter()
-#
-#     result = tercom.process_update(sensed_patch, ins_guess[0], ins_guess[1], 125)
-#
-#     end_bench = time.perf_counter()
-#     duration = (end_bench - start_bench) * 1000  # Convert to milliseconds
-#
-#     if result and result[0]:
-#         print(f"Match Found: {result[0]}, {result[1]}")
-#         print(f"TERCOM Execution Time: {duration:.2f} ms")
-#     else:
-#         print("Match Failed!")
 
 if __name__ == "__main__":
     """
     Test code by Claude to simply conduct mass test for verifying compile time.
     """
     import time
-    import numpy as np
-    from pathlib import Path
-    from terrain.dem_loader import DEMLoader
 
-    dem_path = Path(__file__).resolve().parents[3] / "data" / "dem" / "merged_dem_sib_N54_N59_E090_E100.tif"
+    dem_path = PROJECT_ROOT / "data" / "dem" / "merged_dem_sib_N54_N59_E090_E100.tif"
     dem = DEMLoader(dem_path)
     tercom = TERCOM(location=(54.9, 98.7), dem_name="merged_dem_sib_N54_N59_E090_E100.tif")
     tercom.dem_loader = dem

@@ -11,8 +11,7 @@ from pathlib import Path
 import fastplotlib as fpl
 
 # Add src package root to path
-SRC_ROOT = str(Path(__file__).resolve().parent.parent / "src")
-sys.path.insert(0, SRC_ROOT)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from missile.planning.pathfinding_backend import Pathfinding
 from missile.planning.trajectory import TrajectoryGenerator

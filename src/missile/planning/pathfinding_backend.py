@@ -1,6 +1,7 @@
 import numpy as np
 import time
-from pathlib import Path
+
+from paths import PROJECT_ROOT
 from terrain.dem_loader import DEMLoader
 
 # --- Import C++ Backend ---
@@ -26,7 +27,7 @@ class Pathfinding:
         """
         
         # Load dem, requesting dem file name:
-        tif_path = Path(__file__).resolve().parents[3] / 'data' / 'dem' / f'{DEM_NAME}'
+        tif_path = PROJECT_ROOT / 'data' / 'dem' / f'{DEM_NAME}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 

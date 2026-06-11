@@ -4,9 +4,8 @@ from dataclasses import asdict
 from pathlib import Path
 
 from missile.profile import DetailedSpec, MissileProfile
+from paths import PROJECT_ROOT
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = PROJECT_ROOT / "data" / "missiles"
 
 # Legacy single-file store (an array of configs). Migrated on first access to

@@ -125,12 +125,11 @@ class DEMLoader:
         return lat, lon
 
 
-# Quick test — unchanged
 if __name__ == "__main__":
-    script_dir   = Path(__file__).resolve().parent
-    project_root = script_dir.parents[1]
-    siberia_dem  = "merged_dem_sib_N54_N59_E090_E100.tif"
-    dem_path     = project_root / "data" / "dem" / siberia_dem
+    # parents[2] -> project root
+    project_root = Path(__file__).resolve().parents[2]
+    siberia_dem = "merged_dem_sib_N54_N59_E090_E100.tif"
+    dem_path = project_root / "data" / "dem" / siberia_dem
 
     dem = DEMLoader(dem_path)
     print(f"\n  DEM loaded: {dem.path.name}")

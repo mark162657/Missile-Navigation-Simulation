@@ -1,6 +1,6 @@
 import numpy as np
 
-from pathlib import Path
+from paths import PROJECT_ROOT
 from missile.navigation.kalman_filter import KalmanFilter
 from missile.navigation.tercom import TERCOM
 from missile.navigation.gps import GPS
@@ -22,7 +22,7 @@ class NavigationComputer:
 
         self.start_gps = start_gps
 
-        tif_path = Path(__file__).resolve().parents[3] / 'data' / 'dem' / f'{dem_name}'
+        tif_path = PROJECT_ROOT / 'data' / 'dem' / f'{dem_name}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 

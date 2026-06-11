@@ -1,11 +1,15 @@
-import rasterio
-from rasterio.merge import merge
+import sys
 from pathlib import Path
 
-# directory where dem files are stored
-script_dir = Path(__file__).resolve().parent
-project_root = script_dir.parents[1]
-data_dir = project_root / "data" / "dem" / "siberia_unmerged"
+# parents[1] -> src/  (allows: python src/terrain/merge_tiles.py)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import rasterio
+from rasterio.merge import merge
+
+from paths import PROJECT_ROOT
+
+data_dir = PROJECT_ROOT / "data" / "dem" / "siberia_unmerged"
 # list of tif files to merge {place your tif files in dem folder, and add their filename in tif_files list}
 tif_files = [
   # N59 Row
