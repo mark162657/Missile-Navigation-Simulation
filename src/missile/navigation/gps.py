@@ -1,7 +1,6 @@
 import numpy as np
 import math
 
-from terrain.dem_loader import DEMLoader
 from simulation.sensors.gps_receiver import GPSReceiver
 
 class GPS:
@@ -13,9 +12,6 @@ class GPS:
             - ignore signal processing layer, solved triangulation and output Cartesian coordinates (x, y, z) directly
         """
 
-        dem = DEMLoader()
-        self.dem_loader = dem
-
         # Check if GPS is active and jammed or not
         self.has_signal = True
         self.is_jammed = False
@@ -23,18 +19,15 @@ class GPS:
         # GPS receiver
         self.receiver = GPSReceiver()
 
-    def get_gps_location(self, location: list[float, float]) -> list[float, float]:
-        if not self.is_ready():
-            return None, None
+    def get_gps_location(self, true_location: list[float, float, float]) -> list[float, float, float]:
 
         # Pull measurement data from GPS receiver
-        raw_measurement = self.receiver.get_raw_measurement(location)
+        raw_measurement = self.receiver.get_raw_measurement(true_location)
 
         if self.detect_jammed(raw_measurement):
             self.is_jammed = True
-            return None
+            return None, None, None
 
-        self.last_update_time = self.timer.get_time_elapsed()
         return raw_measurement
 
     def detect_jammed(self, measurement: np.ndarray) -> bool:

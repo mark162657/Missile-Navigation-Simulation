@@ -125,9 +125,8 @@ class NavigationComputer:
                 self.state.apply_ins_estimate(self.ins)
                 self.next_ins += self.ins_period
 
-            if sim_time >= self.next_gps and self.gps.detect_jammed() is False:
-                true_lat, true_lon, _ = self.state.true_position()
-                mea = self.gps.get_gps_location(true_lat, true_lon)
+            if sim_time >= self.next_gps and not self.gps.is_jammed:
+                mea = self.gps.get_gps_location(self.state.true_position())
                 
                 self.next_gps += self.gps_period
 
@@ -161,9 +160,6 @@ class NavigationComputer:
         return float(np.std(values)) >= self.tercom_roughness_threshold_m
 
 
-
-    def _run_kf(self):
-        pass
 
 
 

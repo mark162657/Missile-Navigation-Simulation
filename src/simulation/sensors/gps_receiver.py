@@ -34,10 +34,9 @@ class GPSReceiver():
 
         # Obtain latitude and longitude from pixel, and altitude from lon, lat using get_elevation
         true_lat, true_lon, true_alt = self.state.true_position()
-        alt = self.dem_loader.get_elevation(lat, lon)
 
         # Wrap true position into a matrix
-        true_pos = np.array([lat, lon, alt]) # x, y, z if in pixel
+        true_pos = np.array([true_lat, true_lon, true_alt]) # x, y, z if in pixel
 
         # Define normalized random noise
         noise = np.array([
