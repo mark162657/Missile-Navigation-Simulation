@@ -34,7 +34,7 @@ class GPSReceiver():
 
 
         # Wrap true position into a matrix
-        true_pos = np.array([true_lat, true_lon, true_alt]) # x, y, z if in pixel
+        true_pos = np.array(true_location) # x, y, z if in pixel
 
         # Define normalized random noise
         noise = np.array([
