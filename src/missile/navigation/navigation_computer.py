@@ -125,25 +125,49 @@ class NavigationComputer:
             
             # -- INS update: predict (every tick) --
             if sim_time >= self.next_ins:
+                # turn m/s into lat/lon/alt change
+                self.state.update_physics(
+                    self.ins_period,
+                    acceleration,
+                    yaw_rate
+                )
+
                 self.ins.predict(acceleration, self.ins_period, angular_velocity)
                 self.KF.predict(acceleration)
                 self.state.apply_ins_estimate(self.ins)
+
                 self.next_ins += self.ins_period
 
             if sim_time >= self.next_gps and not self.gps.is_jammed:
                 mea = self.gps.get_gps_location(self.state.true_position())
 
                 if mea is not None:
-                    self._apply_horizontal_fix(mea, sensor_type="GPS")
-
+                    self._apply_gps_fix(mea)
+                    self.state.gps_valid = True
+                else:
+                    self.state.gps_valid = False
+            
                 self.next_gps += self.gps_period
 
             if sim_time >= self.next_tercom:
-                # TODO: basic TERCOM and kf check and update
+                self._tercom_update()
                 self.next_tercom += self.tercom_period
 
+    def _sync_kf_to_ins_and_state(self) -> None:
+        """Push the processed KF state into INS, then mirror it into MissileState"""
+        est_pos, est_vel = self.KF.get_state()
+        self.ins.correct_state(est_pos, est_vel)
+        self.state.apply_ins_estimate(self.ins)
+        
+    def _apply_gps_fix(self, measurement) -> None:
+        """Fuse a 3D GPS fix [lat, lon, alt], then sync INS and shared state"""
+        mea = np.asarray(measurement, dtype=float)
+        self.KF.update(mea.tolist(), sensor_type="GPS")
+        self._sync_kf_to_ins_and_state()
 
-    
+    def _apply_tercom_fix(self, lat: float, lon: float) -> None:
+        pass
+
     def _is_terrain_suitable(self,
         terrain_patch: np.ndarray,
         lat: float,

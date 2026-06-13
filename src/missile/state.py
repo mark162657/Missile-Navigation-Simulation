@@ -39,7 +39,7 @@ class MissileState:
     Pixel (row, col) and ENU meter offsets (east_m, north_m) are not stored
     here — use DEMLoader and CoordinateSystem at conversion boundaries.
     """
-
+    
     # Simulation ground truth (lat, lon, alt MSL)
     true_lat: float
     true_lon: float
@@ -133,7 +133,6 @@ class MissileState:
             reference_lat: latitude for lon scaling; defaults to current true_lat
         """
         # We use m/s to get meters moved, then using meter_per_deg_lat/lon_at to get lat/lon change in degrees.
-
         acc = np.asarray(acceleration, dtype=float)
         lat_ref = float(self.true_lat if reference_lat is None else reference_lat)
         m_lon = coordinates.meter_per_deg_lon_at(lat_ref)
