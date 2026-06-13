@@ -111,7 +111,7 @@ class NavigationComputer:
         # Reset schedule checkpoints to t = 0
         self.next_ins = 0.0
         self.next_gps = self.gps_period # first gps fix one period in
-        self.next_gps = self.tercom_period # first TERCOM fix one period in
+        self.next_tercom = self.tercom_period # first TERCOM fix one period in
         
         # Use our own sim_time instead of InternalTimer for accuracy
         sim_time = 0.0
