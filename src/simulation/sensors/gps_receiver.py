@@ -19,7 +19,7 @@ class GPSReceiver():
         self.v_std = vertical_accuracy
 
 
-    def get_raw_measurement(self) -> np.ndarray:
+    def get_raw_measurement(self, true_location: list[float, float, float]) -> np.ndarray:
         """
         We will receive absolute location in GPS form from main simulation loop, it keep track of our TRUE location
         (as it is only a simulation, it has no REAL GPS SENSOR, noway it will know where it is by itself).
@@ -32,8 +32,6 @@ class GPSReceiver():
             - numpy array with matrix of true location applied with normalized random noise matrix
         """
 
-        # Obtain latitude and longitude from pixel, and altitude from lon, lat using get_elevation
-        true_lat, true_lon, true_alt = self.state.true_position()
 
         # Wrap true position into a matrix
         true_pos = np.array([true_lat, true_lon, true_alt]) # x, y, z if in pixel

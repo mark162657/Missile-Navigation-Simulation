@@ -108,6 +108,11 @@ class NavigationComputer:
 
         acceleration = np.asarray(acceleration, dtype=float)
 
+        if angular_velocity is None:
+            yaw_rate = 0.0
+        else:
+            yaw_rate = float(angular_velocity[2])
+
         # Reset schedule checkpoints to t = 0
         self.next_ins = 0.0
         self.next_gps = self.gps_period # first gps fix one period in
@@ -127,13 +132,18 @@ class NavigationComputer:
 
             if sim_time >= self.next_gps and not self.gps.is_jammed:
                 mea = self.gps.get_gps_location(self.state.true_position())
-                
+
+                if mea is not None:
+                    self._apply_horizontal_fix(mea, sensor_type="GPS")
+
                 self.next_gps += self.gps_period
 
             if sim_time >= self.next_tercom:
                 # TODO: basic TERCOM and kf check and update
                 self.next_tercom += self.tercom_period
 
+
+    
     def _is_terrain_suitable(self,
         terrain_patch: np.ndarray,
         lat: float,

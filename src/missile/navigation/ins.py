@@ -1,6 +1,7 @@
 import math
 import numpy as np
 
+from terrain import coordinates
 
 class INS:
     """
@@ -168,8 +169,8 @@ class INS:
 
         # Strapdown integration in geographic frame (constant-acceleration over dt).
         previous_velocity = self.vel.copy()
-        m_lat = 111_320.0
-        m_lon = 111_320.0 * math.cos(math.radians(self.pos[0]))
+        m_lat = coordinates.meter_per_deg_lat(self.pos[0])
+        m_lon = coordinates.meter_per_deg_lon_at(self.pos[0])
 
         self.pos[0] += (previous_velocity[1] * dt + 0.5 * acc[1] * dt ** 2) / m_lat
         self.pos[1] += (previous_velocity[0] * dt + 0.5 * acc[0] * dt ** 2) / m_lon

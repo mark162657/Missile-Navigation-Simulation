@@ -5,8 +5,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
-from numpy.lib.stride_tricks import sliding_window_view
 
+from numpy.lib.stride_tricks import sliding_window_view
 from paths import PROJECT_ROOT
 from terrain.dem_loader import DEMLoader
 
