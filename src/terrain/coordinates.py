@@ -1,7 +1,6 @@
 import math
 from typing import Tuple
 
-
 class CoordinateSystem:
     """
     Local tangent-plane ENU offsets from a fixed geographic origin.
