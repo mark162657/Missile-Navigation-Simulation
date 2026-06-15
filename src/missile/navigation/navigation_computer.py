@@ -7,6 +7,7 @@ from missile.navigation.gps import GPS
 from missile.navigation.ins import INS
 from missile.navigation.timer import InternalTimer
 from missile.state import MissileState
+from simulation.sensors.baro_altimeter import BaroAltimeter
 from terrain.dem_loader import DEMLoader
 
 class NavigationComputer:
@@ -167,7 +168,10 @@ class NavigationComputer:
         self.KF.update(mea.tolist(), sensor_type="GPS")
         self._sync_kf_to_ins_and_state()
 
-    def _read_radar_alt_msl(self) -> float
+    def _apply_tercom_fix(self, lat: float, lon: float, alt_msl: float) -> None:
+        """Fuse TERCOM's lat/lon coordinate with altitude (MSL) from BaroAltimeter. Turn 2D -> 3D (with alt)"""
+        self.KF.update([float(lat), float(lon), float(alt_msl)], sensor_type="TERCOM")
+        self._sync_kf_to_ins_and_state()
 
     def _is_terrain_suitable(self,
         terrain_patch: np.ndarray,
