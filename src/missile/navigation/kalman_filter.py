@@ -30,9 +30,9 @@ class KalmanFilter:
 
         # Observation matrix (H) - transformation matrix
         self.H = np.zeros((3, 6))
-        self.H[0, 0] = 1  # observe lat (x)
-        self.H[1, 1] = 1  # observe lon (y)
-        self.H[2, 2] = 1  # observe alt (z)
+        self.H[0, 0] = 1  # observe lat
+        self.H[1, 1] = 1  # observe lon
+        self.H[2, 2] = 1  # observe alt
 
         # Process noise covariance matrix (Q)
         # internal uncertainty: how weather / physic disturb the missile
@@ -40,12 +40,12 @@ class KalmanFilter:
 
         # Sensor noise covariance matrix (R)
         # Scenario 1: GPS (+/- 1m with WAGE enhancement, vertical is usually 1.5x worse.)
-        self.R_GPS = np.diag([1 ** 2, 1.5 ** 2, 1 ** 2])
+        self.R_GPS = np.diag([1.0 ** 2, 1.0 ** 2, 3.0 ** 2])
 
         # Scenario 2: TERCOM (12m deviation)
         # lateral Accuracy: +/- 10-15m (Grid dependent)
         # vertical Accuracy: Radar Altimeter is very precise (+/- 1m), according to the vegetation and landscape.
-        self.R_TERCOM = np.diag([13.0 ** 2, 8.0 ** 2, 5.0 ** 2])
+        self.R_TERCOM = np.diag([13.0 ** 2, 8.0 ** 2, 1.0 ** 2])
 
         # Process covariance matrix (~50m initial error)
         self.P = np.eye(6) * 100
