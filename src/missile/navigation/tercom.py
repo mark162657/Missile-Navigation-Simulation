@@ -1,3 +1,10 @@
+"""
+Statement:
+    The TERCOM implemented here is a bit different from real-life TERCOM in Tomahawk. 
+    In which Tomahawk scan a 1D sequence of altitude in its flight path.
+    Our version can be a combination of TERCOM + DSMAC, which scanned a big 2D patch instead.
+"""
+
 import sys
 from pathlib import Path
 
@@ -68,7 +75,6 @@ class TERCOM:
         denominator = np.sqrt(a_sqr_diff * b_sqr_diff + 1e-10)
 
         return numerator / denominator
-
 
     def process_update(self, sensed_patch: np.ndarray, est_lat: float, est_lon: float, search_size: int=125) \
             -> tuple[float, float, np.ndarray]:

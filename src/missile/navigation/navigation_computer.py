@@ -156,6 +156,7 @@ class NavigationComputer:
 
         sim_time += self.ins_period
 
+    # --- KF SYNC ---
     def _sync_kf_to_ins_and_state(self) -> None:
         """Push the processed KF state into INS, then mirror it into MissileState"""
         est_pos, est_vel = self.KF.get_state()
@@ -173,6 +174,15 @@ class NavigationComputer:
         self.KF.update([float(lat), float(lon), float(alt_msl)], sensor_type="TERCOM")
         self._sync_kf_to_ins_and_state()
 
+    # --- TERCOM RELATED ---
+    def _tercom_update(self) -> None:
+        """Run one TERCOM fix if terrain is suitable"""
+        est_lat, est_lon, _ = self.state.est_position()
+
+        patch = self.dem_loader.get_elevation_patch(
+            est_lat, est_lon, patch_size=25, nromalized = False,
+        )
+        
     def _is_terrain_suitable(self,
         terrain_patch: np.ndarray,
         lat: float,

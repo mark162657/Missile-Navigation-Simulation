@@ -1,6 +1,5 @@
-"""
-TODO: In Future
-"""
 class LIDAR:
-    def __init__(self, current_altitude: float) -> None:
-        pass
+
+    def __init__(self, true_location(float, float, float)) -> None:
+        true_lat, true_lon, _ = true_location
+        
