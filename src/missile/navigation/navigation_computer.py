@@ -5,7 +5,7 @@ from missile.navigation.kalman_filter import KalmanFilter
 from missile.navigation.tercom import TERCOM
 from missile.navigation.gps import GPS
 from missile.navigation.ins import INS
-from misesile.navigation.timer import InternalTimer
+from missile.navigation.timer import InternalTimer
 from missile.state import MissileState
 from simulation.sensors.baro_altimeter import BaroAltimeter
 from terrain.dem_loader import DEMLoader
@@ -38,6 +38,9 @@ class NavigationComputer:
 
         # Initialise basic missile systems
         self.timer = InternalTimer()
+        
+        # Initialise baro altimeter for msl height
+        self.baro_alt = BaroAltimeter()
 
         # Initialise State through _build_initial_state method
         self.state = self._build_initial_state(start_gps)
@@ -66,6 +69,7 @@ class NavigationComputer:
         self.tercom_roughness_threshold_m = 5.0
 
     def _build_initial_state(start_gps: tuple[float, float, float]) -> MissileState:
+        """Build and initialise initial state of missile in state.py"""
         lat, lon, alt = start_gps
         return MissileState(
             true_lat=lat,
@@ -177,11 +181,11 @@ class NavigationComputer:
     # --- TERCOM RELATED ---
     def _tercom_update(self) -> None:
         """Run one TERCOM fix if terrain is suitable"""
+
         est_lat, est_lon, _ = self.state.est_position()
 
-
         patch = self.dem_loader.get_elevation_patch(
-            est_lat, est_lon, patch_size=25, nromalized = False
+            est_lat, est_lon, patch_size=25, nromalized=False
         )
 
         if not self._is_terrain_suitable(patch, est_lat, est_lon):
@@ -190,6 +194,19 @@ class NavigationComputer:
 
         true_lat, true_lon, _ = self.state.true_position()
         sensed_patch = self.dem_loader.get_elevation_patch(true_lat, true_lon, patch_size=7, normalized=True)
+
+        if sensed_patch is None:
+            self.state.tercom_active is None
+            return
+
+        matched_lat, matched_lon, _ = self.tercom.process_update(
+            sensed_patch, est_lat, est_lon
+        )
+
+        self.state.tecrom_active = matched_lat is not None
+
+        if matched_lat is not None:
+            self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl())
         
     def _is_terrain_suitable(self,
         terrain_patch: np.ndarray,

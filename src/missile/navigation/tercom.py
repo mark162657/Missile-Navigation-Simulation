@@ -1,8 +1,11 @@
 """
 Statement:
-    The TERCOM implemented here is a bit different from real-life TERCOM in Tomahawk. 
-    In which Tomahawk scan a 1D sequence of altitude in its flight path.
-    Our version can be a combination of TERCOM + DSMAC, which scanned a big 2D patch instead.
+    This is a simplified DSMAC. Real DSMAC correlates a downward optical/IR camera
+    image of the scene against stored reference imagery. Satellite/optical imagery is not
+    available in this simulator at this point, so we approximate the "scene" with a 2D 
+    elevation patch from the DEM and use normalized cross-correlation. The matching 
+    geometry and output (a horizontal [lat, lon] fix) are the same as real DSMAC; 
+    only the sensed modality differs.
 """
 
 import sys
@@ -53,10 +56,7 @@ class TERCOM:
         Accepts all windows at once.
         Args:
             a_windows: all the patches segmented by np.sliding_window_view, shape (119, 119, 7, 7)
-            b_sensed_patch: 
-        Return:
-            ncc_map: shape (119, 119)
-
+            b_sensed_patch: the patch that are sensed by radar altimeter of the cruise missile
         """
 
         a_mean = a_window.mean(axis=(-2, -1), keepdims=True)
@@ -79,10 +79,9 @@ class TERCOM:
     def process_update(self, sensed_patch: np.ndarray, est_lat: float, est_lon: float, search_size: int=125) \
             -> tuple[float, float, np.ndarray]:
         """
-        We already obtained the normalized sensed patch 7 * 7 grid underneath our missile, now we will
-        search for the certain grid size from our tif for pattern and determine where we might have been.
-
-        
+        We already obtained the normalized sensed patch 7 * 7 grid underneath 
+        our missile, now we will search for the certain grid size from our tif 
+        for pattern and determine where we might have been.
         Args:
             sensed_patch: the smaller patched sensed; default: 7 * 7
             est_lat:

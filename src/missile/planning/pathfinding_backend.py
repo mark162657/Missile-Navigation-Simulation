@@ -23,7 +23,7 @@ class Pathfinding:
     def __init__(self, DEM_NAME: str) -> None:
         """
         Args:
-            - dem_name: the name of the DEM file
+            - DEM_NAME: the name of the DEM file
         """
         
         # Load dem, requesting dem file name:
