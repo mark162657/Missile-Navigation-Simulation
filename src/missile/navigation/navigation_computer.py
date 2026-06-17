@@ -5,7 +5,7 @@ from missile.navigation.kalman_filter import KalmanFilter
 from missile.navigation.tercom import TERCOM
 from missile.navigation.gps import GPS
 from missile.navigation.ins import INS
-from missile.navigation.timer import InternalTimer
+from misesile.navigation.timer import InternalTimer
 from missile.state import MissileState
 from simulation.sensors.baro_altimeter import BaroAltimeter
 from terrain.dem_loader import DEMLoader
@@ -179,9 +179,17 @@ class NavigationComputer:
         """Run one TERCOM fix if terrain is suitable"""
         est_lat, est_lon, _ = self.state.est_position()
 
+
         patch = self.dem_loader.get_elevation_patch(
-            est_lat, est_lon, patch_size=25, nromalized = False,
+            est_lat, est_lon, patch_size=25, nromalized = False
         )
+
+        if not self._is_terrain_suitable(patch, est_lat, est_lon):
+            self.state.tercom_active = False
+            return
+
+        true_lat, true_lon, _ = self.state.true_position()
+        sensed_patch = self.dem_loader.get_elevation_patch(true_lat, true_lon, patch_size=7, normalized=True)
         
     def _is_terrain_suitable(self,
         terrain_patch: np.ndarray,
