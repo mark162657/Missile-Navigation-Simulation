@@ -99,11 +99,16 @@ class KalmanFilter:
     @staticmethod
     def _build_transition_matrix(dt: float) -> np.ndarray:
         """
-        Build state transition matrix A, for constant-velocity kinematic model.
-
-        east += vx * dt
-        north += vy * dt
+        Build state transition matrix A, for a constant-velocity kinematic model.
+            east += vx * dt
+            north += vy * dt
         velocity unchanged (acceleration handled in B)
+
+        A 3d A transition matrix looks like this
+        A =
+            [1, 0, 0, Δt,  0,  0],
+            [0, 1, 0,  0, Δt,  0],
+            [0, 0, 1,  0,  0, Δt]
         """
         a = np.eye(6)
         a[0, 3] = dt # east pos
@@ -111,8 +116,42 @@ class KalmanFilter:
         a[2, 5] = dt # altitude
         return a
 
-    def _enu_to_local(self, lat: float, lon: float, alt: float):
-        
+    def _geo_meas_to_enu(self,
+                         meas_lat: float,
+                         meas_lon: float,
+                         meas_alt_msl: float
+                         ) -> np.ndarray:
+        """
+        Convert GPS deg to ENU position in meter. Altitude is ignored here,
+        focusing on horizontal fix.
+
+        Args:
+            meas_lat, meas_lon: degrees of measured GPS position
+            meas_alt_msl: meters of measured altitude (no changes here)
+
+        Returns:
+            [east_m, north_m, alt_m] relative to launch origin (ENU position)
+        """
+        east_m, north_m = self.cs.latlon_to_enu(float(meas_lat), float(meas_lon))
+        return np.array([east_m, north_m, meas_alt_msl], dtype=float)
+
+    def _enu_pos_to_geo (self,
+                         east_m: float,
+                         north_m: float,
+                         alt_msl_m: float
+                         ) -> np.ndarray:
+        """
+        Convert ENU position in meter to geo position in degree.
+
+        Args:
+            east_m, north_m: meters of ENU position
+            alt_msl_m: meters of altitude (no changes here, too)
+
+        Return:
+            [est_lat, est_lon, est_alt_msl], first two in degrees
+        """
+        est_lat, est_lon = self.cs.enu_to_latlong(east_m, north_m)
+        return np.array([est_lat, est_lon, alt_msl_m], dtype=float)
 
     def predict(self, acc_vec_input: list[float]) -> None:
         """
@@ -139,7 +178,7 @@ class KalmanFilter:
         which to trust more.
 
         Args:
-            measurement: list[lat, lon, alt]
+            measurement: list[meas_at, meas_lon, meas_alt_msl]
         """
         # Set the R matrix (measurement error) to different value based on sensor_type
         if sensor_type == "TERCOM":
