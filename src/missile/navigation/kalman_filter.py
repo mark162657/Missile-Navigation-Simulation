@@ -123,7 +123,7 @@ class KalmanFilter:
                          ) -> np.ndarray:
         """
         Convert GPS deg to ENU position in meter. Altitude is ignored here,
-        focusing on horizontal fix.
+        focusing on the horizontal fix.
 
         Args:
             meas_lat, meas_lon: degrees of measured GPS position
@@ -206,8 +206,8 @@ class KalmanFilter:
         """
         Return the current best-estimated position and velocity of missile, computed by kalman filter.
 
-        Return: two slices of array with
-            - slice 1: [lat, lon, alt]
-            - slice 2: [vx east, vy north, vz up]
+        Return: two slices of an array with
+            pos: [lat deg, lon deg, alt m MSL]
+            vel: [vx east, vy north, vz up] m/s
         """
         return self.x[:3], self.x[3:]
