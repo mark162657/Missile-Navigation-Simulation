@@ -69,7 +69,51 @@ class KalmanFilter:
             pos_std_m ** 2, pos_std_m ** 2, pos_std_m ** 2,
             vel_std ** 2, vel_std ** 2, vel_std ** 2
         ])
-    
+
+    @staticmethod
+    def _build_control_matrix(dt: float) -> np.ndarray:
+        """
+        B matrix maps acceleration input to state change.
+        Input u = (ax east, ay north, az up) in m/s^2
+        Use standard kinematic model (as per definition in B matrix):
+            position += 0.5 * a * dt^2
+            velocity += a * dt
+        A 3D B control matrix looks like this
+        B =
+            [ 0.5Δ^2,       0,       0],
+            [      0, 0.5Δt^2,       0],
+            [      0,       0, 0.5Δt^2],
+            [     Δt,       0,       0],
+            [      0,      Δt,       0],
+            [      0,       0,      Δt]
+        """
+        b = np.zeros((6, 3))
+        b[0, 0] = 0.5 * dt ** 2
+        b[1, 1] = 0.5 * dt ** 2
+        b[2, 2] = 0.5 * dt ** 2
+        b[3, 0] = dt
+        b[4, 1] = dt
+        b[5, 2] = dt
+        return b
+
+    @staticmethod
+    def _build_transition_matrix(dt: float) -> np.ndarray:
+        """
+        Build state transition matrix A, for constant-velocity kinematic model.
+
+        east += vx * dt
+        north += vy * dt
+        velocity unchanged (acceleration handled in B)
+        """
+        a = np.eye(6)
+        a[0, 3] = dt # east pos
+        a[1, 4] = dt # north pos
+        a[2, 5] = dt # altitude
+        return a
+
+    def _enu_to_local(self, lat: float, lon: float, alt: float):
+        
+
     def predict(self, acc_vec_input: list[float]) -> None:
         """
         Generate a prediction of the next location of the missile, based on speed, acceleration, current position...

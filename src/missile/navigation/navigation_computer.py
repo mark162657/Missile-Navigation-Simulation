@@ -206,7 +206,7 @@ class NavigationComputer:
         self.state.tecrom_active = matched_lat is not None
 
         if matched_lat is not None:
-            self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl()) # msl obtain from baro altimeter
+            self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl(self.state.true_alt)) # msl obtain from baro altimeter
         
     def _is_terrain_suitable(self,
         terrain_patch: np.ndarray,

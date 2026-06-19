@@ -60,7 +60,6 @@ def test_init_is_broken():
     """NavigationComputer(...) raises before finishing __init__.
 
     Multiple independent defects make construction impossible:
-      * BaroAltimeter() raises TypeError (MissileState() needs args)
       * _build_initial_state is missing `self`
       * MissileState(gps_valud=...) is a keyword typo (should be gps_valid)
       * TERCOM(est_lat, est_lon) does not match TERCOM(location, dem_name)
@@ -71,8 +70,8 @@ def test_init_is_broken():
 
 @pytest.mark.xfail(
     reason="BUG: NavigationComputer.__init__ has several fatal defects "
-    "(BaroAltimeter()/MissileState() construction, _build_initial_state "
-    "missing self, gps_valud= typo, TERCOM signature mismatch). It should "
+    "(_build_initial_state missing self, gps_valud= typo, TERCOM signature "
+    "mismatch). It should "
     "construct cleanly and expose .state/.ins/.KF/.gps/.tercom.",
     strict=True,
 )

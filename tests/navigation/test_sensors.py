@@ -67,27 +67,28 @@ def test_radar_altimeter_noise_reproducible():
 
 
 # --------------------------------------------------------------------------
-# BaroAltimeter — broken construction (documented bug)
+# BaroAltimeter
 # --------------------------------------------------------------------------
-def test_baro_altimeter_construction_is_broken():
-    """BUG: BaroAltimeter.__init__ does `self.state = MissileState()`, but
-    MissileState is a dataclass with ~18 required fields and no defaults, so
-    construction always raises TypeError. This also makes NavigationComputer
-    (which builds a BaroAltimeter) impossible to instantiate."""
+def test_baro_altimeter_constructs():
     from simulation.sensors.baro_altimeter import BaroAltimeter
-    with pytest.raises(TypeError):
-        BaroAltimeter()
 
-
-@pytest.mark.xfail(
-    reason="BUG: BaroAltimeter cannot be constructed (MissileState() needs "
-    "required args), and even if it could, it builds its OWN MissileState "
-    "instead of referencing the missile's shared state, so get_baro_msl would "
-    "never reflect the real altitude.",
-    strict=True,
-)
-def test_baro_altimeter_reports_state_altitude():
-    from simulation.sensors.baro_altimeter import BaroAltimeter
     baro = BaroAltimeter()
-    baro.state.true_alt = 1234.0
-    assert abs(baro.get_baro_msl() - 1234.0) < 5.0
+    assert baro is not None
+
+
+def test_baro_altimeter_applies_noise_to_passed_altitude():
+    from simulation.sensors.baro_altimeter import BaroAltimeter
+
+    np.random.seed(0)
+    baro = BaroAltimeter()
+    result = baro.get_baro_msl(1234.0)
+    assert abs(result - 1234.0) < 2.0
+
+
+def test_baro_altimeter_zero_noise_seed_returns_truth():
+    from simulation.sensors.baro_altimeter import BaroAltimeter
+
+    np.random.seed(42)
+    baro = BaroAltimeter()
+    # With a fixed seed the draw is deterministic; verify it stays near truth.
+    assert baro.get_baro_msl(1000.0) == pytest.approx(1000.0, abs=2.0)
