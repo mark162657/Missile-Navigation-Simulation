@@ -38,7 +38,7 @@ class CoordinateSystem:
             delta += 360.0
         return delta
 
-    def latlong_to_xy(self, lat: float, lon: float) -> Tuple[float, float]:
+    def latlong_to_enu(self, lat: float, lon: float) -> Tuple[float, float]:
         """
         Convert geographic coordinates to local ENU meters from the origin.
 
@@ -57,7 +57,7 @@ class CoordinateSystem:
 
         return east_m, north_m
 
-    def xy_to_latlong(self, east_m: float, north_m: float) -> Tuple[float, float]:
+    def enu_to_latlong(self, east_m: float, north_m: float) -> Tuple[float, float]:
         """Convert local ENU meters from the origin back to (lat, lon) degrees."""
         lat = self.origin_lat + north_m / self.meter_per_deg_lat
 

@@ -1,9 +1,14 @@
 import numpy as np
 from missile.navigation.ins import INS
+from terrain.coordinates import CoordinateSystem
 
 class KalmanFilter:
-    def __init__(self, dt: float, init_position: list[float], init_velocity: list[float], process_noise_std: float,
-                 std_mea: float=0.05) -> None:
+    def __init__(self, dt: float,
+                 init_position: list[float],
+                 init_velocity: list[float],
+                 process_noise_std: float,
+                 std_mea: float=0.05
+                 ) -> None:
         """
         Set up the Kalman filter with the necessary initial and default matrices.
         """
@@ -18,11 +23,21 @@ class KalmanFilter:
         if init_velocity is None:
             init_velocity = [0.0, 0.0, 0.0] # 0.0 for x, y, z
 
-        # State vector: [lat, lon, alt, vx east, vy north, vz up]
+        # Initiate geographic origin position
+        lat0, lon0, alt0 = map(float, init_position)
+        self._origin_lat = lat0
+        self._origin_lon = lon0
+        self._origin_alt = alt0
+
+        # Initialise CoordinateSystem to handle lat/lon to east/north conversion using WG-84
+        self.cs = CoordinateSystem(lat0, lon0)
+        east0, north0 = self.cs.latlong_to_xy(lat0, lon0)
+
+        # State vector: [east_m, north_m, alt_m, vx_m/s, vy_m/s, vz_m/s]
         self.x = np.array([
-            init_position[0], init_position[1], init_position[2],
+            east0, north0, alt0,
             init_velocity[0], init_velocity[1], init_velocity[2]
-        ])
+        ], dtype=float)
 
         ref_lat = float(init_position[0])
         self.A = INS.get_transition_matrix(dt, reference_lat=ref_lat)
@@ -47,8 +62,13 @@ class KalmanFilter:
         # vertical Accuracy: Radar Altimeter is very precise (+/- 1m), according to the vegetation and landscape.
         self.R_TERCOM = np.diag([13.0 ** 2, 8.0 ** 2, 1.0 ** 2])
 
-        # Process covariance matrix (~50m initial error)
-        self.P = np.eye(6) * 100
+        # Process covariance matrix, initial estimation of uncertainty (~50m initial error)
+        pos_std_m = 50.0
+        vel_std = 5.0
+        self.P = np.diag([
+            pos_std_m ** 2, pos_std_m ** 2, pos_std_m ** 2,
+            vel_std ** 2, vel_std ** 2, vel_std ** 2
+        ])
     
     def predict(self, acc_vec_input: list[float]) -> None:
         """
