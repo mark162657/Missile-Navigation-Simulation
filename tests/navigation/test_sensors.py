@@ -4,6 +4,7 @@ import pytest
 
 from simulation.sensors.gps_receiver import GPSReceiver
 from simulation.sensors.radar_altimeter import RadarAltimeter
+from terrain.coordinates import meter_per_deg_lat, meter_per_deg_lon_at
 
 TRUE = [55.0, 99.0, 1000.0]
 
@@ -26,17 +27,25 @@ def test_gps_receiver_shape_and_finite():
 
 
 def test_gps_receiver_noise_spread_matches_std_units():
-    """DOCUMENTS a units concern: the receiver adds metre-scale Gaussian noise
-    directly onto a [lat_deg, lon_deg, alt_m] vector. The horizontal noise is
-    therefore injected in *degrees* even though h_std is specified in metres,
-    i.e. ~2.3 'metres' becomes ~2.3 degrees (~250 km) of latitude error."""
+    """REGRESSION: horizontal accuracy is specified in metres, but lat/lon are
+    stored in degrees. The receiver must convert the metre-scale noise into
+    degrees via the WGS-84 metres-per-degree scale at the current latitude, so
+    that the empirical spread converted back to metres matches h_std / v_std."""
     np.random.seed(0)
-    rx = GPSReceiver(horizontal_accuracy=2.3, vertical_accuracy=3.1)
-    samples = np.array([rx.get_raw_measurement(TRUE) for _ in range(4000)])
-    lat_std = samples[:, 0].std()
-    # The empirical spread of the latitude channel is ~h_std *in degrees*,
-    # confirming the metre value is mis-applied to a degree quantity.
-    assert lat_std == pytest.approx(2.3, rel=0.1)
+    h_std, v_std = 2.3, 3.1
+    lat = TRUE[0]
+    rx = GPSReceiver(horizontal_accuracy=h_std, vertical_accuracy=v_std)
+    samples = np.array([rx.get_raw_measurement(TRUE) for _ in range(20000)])
+
+    # Convert the degree spread of lat/lon back into metres; it should match the
+    # configured horizontal accuracy. Altitude is already in metres.
+    lat_std_m = samples[:, 0].std() * meter_per_deg_lat(lat)
+    lon_std_m = samples[:, 1].std() * meter_per_deg_lon_at(lat)
+    alt_std_m = samples[:, 2].std()
+
+    assert lat_std_m == pytest.approx(h_std, rel=0.1)
+    assert lon_std_m == pytest.approx(h_std, rel=0.1)
+    assert alt_std_m == pytest.approx(v_std, rel=0.1)
 
 
 # --------------------------------------------------------------------------

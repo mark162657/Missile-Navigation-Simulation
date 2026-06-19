@@ -1,5 +1,7 @@
 import numpy as np
 
+from terrain.coordinates import meter_per_deg_lat, meter_per_deg_lon_at
+
 
 class GPSReceiver():
     def __init__(self, horizontal_accuracy: float=2.3, vertical_accuracy: float=3.1):
@@ -33,14 +35,21 @@ class GPSReceiver():
         """
 
 
-        # Wrap true position into a matrix
-        true_pos = np.array(true_location) # x, y, z if in pixel
+        # Wrap true position into a matrix [lat deg, lon deg, alt m]
+        true_pos = np.array(true_location, dtype=float)
 
-        # Define normalized random noise
+        # Horizontal accuracy and lat/lon has different unit. The former one uses meter, the lat/lon uses degrees
+        # Sample the error in meters, then convert to degrees using the
+        # WGS-84 meters-per-degree scale built in the coordinates.py.
+        ref_lat = float(true_pos[0])
+        lat_noise_m = np.random.normal(0, self.h_std)
+        lon_noise_m = np.random.normal(0, self.h_std)
+        alt_noise_m = np.random.normal(0, self.v_std)
+
         noise = np.array([
-            np.random.normal(0, self.h_std),
-            np.random.normal(0, self.h_std),
-            np.random.normal(0, self.v_std)
+            lat_noise_m / meter_per_deg_lat(ref_lat),
+            lon_noise_m / meter_per_deg_lon_at(ref_lat),
+            alt_noise_m
         ])
 
         return true_pos + noise

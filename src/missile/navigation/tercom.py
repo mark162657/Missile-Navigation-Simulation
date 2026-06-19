@@ -195,7 +195,7 @@ if __name__ == "__main__":
         avg_time = np.mean(run_times)
         results.append(avg_time)
 
-        status = "✅ Match" if match_found else "❌ No match"
+        status = "[Y] Match" if match_found else "[N] No match"
         print(f"[{i+1:02d}] ({true_lat:.4f}°N, {true_lon:.4f}°E) | "
               f"{status} | avg: {avg_time:.2f}ms | "
               f"min: {min(run_times):.2f}ms | max: {max(run_times):.2f}ms")
