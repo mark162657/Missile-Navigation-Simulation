@@ -224,37 +224,3 @@ class INS:
         state = np.asarray(state_vector, dtype=float)
         self.pos = state[:3].copy()
         self.vel = state[3:6].copy()
-
-    @staticmethod
-    def get_transition_matrix(dt: float, reference_lat: float = 0.0) -> np.ndarray:
-        """
-        State transition matrix A for [lat, lon, alt, vx, vy, vz].
-
-        Position rows couple north velocity to latitude and east velocity to
-        longitude via meters-per-degree at reference_lat.
-        """
-        m_lat = 111_320.0
-        m_lon = 111_320.0 * math.cos(math.radians(reference_lat))
-
-        A = np.eye(6)
-        A[0, 4] = dt / m_lat   # lat <- vy (north)
-        A[1, 3] = dt / m_lon   # lon <- vx (east)
-        A[2, 5] = dt           # alt <- vz (up)
-        return A
-
-    @staticmethod
-    def get_control_matrix(dt: float, reference_lat: float = 0.0) -> np.ndarray:
-        """
-        Control matrix B for acceleration input [ax east, ay north, az up].
-        """
-        m_lat = 111_320.0
-        m_lon = 111_320.0 * math.cos(math.radians(reference_lat))
-
-        B = np.zeros((6, 3))
-        B[0, 1] = 0.5 * dt ** 2 / m_lat
-        B[1, 0] = 0.5 * dt ** 2 / m_lon
-        B[2, 2] = 0.5 * dt ** 2
-        B[3, 0] = dt
-        B[4, 1] = dt
-        B[5, 2] = dt
-        return B

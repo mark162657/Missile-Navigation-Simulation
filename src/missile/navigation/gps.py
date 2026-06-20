@@ -26,7 +26,7 @@ class GPS:
 
         if self.detect_jammed(raw_measurement):
             self.is_jammed = True
-            return None, None, None
+            return None
 
         return raw_measurement
 
