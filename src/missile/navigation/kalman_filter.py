@@ -156,7 +156,6 @@ class KalmanFilter:
             acc_vec_input: [ax east, ay north, az up] in m/s^2
         """
         u = np.array(acc_vec_input)
-        ref_lat = float(self.x[0])
         self.A = self._build_transition_matrix(self.dt)
         self.B = self._build_control_matrix(self.dt)
         self.Q = (self.B @ self.B.T) * (self._process_noise_std ** 2)
