@@ -56,7 +56,8 @@ class NavigationComputer:
             init_pos=[start_gps[0], start_gps[1], start_gps[2]],
             init_vel=[0.0, 0.0, 0.0]
         )
-        est_location = list(self.state.est_lat, self.state.est_lon)
+        
+        est_location = [self.state.est_lat, self.state.est_lon]
         self.tercom = TERCOM(est_location, dem_name)
 
         self.KF = KalmanFilter(
@@ -69,7 +70,6 @@ class NavigationComputer:
         # Setting threshold for stdev of patch height to determine if terrain is rough enough for TERCOM
         self.tercom_roughness_threshold_m = 5.0
 
-    @staticmethod
     def _build_initial_state(self, start_gps: tuple[float, float, float]) -> MissileState:
         """Build and initialise initial state of missile in state.py"""
         lat, lon, alt = start_gps

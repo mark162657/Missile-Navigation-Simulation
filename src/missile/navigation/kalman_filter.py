@@ -71,7 +71,7 @@ class KalmanFilter:
         ])
 
     @staticmethod
-    def _build_control_matrix(self, dt: float) -> np.ndarray:
+    def _build_control_matrix(dt: float) -> np.ndarray:
         """
         B matrix maps acceleration input to state change.
         Input u = (ax east, ay north, az up) in m/s^2
@@ -97,7 +97,7 @@ class KalmanFilter:
         return b
 
     @staticmethod
-    def _build_transition_matrix(self, dt: float) -> np.ndarray:
+    def _build_transition_matrix(dt: float) -> np.ndarray:
         """
         Build state transition matrix A, for a constant-velocity kinematic model.
             east += vx * dt
@@ -162,9 +162,9 @@ class KalmanFilter:
         """
         u = np.array(acc_vec_input)
         ref_lat = float(self.x[0])
-        self.A = INS.get_transition_matrix(self.dt, reference_lat=ref_lat)
-        self.B = INS.get_control_matrix(self.dt, reference_lat=ref_lat)
-        self.Q = (self.B @ self.B.T) * (getattr(self, "_process_noise_std", 0.05) ** 2)
+        self.A = self._build_transition_matrix(self.dt)
+        self.B = self._build_control_matrix(self.dt)
+        self.Q = (self.B @ self.B.T) * (self._process_noise_std ** 2)
 
         # Predictive state x = Ax + Bu:
         self.x = (self.A @ self.x) + (self.B @ u)
