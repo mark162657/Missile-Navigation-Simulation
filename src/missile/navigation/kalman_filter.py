@@ -71,7 +71,7 @@ class KalmanFilter:
         ])
 
     @staticmethod
-    def _build_control_matrix(dt: float) -> np.ndarray:
+    def _build_control_matrix(self, dt: float) -> np.ndarray:
         """
         B matrix maps acceleration input to state change.
         Input u = (ax east, ay north, az up) in m/s^2
@@ -97,7 +97,7 @@ class KalmanFilter:
         return b
 
     @staticmethod
-    def _build_transition_matrix(dt: float) -> np.ndarray:
+    def _build_transition_matrix(self, dt: float) -> np.ndarray:
         """
         Build state transition matrix A, for a constant-velocity kinematic model.
             east += vx * dt
@@ -178,7 +178,8 @@ class KalmanFilter:
         which to trust more.
 
         Args:
-            measurement: list[meas_at, meas_lon, meas_alt_msl]
+            measurement: list[meas_lat, meas_lon, meas_alt_msl]
+            sensor_type: default "GPS" or "TERCOM"
         """
         # Set the R matrix (measurement error) to different value based on sensor_type
         if sensor_type == "TERCOM":
@@ -187,11 +188,11 @@ class KalmanFilter:
             R_current = self.R_GPS
 
         # Handle Measurement
-        y = np.array(measurement)
+        y = self._geo_meas_to_enu(*measurement)
 
         # Error = measurement - expected position
         error = y - (self.H @ self.x)
-    
+
         # Kalman gain (KG)
         KG = self.P @ self.H.T @ np.linalg.inv((self.H @ self.P @ self.H.T) + R_current) # use np.linalg.inv() to sorta achieve division (x inverse)
 
@@ -210,4 +211,5 @@ class KalmanFilter:
             pos: [lat deg, lon deg, alt m MSL]
             vel: [vx east, vy north, vz up] m/s
         """
-        return self.x[:3], self.x[3:]
+        pos_geo = self._enu_pos_to_geo(self.x[0], self.x[1], self.x[2])
+        return pos_geo, self.x[3:].copy()
