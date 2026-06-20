@@ -109,7 +109,6 @@ class NavigationComputer:
                 condition checks, prevents the loop to endlessly run forever.
                 We set it to 1,0000-second default, so it will stop in 1,0000 seconds,
                 which is 2.78 hrs.
-
             mission_terminated: If True, the navigation loop will terminate
         """
 
@@ -234,10 +233,5 @@ class NavigationComputer:
         if values.size == 0:
             return False
         return float(np.std(values)) >= self.tercom_roughness_threshold_m
-
-
-
-
-
 
 
