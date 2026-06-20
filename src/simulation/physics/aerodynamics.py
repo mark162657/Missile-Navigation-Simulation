@@ -60,6 +60,11 @@ M_WAVE_WIDTH = 0.18   # Gaussian half-width of the bump in Mach
 # Side force: CY = CY_BETA * beta
 CY_BETA = -1.6        # side-force slope, per rad
 
+# Boost configuration: wings folded + booster attached -> drag only, no lift
+# bookkeeping. A single representative parasite drag coefficient is used while
+# the booster is attached (the cruise CD0 above does not apply in this config).
+BOOST_DRAG_CD = 0.30
+
 # Pitching moment (about CG): Cm = CM0 + CM_ALPHA*alpha + CM_DELTA_E*delta_e
 # Sign convention: +elevator = nose-up. For that, the control moment must be
 # nose-up positive (CM_DELTA_E > 0) while static stability keeps CM_ALPHA < 0,

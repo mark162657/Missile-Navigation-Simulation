@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import numpy as np
 
 from missile import config_store
-from missile.physics import MissileDynamics, ControlInput
+from simulation.physics import MissileDynamics, ControlInput
 from missile.profile import BasicSpec, DetailedSpec, MissileProfile
 from missile.navigation.ins import INS
 from missile.state import MissileState

@@ -16,8 +16,11 @@ import fastplotlib as fpl
 # Add src package root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from paths import PROJECT_ROOT
 from missile.planning.pathfinding_backend import Pathfinding
 from terrain.dem_loader import DEMLoader
+
+DEFAULT_DEM_NAME = "merged_dem_sib_N54_N59_E090_E100.tif"
 
 
 class Fastplotlib2DDEMViewer:
@@ -141,7 +144,7 @@ class Fastplotlib2DDEMViewer:
         print("COMPUTING PATH...")
         print("="*60)
         
-        pf = Pathfinding()
+        pf = Pathfinding(self.dem_loader.path.name)
         
         # Convert GPS to pixel
         start_row, start_col = pf.dem_loader.lat_lon_to_pixel(start_gps[0], start_gps[1])
@@ -236,11 +239,12 @@ if __name__ == "__main__":
     parser.add_argument('--end-lon', type=float, default=95.5)
     parser.add_argument('--weight', type=float, default=1.5, 
                         help='A* heuristic weight')
+    parser.add_argument('--dem', type=str, default=DEFAULT_DEM_NAME,
+                        help='DEM filename under data/dem/ (project root)')
     
     args = parser.parse_args()
     
-    # DEM path
-    dem_path = Path(__file__).parent / 'data' / 'dem' / 'merged_dem_sib_N54_N59_E090_E100.tif'
+    dem_path = PROJECT_ROOT / "data" / "dem" / args.dem
     
     if not dem_path.exists():
         print(f"[ERROR] DEM file not found at {dem_path}")

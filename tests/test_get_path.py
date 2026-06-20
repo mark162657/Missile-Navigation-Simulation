@@ -1,8 +1,5 @@
 """
-Simple test to run pathfinding with GPS coordinate, returning simplified path and time taken.
-
-
-I handcoded this without AI... very tiring lol
+Simple manually written test to run pathfinding with GPS coordinate, returning simplified path and time taken.
 """
 
 import sys

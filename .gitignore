@@ -30,3 +30,6 @@ frontend/web_planner/dist/
 *.pyd
 *.dll
 *.dylib
+
+# Ignore docs
+.docs

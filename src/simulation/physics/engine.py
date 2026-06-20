@@ -30,7 +30,7 @@ are not critical (rule 7).
 
 from __future__ import annotations
 
-from missile.physics.atmosphere import RHO0_ISA, density
+from simulation.physics.atmosphere import RHO0_ISA, density
 from missile.profile import MissileProfile
 
 

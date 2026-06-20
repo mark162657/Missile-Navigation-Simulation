@@ -43,16 +43,20 @@ Coordinate convention for body axes: x forward, y right, z down.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from missile.physics import atmosphere
-from missile.physics.aerodynamics import Aerodynamics
-from missile.physics.engine import Engine
+from simulation.physics import atmosphere
+from simulation.physics.aerodynamics import S_REF, BOOST_DRAG_CD, Aerodynamics
+from simulation.physics.engine import Engine
 from missile.profile import MissileProfile
-from missile.state import MissileState
+from missile.state import FlightStage, MissileState
 from terrain import coordinates
+
+if TYPE_CHECKING:
+    from simulation.physics.sequencer import FlightSequencer
 
 
 _EPS_SPEED = 1e-3  # m/s, below which aero/airflow direction is ill-defined
@@ -111,6 +115,7 @@ class MissileDynamics:
         profile: MissileProfile,
         aerodynamics: Aerodynamics | None = None,
         engine: Engine | None = None,
+        sequencer: "FlightSequencer | None" = None,
         *,
         imu_accel_noise_std: float = 0.0,
         imu_gyro_noise_std: float = 0.0,
@@ -121,6 +126,10 @@ class MissileDynamics:
             profile: missile profile (mass, fuel, etc.)
             aerodynamics / engine: optional injected models (defaults built
                 from the profile).
+            sequencer: optional FlightSequencer. When attached, it governs the
+                boost stage (booster thrust + mass + programmed pitch-over) and
+                the boost->cruise transition. When None, the missile is modelled
+                purely in cruise (turbofan only) -- the original behaviour.
             imu_accel_noise_std: optional white noise on the IMU accel output,
                 m/s^2. Default 0 -- the INS already adds its own noise.
             imu_gyro_noise_std: optional white noise on the IMU rate output,
@@ -130,6 +139,7 @@ class MissileDynamics:
         self.profile = profile
         self.aero = aerodynamics if aerodynamics is not None else Aerodynamics()
         self.engine = engine if engine is not None else Engine(profile)
+        self.sequencer = sequencer
 
         # Mass model: profile mass_kg is the fully-fuelled launch mass.
         self.dry_mass_kg = float(profile.detailed.mass_kg) - self.engine.fuel_capacity_kg
@@ -167,14 +177,14 @@ class MissileDynamics:
         Returns:
             (new_state, imu_measurement)
         """
-        mass = self.current_mass_kg  # held constant across the RK4 sub-stages
+        seq = self.sequencer
+        boosting = seq is not None and seq.is_boosting
 
-        # Quasi-steady trim incidence from the fin deflections (3-DoF).
-        alpha = self.aero.trim_alpha(control.elevator)
-        beta = self.aero.trim_beta(control.rudder)
-
-        # Fallback airflow direction (used only if speed ~ 0, e.g. at launch).
-        fallback_hat = _heading_pitch_to_unit(state.yaw, state.pitch)
+        # Vehicle mass (held constant across the RK4 sub-stages): the cruise
+        # vehicle plus any still-attached booster.
+        mass = self.current_mass_kg
+        if seq is not None:
+            mass += seq.attached_booster_mass()
 
         # State vector y = [lat, lon, alt, v_east, v_north, v_up].
         y0 = np.array([
@@ -182,19 +192,42 @@ class MissileDynamics:
             state.vel_east, state.vel_north, state.vel_up,
         ], dtype=float)
 
-        def deriv(y: np.ndarray) -> np.ndarray:
-            lat, alt = y[0], y[2]
-            vel = y[3:6]
-            accel = self._accel_enu(alt, vel, mass, alpha, beta,
-                                    control, fallback_hat)
-            m_lat = coordinates.meter_per_deg_lat(lat)
-            m_lon = coordinates.meter_per_deg_lon_at(lat)
-            return np.array([
-                vel[1] / m_lat,   # d(lat)/dt from north velocity
-                vel[0] / m_lon,   # d(lon)/dt from east velocity
-                vel[2],           # d(alt)/dt from up velocity
-                accel[0], accel[1], accel[2],
-            ], dtype=float)
+        if boosting:
+            # BOOST: thrust along the PROGRAMMED body axis, drag only (wings
+            # folded), velocity follows; attitude is commanded, not derived.
+            cmd_att = seq.commanded_attitude()            # (roll, pitch, yaw)
+            body_x = _heading_pitch_to_unit(cmd_att[2], cmd_att[1])
+            thrust = seq.booster_thrust()
+
+            def deriv(y: np.ndarray) -> np.ndarray:
+                lat, alt = y[0], y[2]
+                vel = y[3:6]
+                accel = self._accel_enu_boost(alt, vel, mass, thrust, body_x)
+                m_lat = coordinates.meter_per_deg_lat(lat)
+                m_lon = coordinates.meter_per_deg_lon_at(lat)
+                return np.array([vel[1] / m_lat, vel[0] / m_lon, vel[2],
+                                 accel[0], accel[1], accel[2]], dtype=float)
+
+            accel0, sf_body0 = self._imu_boost(
+                state.true_alt, y0[3:6], mass, thrust, body_x)
+        else:
+            # CRUISE: quasi-steady aero trim, velocity-derived attitude, turbofan.
+            alpha = self.aero.trim_alpha(control.elevator)
+            beta = self.aero.trim_beta(control.rudder)
+            fallback_hat = _heading_pitch_to_unit(state.yaw, state.pitch)
+
+            def deriv(y: np.ndarray) -> np.ndarray:
+                lat, alt = y[0], y[2]
+                vel = y[3:6]
+                accel = self._accel_enu(alt, vel, mass, alpha, beta,
+                                        control, fallback_hat)
+                m_lat = coordinates.meter_per_deg_lat(lat)
+                m_lon = coordinates.meter_per_deg_lon_at(lat)
+                return np.array([vel[1] / m_lat, vel[0] / m_lon, vel[2],
+                                 accel[0], accel[1], accel[2]], dtype=float)
+
+            accel0, sf_body0 = self._imu_accelerations(
+                state.true_alt, y0[3:6], mass, alpha, beta, control, fallback_hat)
 
         # --- RK4 integration (rule 7) ---
         k1 = deriv(y0)
@@ -206,23 +239,24 @@ class MissileDynamics:
         new_lat, new_lon, new_alt = y_new[0], y_new[1], y_new[2]
         new_vel = y_new[3:6]
 
-        # --- IMU sample (taken at the start of the step, like a real sensor) ---
-        accel0, sf_body0 = self._imu_accelerations(
-            state.true_alt, y0[3:6], mass, alpha, beta, control, fallback_hat
-        )
-
-        # --- attitude bookkeeping (kinematic, 3-DoF) ---
-        new_yaw = _heading_from_velocity(new_vel)
-        new_pitch = _gamma_from_velocity(new_vel) + alpha
-        new_roll = 0.0  # 3-DoF point mass; 6-DoF will integrate roll dynamics.
+        # --- attitude bookkeeping ---
+        if boosting:
+            new_roll, new_pitch, new_yaw = cmd_att  # commanded (programmed)
+        else:
+            new_yaw = _heading_from_velocity(new_vel)
+            new_pitch = _gamma_from_velocity(new_vel) + alpha
+            new_roll = 0.0  # 3-DoF point mass; 6-DoF will integrate roll.
 
         roll_rate = _wrap_pi(new_roll - state.roll) / dt
         pitch_rate = _wrap_pi(new_pitch - state.pitch) / dt
         yaw_rate = _wrap_pi(new_yaw - state.yaw) / dt
         ang_vel = np.array([roll_rate, pitch_rate, yaw_rate], dtype=float)
 
-        # --- advance fuel exactly once (outside the RK4 stages) ---
-        self.engine.consume_fuel(control.throttle, dt)
+        # --- advance stage / fuel exactly once (outside the RK4 stages) ---
+        if seq is not None:
+            seq.advance(dt)  # burn booster, jettison + switch to CRUISE at burnout
+        if not boosting:
+            self.engine.consume_fuel(control.throttle, dt)
 
         # --- optional sensor noise (default off; INS adds its own) ---
         if self._accel_noise > 0.0:
@@ -354,6 +388,54 @@ class MissileDynamics:
             float(np.dot(sf_enu, body_x)),
             float(np.dot(sf_enu, side_hat)),
             float(np.dot(sf_enu, -lift_hat)),
+        ], dtype=float)
+        return accel_enu, sf_body
+
+    # ------------------------------------------------------------------
+    # Boost force model (programmed attitude, booster thrust, drag only)
+    # ------------------------------------------------------------------
+    def _boost_force_no_g(
+        self, alt: float, vel: np.ndarray, thrust: float, body_x: np.ndarray
+    ) -> np.ndarray:
+        """Thrust (along the commanded body x) minus drag; ENU, gravity-free."""
+        speed = float(np.linalg.norm(vel))
+        v_hat = vel / speed if speed > _EPS_SPEED else body_x
+        atm = atmosphere.sample(alt)
+        q_dyn = 0.5 * atm.density * speed * speed
+        drag = q_dyn * S_REF * BOOST_DRAG_CD  # wings folded -> parasite drag only
+        return thrust * body_x - drag * v_hat
+
+    def _accel_enu_boost(
+        self, alt: float, vel: np.ndarray, mass: float,
+        thrust: float, body_x: np.ndarray,
+    ) -> np.ndarray:
+        """Total ENU kinematic acceleration during boost (gravity included)."""
+        force_no_g = self._boost_force_no_g(alt, vel, thrust, body_x)
+        gravity = np.array([0.0, 0.0, -mass * atmosphere.G0])
+        return (force_no_g + gravity) / mass
+
+    def _imu_boost(
+        self, alt: float, vel: np.ndarray, mass: float,
+        thrust: float, body_x: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Boost IMU sample: (ENU kinematic accel, gravity-free body specific force)."""
+        force_no_g = self._boost_force_no_g(alt, vel, thrust, body_x)
+        gravity = np.array([0.0, 0.0, -mass * atmosphere.G0])
+        accel_enu = (force_no_g + gravity) / mass
+
+        # Body axes built around the commanded forward direction.
+        up = np.array([0.0, 0.0, 1.0])
+        right = np.cross(body_x, up)
+        rn = float(np.linalg.norm(right))
+        right = right / rn if rn > _EPS_SPEED else np.array([1.0, 0.0, 0.0])
+        lift = np.cross(right, body_x)
+        lift /= float(np.linalg.norm(lift))
+
+        sf_enu = force_no_g / mass
+        sf_body = np.array([
+            float(np.dot(sf_enu, body_x)),
+            float(np.dot(sf_enu, right)),
+            float(np.dot(sf_enu, -lift)),
         ], dtype=float)
         return accel_enu, sf_body
 
