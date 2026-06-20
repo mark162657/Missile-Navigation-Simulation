@@ -39,15 +39,10 @@ class KalmanFilter:
             init_velocity[0], init_velocity[1], init_velocity[2]
         ], dtype=float)
 
-        ref_lat = float(init_position[0])
-        self.A = INS.get_transition_matrix(dt, reference_lat=ref_lat)
-        self.B = INS.get_control_matrix(dt, reference_lat=ref_lat)
+        self.A = self._build_transition_matrix(dt)
+        self.B = self._build_control_matrix(dt)
 
-        # Observation matrix (H) - transformation matrix
-        self.H = np.zeros((3, 6))
-        self.H[0, 0] = 1  # observe lat
-        self.H[1, 1] = 1  # observe lon
-        self.H[2, 2] = 1  # observe alt
+        self.H = np.hstack([np.eye(3), np.zeros((3, 3))])
 
         # Process noise covariance matrix (Q)
         # internal uncertainty: how weather / physic disturb the missile
