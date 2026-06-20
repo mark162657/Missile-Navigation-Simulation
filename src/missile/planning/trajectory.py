@@ -8,8 +8,12 @@ class TrajectoryGenerator:
         self.engine = engine_backend
         self.dem = dem_loader
 
-    def get_trajectory(self, raw_path: list[tuple[int, int]], smooth_factor: float=2.0, res_multi: int=5, min_alt: float=30.0) \
-            -> list[tuple[int, int]]:
+    def get_trajectory(self, 
+                       raw_path: list[tuple[int, int]], 
+                       smooth_factor: float=2.0, 
+                       res_multi: int=5, 
+                       min_alt: float=30.0
+                       ) -> list[tuple[int, int]]:
         """
         Smooth the path by B Spline (C2 continuity), which is aerodynamic and close to what missile could fly.
         Balancing continuity and local control.
