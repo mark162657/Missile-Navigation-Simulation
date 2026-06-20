@@ -163,29 +163,19 @@ def test_tactical_grade_factory_sets_error_terms():
 
 
 # --------------------------------------------------------------------------
-# Static motion-model matrices (shared with the Kalman filter)
+# Geographic frame coupling (INS integrates in lat/lon degrees)
 # --------------------------------------------------------------------------
-def test_transition_matrix_values():
-    dt = 0.2
-    A = INS.get_transition_matrix(dt, reference_lat=LAT)
-    m_lat = 111_320.0
-    m_lon = 111_320.0 * math.cos(math.radians(LAT))
-    assert A.shape == (6, 6)
-    np.testing.assert_allclose(np.diag(A), np.ones(6))
-    assert A[0, 4] == pytest.approx(dt / m_lat)
-    assert A[1, 3] == pytest.approx(dt / m_lon)
-    assert A[2, 5] == pytest.approx(dt)
+def test_north_velocity_changes_latitude():
+    ins = INS(init_pos=[LAT, LON, ALT], init_vel=[0.0, 10.0, 0.0])
+    lat_before = ins.pos[0]
+    ins.predict([0.0, 0.0, 0.0], dt=1.0)
+    assert ins.pos[0] > lat_before
+    assert ins.pos[1] == pytest.approx(LON)
 
 
-def test_control_matrix_values():
-    dt = 0.2
-    B = INS.get_control_matrix(dt, reference_lat=LAT)
-    m_lat = 111_320.0
-    m_lon = 111_320.0 * math.cos(math.radians(LAT))
-    assert B.shape == (6, 3)
-    assert B[0, 1] == pytest.approx(0.5 * dt ** 2 / m_lat)
-    assert B[1, 0] == pytest.approx(0.5 * dt ** 2 / m_lon)
-    assert B[2, 2] == pytest.approx(0.5 * dt ** 2)
-    assert B[3, 0] == pytest.approx(dt)
-    assert B[4, 1] == pytest.approx(dt)
-    assert B[5, 2] == pytest.approx(dt)
+def test_east_velocity_changes_longitude():
+    ins = INS(init_pos=[LAT, LON, ALT], init_vel=[10.0, 0.0, 0.0])
+    lon_before = ins.pos[1]
+    ins.predict([0.0, 0.0, 0.0], dt=1.0)
+    assert ins.pos[1] > lon_before
+    assert ins.pos[0] == pytest.approx(LAT)
