@@ -56,7 +56,8 @@ class NavigationComputer:
             init_pos=[start_gps[0], start_gps[1], start_gps[2]],
             init_vel=[0.0, 0.0, 0.0]
         )
-        self.tercom = TERCOM(self.state.est_lat, self.state.est_lon)
+        est_location = list(self.state.est_lat, self.state.est_lon)
+        self.tercom = TERCOM(est_location, dem_name)
 
         self.KF = KalmanFilter(
             dt = self.ins_period,
@@ -68,7 +69,8 @@ class NavigationComputer:
         # Setting threshold for stdev of patch height to determine if terrain is rough enough for TERCOM
         self.tercom_roughness_threshold_m = 5.0
 
-    def _build_initial_state(start_gps: tuple[float, float, float]) -> MissileState:
+    @staticmethod
+    def _build_initial_state(self, start_gps: tuple[float, float, float]) -> MissileState:
         """Build and initialise initial state of missile in state.py"""
         lat, lon, alt = start_gps
         return MissileState(
@@ -87,7 +89,7 @@ class NavigationComputer:
             time=0.0,
             distance_traveled=0.0,
             distance_to_target=0.0,
-            gps_valud=True,
+            gps_valid=True,
             tercom_active=False,
             ins_calibrated=True
         )
@@ -158,7 +160,7 @@ class NavigationComputer:
                 self._tercom_update()
                 self.next_tercom += self.tercom_period
 
-        sim_time += self.ins_period
+            sim_time += self.ins_period
 
     # --- KF SYNC ---
     def _sync_kf_to_ins_and_state(self) -> None:

@@ -31,7 +31,7 @@ class KalmanFilter:
 
         # Initialise CoordinateSystem to handle lat/lon to east/north conversion using WG-84
         self.cs = CoordinateSystem(lat0, lon0)
-        east0, north0 = self.cs.latlong_to_xy(lat0, lon0)
+        east0, north0 = self.cs.latlong_to_enu(lat0, lon0)
 
         # State vector: [east_m, north_m, alt_m, vx_m/s, vy_m/s, vz_m/s]
         self.x = np.array([
@@ -132,7 +132,7 @@ class KalmanFilter:
         Returns:
             [east_m, north_m, alt_m] relative to launch origin (ENU position)
         """
-        east_m, north_m = self.cs.latlon_to_enu(float(meas_lat), float(meas_lon))
+        east_m, north_m = self.cs.latlong_to_enu(float(meas_lat), float(meas_lon))
         return np.array([east_m, north_m, meas_alt_msl], dtype=float)
 
     def _enu_pos_to_geo (self,
