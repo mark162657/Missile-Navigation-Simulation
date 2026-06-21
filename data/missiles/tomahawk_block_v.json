@@ -9,7 +9,7 @@
     "max_altitude": 1500.0,
     "max_g_force": 6.0,
     "sustained_turn_rate": 8.0,
-    "sustained_g_force": 2.0,
+    "sustained_g_force": 3.0,
     "evasive_turn_rate": 25.0,
     "max_range": 1600.0,
     "cruise_agl_min": 20.0,
