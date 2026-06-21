@@ -32,4 +32,4 @@ frontend/web_planner/dist/
 *.dylib
 
 # Ignore docs
-.docs
+.docsdocs/
