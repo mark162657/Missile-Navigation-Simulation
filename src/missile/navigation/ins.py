@@ -5,11 +5,16 @@ from terrain import coordinates
 
 class INS:
     """
-    Inertial Navigation System (strapdown simulation model).
+    Inertial Navigation System (nav-frame kinematic dead-reckoner).
 
     The INS dead-reckons the missile's basic inertial state -- position,
-    velocity, and attitude -- by integrating IMU measurements (specific force
-    from the accelerometers, angular rate from the gyroscopes).
+    velocity, and attitude -- by integrating IMU inputs: nav-frame (ENU)
+    kinematic acceleration and angular rate from the gyroscopes.
+
+    Note: this is NOT a true strapdown mechanization. Acceleration arrives
+    already resolved in the ENU navigation frame (no body->nav rotation, no
+    gravity subtraction). Attitude is integrated for reporting only -- it does
+    not rotate the acceleration.
 
     A real IMU is imperfect, so the ideal inputs are corrupted by:
       - turn-on bias       : constant offset fixed at power-up (accel + gyro)
@@ -25,10 +30,6 @@ class INS:
       - position : [lat, lon, alt] — degrees, degrees, meters MSL (maps to MissileState est_* / INS pos[])
       - velocity : [vx, vy, vz] = [east, north, up] in m/s
       - attitude : [roll, pitch, yaw] in radians
-
-    The two @staticmethods (get_transition_matrix / get_control_matrix) expose
-    the linear motion model (A, B) consumed by the Kalman Filter in the same
-    geographic frame (lat/lon rows scaled by meters-per-degree at reference_lat).
     """
 
     def __init__(
@@ -127,7 +128,7 @@ class INS:
         random walk, then add bias and white noise. Returns the corrupted
         (acceleration, angular_velocity) the INS will actually integrate.
         """
-        # In-run bias instability: random walk scaled by sqrt(dt).
+        # In-run bias instability: random walk scaled by sqrt(dt) / bias drift
         if self.accel_bias_walk_std > 0.0:
             self.accel_bias += self._rng.normal(0.0, self.accel_bias_walk_std, size=3) * math.sqrt(dt)
         if self.gyro_bias_walk_std > 0.0:
@@ -136,6 +137,7 @@ class INS:
         acc = acc_true + self.accel_bias
         ang = ang_true + self.gyro_bias
 
+        # Measurement noise
         if self.accel_noise_std > 0.0:
             acc = acc + self._rng.normal(0.0, self.accel_noise_std, size=3)
         if self.gyro_noise_std > 0.0:
@@ -152,7 +154,7 @@ class INS:
         Propagate the inertial state by one timestep using (noisy) IMU inputs.
 
         Args:
-            acceleration: specific force [ax east, ay north, az up], m/s^2
+            acceleration: nav-frame kinematic acceleration [ax east, ay north, az up], m/s^2
             dt: timestep in seconds
             angular_velocity: measured body rates [roll_rate, pitch_rate, yaw_rate], rad/s
 
@@ -190,8 +192,9 @@ class INS:
         corrected_vel: np.ndarray | list[float],
         corrected_att: np.ndarray | list[float] | None = None) -> None:
         """
-        Replace the INS estimate with an externally corrected state (e.g. fed
+        An injection point to replace the INS estimate with an externally corrected state (e.g. fed
         back from the Kalman Filter after a GPS/TERCOM fix).
+        Basically allow an external system to update the INS state.
         """
         self.pos = np.asarray(corrected_pos, dtype=float).copy()
         self.vel = np.asarray(corrected_vel, dtype=float).copy()
@@ -200,27 +203,6 @@ class INS:
             self.att = np.asarray(corrected_att, dtype=float).copy()
             self._normalize_attitude()
 
-    def get_speed(self) -> float:
-        """Return the current inertial speed (magnitude of velocity), m/s."""
-        return float(np.linalg.norm(self.vel))
-
     def get_state(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Return copies of (position, velocity, attitude)."""
         return self.pos.copy(), self.vel.copy(), self.att.copy()
-
-    def get_state_vector(self) -> np.ndarray:
-        """
-        Return the Kalman-friendly 6D state vector [lat, lon, alt, vx, vy, vz].
-        """
-        return np.array(
-            [self.pos[0], self.pos[1], self.pos[2], self.vel[0], self.vel[1], self.vel[2]],
-            dtype=float,
-        )
-
-    def set_state_vector(self, state_vector: np.ndarray | list[float]) -> None:
-        """
-        Load position and velocity from a 6D Kalman state vector.
-        """
-        state = np.asarray(state_vector, dtype=float)
-        self.pos = state[:3].copy()
-        self.vel = state[3:6].copy()

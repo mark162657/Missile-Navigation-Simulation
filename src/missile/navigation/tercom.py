@@ -26,7 +26,8 @@ class TERCOM:
     comparing ground elevation profiles measured by radar altimeter with pre-stored
     terrain maps to determine position and correct flight path. Implemented by Kalman Filter.
 
-    The terrain check will be performed every 5 seconds. With following data:
+    The terrain check is performed periodically (the rate is set by the
+    navigation computer; intended ~every 2 seconds). With following data:
         - db data: from TerrainDatabase.get_elevation_patch
         - sensor data:
     """
@@ -41,10 +42,6 @@ class TERCOM:
         tif_path = PROJECT_ROOT / 'data' / 'dem' / f'{dem_name}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
-
-        # Get location patch
-        self.location_pixel = self.dem_loader.lat_lon_to_pixel(self.location[0], self.location[1]) # first by turning lat/lon to pixel
-        self.location_patch = self.dem_loader.get_elevation_patch(self.location_pixel[0], self.location_pixel[1]) # get a patch under the missile
 
         # Deal with accuracy
         self.lateral_accuracy = 12.0  # meters

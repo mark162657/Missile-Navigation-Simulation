@@ -5,7 +5,6 @@ from missile.navigation.kalman_filter import KalmanFilter
 from missile.navigation.tercom import TERCOM
 from missile.navigation.gps import GPS
 from missile.navigation.ins import INS
-from missile.navigation.timer import InternalTimer
 from missile.state import MissileState
 from simulation.sensors.baro_altimeter import BaroAltimeter
 from terrain.dem_loader import DEMLoader
@@ -36,9 +35,6 @@ class NavigationComputer:
         tif_path = PROJECT_ROOT / "data" / "dem" / dem_name
         self.dem_loader = DEMLoader(tif_path)
 
-        # Initialise basic missile systems
-        self.timer = InternalTimer()
-        
         # Initialise baro altimeter for msl height
         self.baro_alt = BaroAltimeter()
 
@@ -105,7 +101,7 @@ class NavigationComputer:
 
         Args:
             run_seconds: Total runtime duration, in seconds, measured from the
-                moment `self.timer.start()` is called. So this combines with
+                start of the loop (sim_time = 0). So this combines with
                 condition checks, prevents the loop to endlessly run forever.
                 We set it to 1,0000-second default, so it will stop in 1,0000 seconds,
                 which is 2.78 hrs.
@@ -143,6 +139,8 @@ class NavigationComputer:
                 self.state.apply_ins_estimate(self.ins)
 
                 self.next_ins += self.ins_period
+
+
 
             if sim_time >= self.next_gps and not self.gps.is_jammed:
                 mea = self.gps.get_gps_location(self.state.true_position())
