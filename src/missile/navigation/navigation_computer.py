@@ -7,12 +7,13 @@ from missile.navigation.gps import GPS
 from missile.navigation.ins import INS
 from missile.state import MissileState
 from simulation.sensors.baro_altimeter import BaroAltimeter
+from simulation.sensors.imu import IMU
 from terrain.dem_loader import DEMLoader
 
 class NavigationComputer:
     def __init__(
         self,
-        start_gps: tuple[float, float, float],
+        true_start_gps: tuple[float, float, float],
         dem_name: str,
         gps_freq_hz: int = 5,
         ins_freq_hz: int = 500,
@@ -21,14 +22,15 @@ class NavigationComputer:
     ):
         """
         Args:
-            start_gps: Starting position (lat, lon, alt) — maps to state est_lat, est_lon, est_alt
+            true_start_gps: True starting position (lat, lon, alt) at launch (ground
+                truth) — seeds both the true state and the initial estimate
             dem_name: name of DEM
             gps_freq_hz: frequency of GPS measurements in Hz
             ins_freq_hz: frequency of INS measurements in Hz
             tercom_freq_hz: frequency of TERCOM measurements in Hz
         """
 
-        self.start_gps = start_gps
+        self.start_gps = true_start_gps
 
         # Setup proper project root of DEM
         self.dem_name = dem_name
@@ -39,7 +41,7 @@ class NavigationComputer:
         self.baro_alt = BaroAltimeter()
 
         # Initialise State through _build_initial_state method
-        self.state = self._build_initial_state(start_gps)
+        self.state = self._build_initial_state(true_start_gps)
 
         # Set the update freq
         self.gps_period = 1.0 / gps_freq_hz
@@ -48,8 +50,10 @@ class NavigationComputer:
 
         # Initialise each navigation system and Kalman Filter
         self.gps = GPS()
+        # Shared imperfect IMU: its one noisy reading feeds BOTH the INS and the KF
+        self.imu = IMU.tactical_grade()
         self.ins = INS(
-            init_pos=[start_gps[0], start_gps[1], start_gps[2]],
+            init_pos=[true_start_gps[0], true_start_gps[1], true_start_gps[2]],
             init_vel=[0.0, 0.0, 0.0]
         )
 
@@ -58,7 +62,7 @@ class NavigationComputer:
 
         self.KF = KalmanFilter(
             dt = self.ins_period,
-            init_position = list(start_gps),
+            init_position = list(true_start_gps),
             init_velocity = [0.0, 0.0, 0.0],
             process_noise_std = process_noise_std
         )
@@ -66,9 +70,9 @@ class NavigationComputer:
         # Setting threshold for stdev of patch height to determine if terrain is rough enough for TERCOM
         self.tercom_roughness_threshold_m = 5.0
 
-    def _build_initial_state(self, start_gps: tuple[float, float, float]) -> MissileState:
+    def _build_initial_state(self, true_start_gps: tuple[float, float, float]) -> MissileState:
         """Build and initialise initial state of missile in state.py"""
-        lat, lon, alt = start_gps
+        lat, lon, alt = true_start_gps
         return MissileState(
             true_lat=lat,
             true_lon=lon,
@@ -91,10 +95,10 @@ class NavigationComputer:
         )
         
     def run_navigation_loop(
-        self, 
-        acceleration: np.ndarray | list[float], 
-        mission_terminated: bool=False, 
-        angular_velocity: list[float] | None = None,
+        self,
+        true_acceleration: np.ndarray | list[float],
+        mission_terminated: bool=False,
+        true_angular_velocity: list[float] | None = None,
         run_seconds: int=10000) -> None:
         """
         Run the navigation loop for a fixed amount of elapsed time.
@@ -108,12 +112,12 @@ class NavigationComputer:
             mission_terminated: If True, the navigation loop will terminate
         """
 
-        acceleration = np.asarray(acceleration, dtype=float)
+        true_acceleration = np.asarray(true_acceleration, dtype=float)
 
-        if angular_velocity is None:
+        if true_angular_velocity is None:
             yaw_rate = 0.0
         else:
-            yaw_rate = float(angular_velocity[2])
+            yaw_rate = float(true_angular_velocity[2])
 
         # Reset schedule checkpoints to t = 0
         self.next_ins = 0.0
@@ -130,12 +134,19 @@ class NavigationComputer:
                 # turn m/s into lat/lon/alt change
                 self.state.update_physics(
                     self.ins_period,
-                    acceleration,
+                    true_acceleration,
                     yaw_rate
                 )
+                # IMU turns the true motion into noisy measurement
+                true_ang_vel = (np.zeros(3) if true_angular_velocity is None
+                                else np.asarray(true_angular_velocity, dtype=float))
+                acc_meas, gyro_meas = self.imu.imu_error(
+                    true_acceleration, true_ang_vel, self.ins_period
+                )
 
-                self.ins.predict(acceleration, self.ins_period, angular_velocity)
-                self.KF.predict(acceleration)
+                # corrupted measurements are fed into ins and kf
+                self.ins.predict(acc_meas, self.ins_period, gyro_meas)
+                self.KF.predict(acc_meas)
                 self.state.apply_ins_estimate(self.ins)
 
                 self.next_ins += self.ins_period
@@ -164,15 +175,15 @@ class NavigationComputer:
         self.ins.correct_state(est_pos, est_vel)
         self.state.apply_ins_estimate(self.ins)
         
-    def _apply_gps_fix(self, measurement) -> None:
+    def _apply_gps_fix(self, gps_measurement) -> None:
         """Fuse a 3D GPS fix [lat, lon, alt], then sync INS and shared state"""
-        mea = np.asarray(measurement, dtype=float)
+        mea = np.asarray(gps_measurement, dtype=float)
         self.KF.update(mea.tolist(), sensor_type="GPS")
         self._sync_kf_to_ins_and_state()
 
-    def _apply_tercom_fix(self, lat: float, lon: float, alt_msl: float) -> None:
+    def _apply_tercom_fix(self, matched_lat: float, matched_lon: float, baro_alt_msl: float) -> None:
         """Fuse TERCOM's lat/lon coordinate with altitude (MSL) from BaroAltimeter. Turn 2D -> 3D (with alt)"""
-        self.KF.update([float(lat), float(lon), float(alt_msl)], sensor_type="TERCOM")
+        self.KF.update([float(matched_lat), float(matched_lon), float(baro_alt_msl)], sensor_type="TERCOM")
         self._sync_kf_to_ins_and_state()
 
     # --- TERCOM RELATED ---
@@ -207,8 +218,8 @@ class NavigationComputer:
         
     def _is_terrain_suitable(self,
         terrain_patch: np.ndarray,
-        lat: float,
-        lon: float,
+        est_lat: float,
+        est_lon: float,
         patch_size: int=25) -> bool:
         """
         Check for terrain roughness to determine whether the terrain is rough enough to conduct accurate TERCOM.
@@ -218,8 +229,8 @@ class NavigationComputer:
 
         patch = terrain_patch
 
-        if patch is None and self.dem_loader is not None and lat is not None and lon is not None:
-            patch = self.dem_loader.get_elevation_patch(lat, lon, patch_size, normalized=False)
+        if patch is None and self.dem_loader is not None and est_lat is not None and est_lon is not None:
+            patch = self.dem_loader.get_elevation_patch(est_lat, est_lon, patch_size, normalized=False)
         if patch is None:
             return False
 

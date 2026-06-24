@@ -89,5 +89,5 @@ class IMU:
             gyro_noise_std=math.radians(0.1),  # rad/s
             accel_bias_walk_std=1e-3,  # m/s^2 / sqrt(s)
             gyro_bias_walk_std=math.radians(0.01) / 60.0,  # rad/s / sqrt(s)
-            rng=rng,
+            rng=rng
         )
