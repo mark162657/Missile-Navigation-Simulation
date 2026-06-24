@@ -33,18 +33,11 @@ class INS:
     """
 
     def __init__(
-        self,
-        init_pos: np.ndarray | list[float],
-        init_vel: np.ndarray | list[float],
-        init_att: np.ndarray | list[float] | None = None,
-        accel_bias: np.ndarray | list[float] | None = None,
-        gyro_bias: np.ndarray | list[float] | None = None,
-        accel_noise_std: float = 0.0,
-        gyro_noise_std: float = 0.0,
-        accel_bias_walk_std: float = 0.0,
-        gyro_bias_walk_std: float = 0.0,
-        rng: np.random.Generator | None = None
-    ):
+            self,
+            init_pos: np.ndarray | list[float],
+            init_vel: np.ndarray | list[float],
+            init_att: np.ndarray | list[float] | None = None,
+        ):
         """
         Args:
             init_pos: initial position [lat, lon, alt] — x, y in degrees, z in meters
@@ -67,18 +60,6 @@ class INS:
         self.att = np.asarray(init_att, dtype=float).copy()
         self._normalize_attitude()
 
-        # --- IMU error model ---
-        self._rng = rng if rng is not None else np.random.default_rng()
-
-        self.accel_bias = (np.zeros(3) if accel_bias is None
-                           else np.asarray(accel_bias, dtype=float).copy())
-        self.gyro_bias = (np.zeros(3) if gyro_bias is None
-                          else np.asarray(gyro_bias, dtype=float).copy())
-
-        self.accel_noise_std = float(accel_noise_std)
-        self.gyro_noise_std = float(gyro_noise_std)
-        self.accel_bias_walk_std = float(accel_bias_walk_std)
-        self.gyro_bias_walk_std = float(gyro_bias_walk_std)
 
         # --- bookkeeping ---
         self.time = 0.0
