@@ -43,7 +43,8 @@ class INS:
         gyro_noise_std: float = 0.0,
         accel_bias_walk_std: float = 0.0,
         gyro_bias_walk_std: float = 0.0,
-        rng: np.random.Generator | None = None) -> None:
+        rng: np.random.Generator | None = None
+    ):
         """
         Args:
             init_pos: initial position [lat, lon, alt] — x, y in degrees, z in meters

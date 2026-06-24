@@ -27,9 +27,7 @@ class TERCOM:
     terrain maps to determine position and correct flight path. Implemented by Kalman Filter.
 
     The terrain check is performed periodically (the rate is set by the
-    navigation computer; intended ~every 2 seconds). With following data:
-        - db data: from TerrainDatabase.get_elevation_patch
-        - sensor data:
+    navigation computer; intended ~every 2 seconds).
     """
     def __init__(self, location: list[float, float], dem_name: str):
         """
@@ -101,7 +99,7 @@ class TERCOM:
         snsr_patch_height, snsr_patch_width = sensed_patch.shape
 
         # Create sliding window by numpy.sliding_window_view and compute NCC
-        # window = (199, 199, 7, 7), for example, last two 7 are dimensions 7 * 7
+        # window = (199, 199, 7, 7) - for example, last two 7 are dimensions 7 * 7
         window = sliding_window_view(db_search_patch, (snsr_patch_height, snsr_patch_width))
         ncc_map = self.cross_correlation(window, sensed_patch) # return score of all each window
 
@@ -126,14 +124,12 @@ class TERCOM:
         """
         Calculates the noise covariance matrix.
         The noises are represented as a diagonal in the 3D matrix
-
         """
         return np.diag([
             self.lateral_accuracy ** 2,
             self.lateral_accuracy ** 2,
             self.vertical_accuracy ** 2
         ])
-
 
 if __name__ == "__main__":
     """
