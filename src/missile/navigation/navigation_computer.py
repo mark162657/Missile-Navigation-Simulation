@@ -138,7 +138,7 @@ class NavigationComputer:
                     yaw_rate
                 )
                 # IMU turns the true motion into noisy measurement
-                true_ang_vel = (np.zeros(3) if true_angular_velocity is None
+                true_ang_vel = (np.zeros(3) if true_angular_velocity is None # if somehow true_ang_vel is None
                                 else np.asarray(true_angular_velocity, dtype=float))
                 acc_meas, gyro_meas = self.imu.imu_error(
                     true_acceleration, true_ang_vel, self.ins_period
