@@ -48,7 +48,7 @@ class IMU:
         random walk, then add bias and white noise. Returns the corrupted
         (acceleration, angular_velocity) the INS will actually integrate.
         """
-        
+
         # In-run bias instability: random walk scaled by sqrt(dt) / bias drift
         if self.accel_bias_walk_std > 0.0:
             self.accel_bias += self._rng.normal(0.0, self.accel_bias_walk_std, size=3) * math.sqrt(dt)
@@ -69,9 +69,6 @@ class IMU:
     @classmethod
     def tactical_grade(
             cls,
-            init_pos: np.ndarray | list[float],
-            init_vel: np.ndarray | list[float],
-            init_att: np.ndarray | list[float] | None = None,
             rng: np.random.Generator | None = None) -> "INS":
         """
         Build an INS preconfigured with tactical-grade IMU error terms.
@@ -86,9 +83,6 @@ class IMU:
         gyro_bias = rng.normal(0.0, math.radians(5.0) / 3600.0, size=3)  # ~5 deg/hr
 
         return cls(
-            init_pos,
-            init_vel,
-            init_att,
             accel_bias=accel_bias,
             gyro_bias=gyro_bias,
             accel_noise_std=0.05,  # m/s^2
