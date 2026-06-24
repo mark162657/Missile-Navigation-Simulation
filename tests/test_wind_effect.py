@@ -64,7 +64,7 @@ def fresh_state(profile: MissileProfile) -> MissileState:
         true_lat=36.0, true_lon=-115.0, true_alt=100.0,
         est_lat=36.0, est_lon=-115.0, est_alt=100.0,
         vel_east=0.0, vel_north=cruise_v, vel_up=0.0,
-        roll=0.0, pitch=0.11, yaw=0.0,
+        roll=0.0, pitch=0.0, yaw=0.0,
         time=0.0, distance_traveled=0.0, distance_to_target=0.0,
         gps_valid=True, tercom_active=False, ins_calibrated=True,
     )
@@ -85,7 +85,7 @@ def fly(profile, wind: WindField, duration_s: float, dt: float,
     """Integrate one flight; optionally dead-reckon a clean INS alongside."""
     state = fresh_state(profile)
     dynamics = MissileDynamics(profile, wind=wind)
-    control = ControlInput(throttle=0.50, elevator=0.064, rudder=0.0)
+    control = ControlInput(throttle=0.50, accel_climb=9.80665)
 
     ins = None
     if with_ins:

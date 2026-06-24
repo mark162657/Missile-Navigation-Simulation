@@ -87,16 +87,15 @@ def main() -> None:
     launch_lat, launch_lon, launch_alt = 36.0, -115.0, 100.0
     cruise_v = profile.basic.cruise_speed_ms  # m/s
 
-    # Trim incidence the airframe holds for level flight (informational; the
-    # format check does not depend on flying a perfect trim).
-    trim_elevator = 0.064          # rad  (~3.7 deg) -> alpha ~ 0.11 rad
-    trim_pitch = 0.11              # rad, matches the trim AoA at level flight
+    # No control surfaces: the autopilot commands a maneuver acceleration. To
+    # hold level flight it commands ~g of vertical accel to cancel gravity.
+    hold_level_accel = 9.80665     # m/s^2 (counters gravity at gamma = 0)
 
     state = MissileState(
         true_lat=launch_lat, true_lon=launch_lon, true_alt=launch_alt,
         est_lat=launch_lat, est_lon=launch_lon, est_alt=launch_alt,
         vel_east=0.0, vel_north=cruise_v, vel_up=0.0,
-        roll=0.0, pitch=trim_pitch, yaw=0.0,
+        roll=0.0, pitch=0.0, yaw=0.0,
         time=0.0, distance_traveled=0.0, distance_to_target=0.0,
         gps_valid=True, tercom_active=False, ins_calibrated=True,
     )
@@ -109,10 +108,9 @@ def main() -> None:
         init_att=[state.roll, state.pitch, state.yaw],
     )
 
-    # Throttle chosen so thrust ~ cruise drag (keeps it roughly level); the
-    # format check itself does not depend on a perfect trim.
-    control = ControlInput(throttle=0.50, elevator=trim_elevator,
-                           rudder=0.0, aileron=0.0)
+    # Throttle ~ cruise drag; vertical accel ~ g to stay level. The format
+    # check itself does not depend on flying a perfect cruise.
+    control = ControlInput(throttle=0.50, accel_climb=hold_level_accel)
 
     # --- 3 & 4. integrate 10 s and feed every IMU sample into the INS ---
     dt = 0.01

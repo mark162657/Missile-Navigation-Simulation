@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.typing as npt
 from terrain.dem_loader import DEMLoader
 from itertools import groupby
 from scipy.interpolate import splprep, splev
@@ -13,11 +14,12 @@ class TrajectoryGenerator:
                        smooth_factor: float=2.0, 
                        res_multi: int=5, 
                        min_alt: float=30.0
-                       ) -> list[tuple[int, int]]:
+                       ) -> npt.NDArray[np.float64]:
         """
         Smooth the path by B Spline (C2 continuity), which is aerodynamic and close to what missile could fly.
         Balancing continuity and local control.
-        We ignore altitude during 2D smoothing (z will be handled by missile itself/terrain lookup), we focus on x, y (lat/lon).
+        We ignore altitude during 2D smoothing (flight altitude handled by flight computer/autopilot),
+        we focus on x, y (lat/lon).
         """
 
         # check length
@@ -25,11 +27,11 @@ class TrajectoryGenerator:
 
         # check again for cleaned path
         clean_path = self._remove_duplication(raw_path)
-        if len(clean_path) < 3: return []
+        if len(clean_path) < 3: return np.array([])
 
         # Smoothing row and col separately
         smoothed_rows, smoothed_cols = self._compute_b_spline(clean_path, smooth_factor, res_multi)
-        if smoothed_rows is None or smoothed_cols is None: return []
+        if smoothed_rows is None or smoothed_cols is None: return np.darray([])
 
         # Get elevation by get_terrain_profile function in CPP
         ground_elevation = self.engine.get_terrain_profile(smoothed_rows, smoothed_cols)
@@ -38,7 +40,7 @@ class TrajectoryGenerator:
         lat, lon = self.dem.pixel_to_lat_lon(smoothed_rows, smoothed_cols)
 
         # Get 3D trajectory with target_altitude to met
-        final_3d_trajectory = []
+        trajectory = []
 
         for lat, lon, height in zip(lat, lon, ground_elevation):
             # check if no data region
@@ -46,9 +48,12 @@ class TrajectoryGenerator:
                 continue
 
 
-            final_3d_trajectory.append([lat, lon, height])
+            trajectory.append([lat, lon, height])
 
-        return np.asarray(final_3d_trajectory, dtype=float)
+        final_3d_trajectory = np.asarray(trajectory, dtype=float)
+        final_3d_trajectory.setflags(write=False)
+
+        return final_3d_trajectory
 
     def _remove_duplication(self, path: list[tuple[int, int]]) -> list[tuple[int, int]]:
         """

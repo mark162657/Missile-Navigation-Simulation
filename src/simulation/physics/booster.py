@@ -51,7 +51,7 @@ class SolidBooster:
         (no density lapse, unlike the turbofan).
         """
         if self.separated or self.propellant_remaining_kg <= 0.0:
-            return 0.0
+            return 0.0 # 0 once separated or out of propellant
         return self.spec.booster_thrust_N
 
     # --- propellant / mass ----------------------------------------------

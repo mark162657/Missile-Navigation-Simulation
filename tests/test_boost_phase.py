@@ -93,7 +93,8 @@ def main() -> None:
     )
 
     # Cruise command applied once the turbofan takes over (ignored during boost).
-    cruise_control = ControlInput(throttle=0.55, elevator=0.064)
+    # No control surfaces: ~g of vertical accel holds level once cruising.
+    cruise_control = ControlInput(throttle=0.55, accel_climb=9.80665)
 
     dt = 0.01
     total_t = 25.0

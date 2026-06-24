@@ -12,9 +12,9 @@ class FlightStage(Enum):
     """Flight stages of the cruise missile."""
     PRE_LAUNCHED = auto()
     BOOST = auto()
-    CRUISE = auto()
-    TERMINAL = auto()
-    IMPACT = auto()
+    CRUISE = auto()   # Cruise/in-flight guidance
+    TERMINAL = auto() # Terminal guidance (with impact angle)
+    IMPACT = auto()   # Detonate boom
 
 
 @dataclass
@@ -69,6 +69,9 @@ class MissileState:
     gps_valid: bool
     tercom_active: bool
     ins_calibrated: bool
+
+    # Missile flight stage record (defaults to pre-launch; physics/sim loop advance it)
+    missile_stage: FlightStage = FlightStage.PRE_LAUNCHED
 
     def get_speed(self) -> float:
         """Return speed magnitude from velocity components, m/s."""
