@@ -45,11 +45,10 @@ class TrajectoryGenerator:
             if height < -100:
                 continue
 
-            target_alt = height + min_alt
 
-            final_3d_trajectory.append([lat, lon, target_alt])
+            final_3d_trajectory.append([lat, lon, height])
 
-        return final_3d_trajectory
+        return np.asarray(final_3d_trajectory, dtype=float)
 
     def _remove_duplication(self, path: list[tuple[int, int]]) -> list[tuple[int, int]]:
         """
