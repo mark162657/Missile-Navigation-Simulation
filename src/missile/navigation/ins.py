@@ -11,21 +11,6 @@ class INS:
     velocity, and attitude -- by integrating IMU inputs: nav-frame (ENU)
     kinematic acceleration and angular rate from the gyroscopes.
 
-    Note: this is NOT a true strapdown mechanization. Acceleration arrives
-    already resolved in the ENU navigation frame (no body->nav rotation, no
-    gravity subtraction). Attitude is integrated for reporting only -- it does
-    not rotate the acceleration.
-
-    A real IMU is imperfect, so the ideal inputs are corrupted by:
-      - turn-on bias       : constant offset fixed at power-up (accel + gyro)
-      - in-run bias walk   : slow random walk on the bias -> long-term drift
-      - white noise        : zero-mean Gaussian noise each step
-
-    These errors make the dead-reckoned estimate drift away from truth over
-    time. That drift is precisely the error the Kalman Filter corrects using
-    GPS / TERCOM fixes. With all error terms at their default (0), the INS
-    behaves as a clean, deterministic dead-reckoner.
-
     Frame (unified project convention):
       - position : [lat, lon, alt] — degrees, degrees, meters MSL (maps to MissileState est_* / INS pos[])
       - velocity : [vx, vy, vz] = [east, north, up] in m/s
@@ -60,72 +45,12 @@ class INS:
         self.att = np.asarray(init_att, dtype=float).copy()
         self._normalize_attitude()
 
-
         # --- bookkeeping ---
         self.time = 0.0
         self.distance_traveled = 0.0
 
-    @classmethod
-    def tactical_grade(
-        cls,
-        init_pos: np.ndarray | list[float],
-        init_vel: np.ndarray | list[float],
-        init_att: np.ndarray | list[float] | None = None,
-        rng: np.random.Generator | None = None) -> "INS":
-        """
-        Build an INS preconfigured with tactical-grade IMU error terms.
-
-        Turn-on biases are sampled once from the given (or a fresh) RNG, so each
-        constructed unit drifts differently. Values are representative, not
-        sourced from a specific datasheet -- tune as real specs become available.
-        """
-        rng = rng if rng is not None else np.random.default_rng()
-
-        accel_bias = rng.normal(0.0, 0.02, size=3)                      # ~2e-2 m/s^2 (~2 mg)
-        gyro_bias = rng.normal(0.0, math.radians(5.0) / 3600.0, size=3)  # ~5 deg/hr
-
-        return cls(
-            init_pos,
-            init_vel,
-            init_att,
-            accel_bias=accel_bias,
-            gyro_bias=gyro_bias,
-            accel_noise_std=0.05,                       # m/s^2
-            gyro_noise_std=math.radians(0.1),           # rad/s
-            accel_bias_walk_std=1e-3,                   # m/s^2 / sqrt(s)
-            gyro_bias_walk_std=math.radians(0.01) / 60.0,  # rad/s / sqrt(s)
-            rng=rng,
-        )
-
     def _normalize_attitude(self) -> None:
         self.att = np.array([angle % (2 * math.pi) for angle in self.att], dtype=float)
-
-    def _corrupt_imu(
-        self,
-        acc_true: np.ndarray,
-        ang_true: np.ndarray,
-        dt: float) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Apply the IMU error model to ideal inputs: advance the in-run bias
-        random walk, then add bias and white noise. Returns the corrupted
-        (acceleration, angular_velocity) the INS will actually integrate.
-        """
-        # In-run bias instability: random walk scaled by sqrt(dt) / bias drift
-        if self.accel_bias_walk_std > 0.0:
-            self.accel_bias += self._rng.normal(0.0, self.accel_bias_walk_std, size=3) * math.sqrt(dt)
-        if self.gyro_bias_walk_std > 0.0:
-            self.gyro_bias += self._rng.normal(0.0, self.gyro_bias_walk_std, size=3) * math.sqrt(dt)
-
-        acc = acc_true + self.accel_bias
-        ang = ang_true + self.gyro_bias
-
-        # Measurement noise
-        if self.accel_noise_std > 0.0:
-            acc = acc + self._rng.normal(0.0, self.accel_noise_std, size=3)
-        if self.gyro_noise_std > 0.0:
-            ang = ang + self._rng.normal(0.0, self.gyro_noise_std, size=3)
-
-        return acc, ang
 
     def predict(
         self,
@@ -143,13 +68,11 @@ class INS:
         Returns:
             (pos, vel, att) after propagation.
         """
-        acc_true = np.asarray(acceleration, dtype=float)
+        acc = np.asarray(acceleration, dtype=float)
 
         if angular_velocity is None:
             angular_velocity = [0.0, 0.0, 0.0]
-        ang_true = np.asarray(angular_velocity, dtype=float)
-
-        acc, ang_vel = self._corrupt_imu(acc_true, ang_true, dt)
+        ang_vel = np.asarray(angular_velocity, dtype=float)
 
         # Strapdown integration in geographic frame (constant-acceleration over dt).
         previous_velocity = self.vel.copy()

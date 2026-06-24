@@ -48,6 +48,7 @@ class IMU:
         random walk, then add bias and white noise. Returns the corrupted
         (acceleration, angular_velocity) the INS will actually integrate.
         """
+        
         # In-run bias instability: random walk scaled by sqrt(dt) / bias drift
         if self.accel_bias_walk_std > 0.0:
             self.accel_bias += self._rng.normal(0.0, self.accel_bias_walk_std, size=3) * math.sqrt(dt)
