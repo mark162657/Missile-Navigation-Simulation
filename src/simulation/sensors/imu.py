@@ -4,6 +4,7 @@ import math
 class IMU:
     """
     Dedicated IMU sensor to handle error and deviation of INS over time.
+    Separating it from INS makes the design make sense and allows KF to read a full corrupted IMU measured.
     """
     def __init__(
         self,
@@ -47,6 +48,11 @@ class IMU:
         Apply the IMU error model to ideal inputs: advance the in-run bias
         random walk, then add bias and white noise. Returns the corrupted
         (acceleration, angular_velocity) the INS will actually integrate.
+
+        Args:
+            acc_true: true and uncorrupted accelerometer reading
+            ang_true: true and uncorrupted gyroscope reading
+            dt: timestep in seconds
         """
 
         # In-run bias instability: random walk scaled by sqrt(dt) / bias drift
