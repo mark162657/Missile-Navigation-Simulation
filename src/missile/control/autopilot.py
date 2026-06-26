@@ -11,8 +11,10 @@ class AutoPilot:
             trajectory: a non-writable numpy array of shape (N, 3), with lat/lon/terrain_elevation
         """
         self.trajectory = trajectory
-        self.profile = MissileProfile()
-        self.state = MissileState()
+        self.profile = profile
+        self.state = state
+
+
 
 
 
