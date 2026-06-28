@@ -2,7 +2,6 @@ import numpy as np
 
 from terrain.coordinates import meter_per_deg_lat, meter_per_deg_lon_at
 
-
 class GPSReceiver():
     def __init__(self, horizontal_accuracy: float=2.3, vertical_accuracy: float=3.1):
         """
@@ -11,7 +10,6 @@ class GPSReceiver():
         so based on Perplexity Pro Research's document currently (will definitely be updated or be filled by user)
 
         Args:
-            - dem_loader: DEMLoader object
             - horizontal_accuracy: horizontal accuracy in meter
             - vertical_accuracy: vertical accuracy in meter (was kinda surprised to know GPS can measure altitude by
             trilateration of satellite).
@@ -24,11 +22,11 @@ class GPSReceiver():
     def get_raw_measurement(self, true_location: list[float, float, float]) -> np.ndarray:
         """
         We will receive absolute location in GPS form from main simulation loop, it keep track of our TRUE location
-        (as it is only a simulation, it has no REAL GPS SENSOR, noway it will know where it is by itself).
+        (because it is only a simulation, it has no REAL GPS SENSOR, no way it will know where it is by itself).
         Then we will apply the noise matrix to the true location to 'simulate' the GPS sensor with error.
 
         Args:
-            - location: tuple (lat, lon), true location handled in simulation loop
+            - true_location: tuple (lat, lon), true uncorrupted location handled in simulation loop
 
         Return:
             - numpy array with matrix of true location applied with normalized random noise matrix

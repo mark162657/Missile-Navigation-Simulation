@@ -40,8 +40,13 @@ class DEMLoader:
     # -------------------------------------------------------------------------
     # [FIX-3c] Windowed read — reads only a rectangular sub-region from disk
     # -------------------------------------------------------------------------
-    def load_window(self, min_row: int, max_row: int,
-                    min_col: int, max_col: int) -> np.ndarray:
+    def load_window(
+            self,
+            min_row: int,
+            max_row: int,
+            min_col: int,
+            max_col: int
+    ) -> np.ndarray:
         """
         Read a sub-region of the DEM directly from disk without loading the
         full file into RAM. Uses rasterio's native Window API.

@@ -7,14 +7,14 @@ class IMU:
     Separating it from INS makes the design make sense and allows KF to read a full corrupted IMU measured.
     """
     def __init__(
-        self,
-        accel_bias: np.ndarray | list[float] | None = None,
-        gyro_bias: np.ndarray | list[float] | None = None,
-        accel_noise_std: float = 0.0,
-        gyro_noise_std: float = 0.0,
-        accel_bias_walk_std: float = 0.0,
-        gyro_bias_walk_std: float = 0.0,
-        rng: np.random.Generator | None = None
+            self,
+            accel_bias: np.ndarray | list[float] | None = None,
+            gyro_bias: np.ndarray | list[float] | None = None,
+            accel_noise_std: float = 0.0,
+            gyro_noise_std: float = 0.0,
+            accel_bias_walk_std: float = 0.0,
+            gyro_bias_walk_std: float = 0.0,
+            rng: np.random.Generator | None = None
     ):
         """
         Args:
@@ -43,7 +43,8 @@ class IMU:
             self,
             acc_true: np.ndarray,
             ang_true: np.ndarray,
-            dt: float) -> tuple[np.ndarray, np.ndarray]:
+            dt: float
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Apply the IMU error model to ideal inputs: advance the in-run bias
         random walk, then add bias and white noise. Returns the corrupted

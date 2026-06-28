@@ -71,7 +71,13 @@ class NavigationComputer:
         self.tercom_roughness_threshold_m = 5.0
 
     def _build_initial_state(self, true_start_gps: tuple[float, float, float]) -> MissileState:
-        """Build and initialise initial state of missile in state.py"""
+        """
+        Build and initialise the initial state of a missile in state.py
+        This serve as the only point which initial state.py is built.
+
+        TODO:
+        move to main loop
+        """
         lat, lon, alt = true_start_gps
         return MissileState(
             true_lat=lat,

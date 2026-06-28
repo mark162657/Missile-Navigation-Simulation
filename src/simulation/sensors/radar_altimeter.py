@@ -1,5 +1,10 @@
 import numpy as np
 
+
+"""
+Radar altimeter in Tomahawk Cruise Missile can only sense altitude of a point, yet here,
+we assume somehow, our radar altimeter can sensed a larger patch to simulate our simplified elevation-based DSMAC.
+"""
 class RadarAltimeter:
     def __init__(self, vertical_std: float=1.0):
         """
