@@ -41,7 +41,7 @@ WHO CONSUMES IT
 
 DESIGN -- truth-side only (rule 6)
     Wind is part of the simulated REAL WORLD (the "plant"). It is NOT visible
-    to navigation/guidance/control except through its effect on the true
+    to navigation/guidance/controls except through its effect on the true
     trajectory and hence the IMU. This module never imports those.
 
 Frame: ENU, z positive up -- matches atmosphere.py / dynamics.py / state.py.

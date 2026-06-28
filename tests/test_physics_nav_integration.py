@@ -87,7 +87,7 @@ def main() -> None:
     launch_lat, launch_lon, launch_alt = 36.0, -115.0, 100.0
     cruise_v = profile.basic.cruise_speed_ms  # m/s
 
-    # No control surfaces: the autopilot commands a maneuver acceleration. To
+    # No controls surfaces: the autopilot commands a maneuver acceleration. To
     # hold level flight it commands ~g of vertical accel to cancel gravity.
     hold_level_accel = 9.80665     # m/s^2 (counters gravity at gamma = 0)
 
