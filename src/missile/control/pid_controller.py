@@ -18,6 +18,13 @@ class PIDController:
 
 
     def update(self, error: float, measurement: float, dt: float) -> float:
+        """
+
+        Integrator anti-windup check is also conducted:
+            Clamp when:
+                - output is saturating
+                - error has same sign as controller output
+        """
         if dt <= 0.0: # when dt is broken (cannot be ≤ 0), we will only rely on P controller
             raise ValueError("dt must be greater than 0.0")
 
@@ -28,10 +35,21 @@ class PIDController:
         i = self.Ki * self.integral
 
         # D
+        d = None
 
+        # clamp (limit the output raw in range of out_min and out_max)
+        raw = p + i + d
+        output = self._clamp(raw)
 
+        # anti-windup
+        over_max = raw > self.out_max and error > 0.0 # output saturating AND error and control output has same sign
+        under_min = raw < self.out_min and error < 0.0 # output under min AND error and control output has same sign
 
+        # freeze / rollback the integrator
+        if over_max or under_min:
+            self.integral -= error * dt # revert back
 
+        return output
 
 
 
@@ -45,7 +63,6 @@ class PIDController:
     def _clamp(self, value):
         """
         Clamping prevent integrator windup
-        Clamp when:
-            - output is saturating
-            - error is same sign as controller output
+
         """
+        return max(self.out_min, min(self.out_max, value))
