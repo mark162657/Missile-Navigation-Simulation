@@ -51,6 +51,11 @@ class BasicSpec:
     cruise_agl_min: float        # m AGL (preferred terrain-following floor)
     cruise_agl_max: float        # m AGL (preferred terrain-following ceiling)
 
+    # Added after the initial schema -> carries a default so older configs and
+    # hand-built specs still construct. Boost-phase AXIAL (longitudinal) g limit:
+    # the booster accelerates the missile far harder than the cruise g-envelope.
+    max_longitudinal_g_boost: float = 20.0   # g (boost-phase axial accel limit)
+
     # --- SI conversions used by the physics helpers ---
     @property
     def cruise_speed_ms(self) -> float:
@@ -67,6 +72,11 @@ class BasicSpec:
     @property
     def sustained_turn_rate_rads(self) -> float:
         return math.radians(self.sustained_turn_rate)
+
+    @property
+    def max_longitudinal_accel_boost(self) -> float:
+        """Boost-phase axial acceleration limit, m/s^2 (from the g value)."""
+        return self.max_longitudinal_g_boost * _G
 
     @property
     def evasive_turn_rate_rads(self) -> float:

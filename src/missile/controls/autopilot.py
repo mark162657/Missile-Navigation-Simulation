@@ -8,14 +8,8 @@ from control_input import ControlInput
 from simulation.physics import atmosphere
 
 class AutoPilot:
-    def __init__(self, trajectory: npt.NDArray[np.float64], profile: MissileProfile, state: MissileState):
-        """
-        Args:
-            trajectory: a non-writable numpy array of shape (N, 3), with lat/lon/terrain_elevation
-        """
-        self.trajectory = trajectory
-        self.profile = profile
-        self.state = state
+    def __init__(self, profile: MissileProfile):
+
 
 
 
