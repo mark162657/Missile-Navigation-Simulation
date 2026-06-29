@@ -56,9 +56,9 @@ class MissileState:
     vel_up: float
 
     # Orientation (radians)
-    roll: float
-    pitch: float
-    yaw: float
+    roll: float # USELESS for now
+    pitch: float# mostly USELESS
+    yaw: float # heading
 
     # Time and bookkeeping (mirrors INS where applicable)
     time: float
