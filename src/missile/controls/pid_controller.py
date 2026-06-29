@@ -50,6 +50,8 @@ class PIDController:
         if self.prev_mea is None:
             d = 0.0
         else:
+            # Derivative based on MEASUREMENT (not error): avoids a spike when the
+            # setpoint jumps. Negative sign makes it a brake against fast motion.
             d = - self.Kd * (measurement - self.prev_mea) / dt
 
         # clamp (limit the output raw in range of out_min and out_max)
