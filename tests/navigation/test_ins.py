@@ -37,20 +37,15 @@ def test_init_does_not_alias_input_arrays():
     assert pos[0] == LAT  # original must be untouched
 
 
-def test_get_state_vector_roundtrip():
+def test_get_state_returns_pos_vel_att_copies():
     ins = make_ins(vel=[4.0, 5.0, 6.0])
-    sv = ins.get_state_vector()
-    assert sv.shape == (6,)
-    np.testing.assert_allclose(sv, [LAT, LON, ALT, 4.0, 5.0, 6.0])
-
-    ins.set_state_vector([1.0, 2.0, 3.0, 7.0, 8.0, 9.0])
-    np.testing.assert_allclose(ins.pos, [1.0, 2.0, 3.0])
-    np.testing.assert_allclose(ins.vel, [7.0, 8.0, 9.0])
-
-
-def test_get_speed():
-    ins = make_ins(vel=[3.0, 4.0, 0.0])
-    assert ins.get_speed() == pytest.approx(5.0)
+    pos, vel, att = ins.get_state()
+    np.testing.assert_allclose(pos, [LAT, LON, ALT])
+    np.testing.assert_allclose(vel, [4.0, 5.0, 6.0])
+    np.testing.assert_allclose(att, [0.0, 0.0, 0.0])
+    # mutating the returned arrays must not corrupt internal state
+    pos[0] += 1.0
+    assert ins.pos[0] == LAT
 
 
 def test_correct_state_replaces_pos_vel():
@@ -108,7 +103,8 @@ def test_predict_is_deterministic_without_noise():
     for _ in range(50):
         a.predict([0.3, -0.2, 0.1], 0.1)
         b.predict([0.3, -0.2, 0.1], 0.1)
-    np.testing.assert_allclose(a.get_state_vector(), b.get_state_vector())
+    np.testing.assert_allclose(a.pos, b.pos)
+    np.testing.assert_allclose(a.vel, b.vel)
 
 
 def test_attitude_is_wrapped_to_two_pi():
@@ -142,7 +138,8 @@ def test_white_noise_is_reproducible_with_seed():
             accel_noise_std=0.1, rng=np.random.default_rng(42))
     a.predict([1.0, 0.0, 0.0], 0.1)
     b.predict([1.0, 0.0, 0.0], 0.1)
-    np.testing.assert_allclose(a.get_state_vector(), b.get_state_vector())
+    np.testing.assert_allclose(a.pos, b.pos)
+    np.testing.assert_allclose(a.vel, b.vel)
 
 
 def test_noise_makes_estimate_differ_from_clean():

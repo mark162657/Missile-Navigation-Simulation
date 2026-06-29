@@ -116,16 +116,62 @@ class DetailedSpec:
 
 
 @dataclass
+class BoosterSpec:
+    """
+    SECTION 3 — jettisonable solid-rocket boost motor.
+
+    These describe the launch booster that accelerates the missile off the
+    launcher up to turbofan-ignition speed, then separates. Like SECTION 2,
+    every field has a representative (Tomahawk-class) default, so older config
+    files that predate this section still load unchanged.
+
+    This is the data half of the same pattern as DetailedSpec/create_ins(): the
+    simulation's physics layer turns it into behaviour
+    (simulation.physics.booster.SolidBooster, built by the FlightSequencer from
+    this spec). Kept as plain data here so the dependency points one way
+    (simulation -> missile), never the reverse.
+
+    Units:
+        booster_thrust_N   : N    (constant thrust while burning; solid motors
+                                    are ~altitude/airspeed independent)
+        burn_time_s        : s    (nominal burn duration)
+        propellant_mass_kg : kg   (solid propellant burned over burn_time_s)
+        casing_mass_kg     : kg   (inert structure jettisoned at burnout)
+        launch_mode        : str  (default launch platform / boost attitude:
+                                    "GROUND" | "SURFACE_VLS" | "SUBMARINE")
+    """
+    booster_thrust_N: float = 45000.0
+    burn_time_s: float = 7.0
+    propellant_mass_kg: float = 145.0
+    casing_mass_kg: float = 150.0
+    launch_mode: str = "SURFACE_VLS"
+
+    @property
+    def total_mass_kg(self) -> float:
+        """Full booster mass at ignition (casing + propellant), kg."""
+        return self.casing_mass_kg + self.propellant_mass_kg
+
+    @property
+    def burn_rate_kgps(self) -> float:
+        """Steady propellant mass flow, kg/s."""
+        if self.burn_time_s <= 0.0:
+            return 0.0
+        return self.propellant_mass_kg / self.burn_time_s
+
+
+@dataclass
 class MissileProfile:
     """
     Full missile profile = SECTION 1 (basic) + SECTION 2 (detailed).
 
     The user only has to provide `basic`. `detailed` defaults to representative
-    tactical-grade values and is mainly consumed by the INS.
+    tactical-grade values and is mainly consumed by the INS. `booster` defaults
+    to a representative boost motor and is consumed by the physics layer.
     """
     name: str
     basic: BasicSpec
     detailed: DetailedSpec = field(default_factory=DetailedSpec)
+    booster: BoosterSpec = field(default_factory=BoosterSpec)
 
     # ------------------------------------------------------------------
     # Construction from / to plain dicts (config_store / JSON bridge)
@@ -135,13 +181,22 @@ class MissileProfile:
         """
         Build a profile from a stored configuration dict.
 
-        Accepts the two-section layout ({"basic": {...}, "detailed": {...}}).
-        The detailed section is optional — missing keys fall back to defaults.
+        Accepts the layout {"basic": {...}, "detailed": {...}, "booster": {...}}.
+        The detailed and booster sections are optional — missing keys fall back
+        to defaults.
+
+        NOTE: profiles loaded through config_store currently arrive without a
+        booster section (config_store.validate_configuration keeps only
+        name/basic/detailed), so the booster defaults apply on that path until
+        config_store + the missile JSON files are extended.
         """
         basic = BasicSpec(**config["basic"])
         detailed_data = config.get("detailed") or {}
         detailed = DetailedSpec(**detailed_data)
-        return cls(name=config["name"], basic=basic, detailed=detailed)
+        booster_data = config.get("booster") or {}
+        booster = BoosterSpec(**booster_data)
+        return cls(name=config["name"], basic=basic, detailed=detailed,
+                   booster=booster)
 
     def to_config(self) -> dict:
         """Serialize back to a nested dict suitable for JSON storage."""
@@ -149,6 +204,7 @@ class MissileProfile:
             "name": self.name,
             "basic": asdict(self.basic),
             "detailed": asdict(self.detailed),
+            "booster": asdict(self.booster),
         }
 
     # ------------------------------------------------------------------
