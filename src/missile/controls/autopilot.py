@@ -24,19 +24,31 @@ class AutoPilot:
             self,
             state: MissileState,
             target_alt: float,
-            target_speed: float,
+            target_spd: float,
             lateral_accel_cmd,
             dt: float
     ) -> ControlInput:
         """
-        What guidance want + where we are now + how much time passed
+        Receive input of what guidance want + where we are now + how much time passed.
+        Pass them into PID and we make the output into ControlInput
+
         Args:
             state: the MissileState
             target_alt: the target altitude we want to reach / maintain
-            target_speed: the target speed
+            target_spd: the target speed
             lateral_accel_cmd: the lateral acceleration command calculated in guidance path_follower
             dt: delta time (time changes
         """
+
+        curr_alt = state.est_alt
+        curr_spd = state.get_speed()
+
+        # handles error for PID (target - measurement)
+        alt_error = target_alt - curr_alt
+        spd_error = target_spd - curr_spd
+
+
+
 
 
 
