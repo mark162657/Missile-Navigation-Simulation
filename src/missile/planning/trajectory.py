@@ -29,15 +29,14 @@ class TrajectoryGenerator:
         clean_path = self._remove_duplication(raw_path)
         if len(clean_path) < 3: return np.array([])
 
-        # Smoothing row and col separately
-        smoothed_rows, smoothed_cols = self._compute_b_spline(clean_path, smooth_factor, res_multi)
-        if smoothed_rows is None or smoothed_cols is None: return np.darray([])
+        # assign rows and cols to the clean path which duplications are removed
+        rows, cols = clean_path
 
         # Get elevation by get_terrain_profile function in CPP
-        ground_elevation = self.engine.get_terrain_profile(smoothed_rows, smoothed_cols)
+        ground_elevation = self.engine.get_terrain_profile(rows, cols)
 
         # Convert (int, int) pixel coordinate to -> GPS coordinates (float: lat, float: lon)
-        lat, lon = self.dem.pixel_to_lat_lon(smoothed_rows, smoothed_cols)
+        lat, lon = self.dem.pixel_to_lat_lon(rows, cols)
 
         # Get 3D trajectory with target_altitude to met
         trajectory = []
@@ -68,24 +67,24 @@ class TrajectoryGenerator:
         return [k for k, g in groupby(path)]
 
 
-    def _compute_b_spline(self, clean_path: list[tuple[int, int]], smooth_factor: float, res_multi: int) -> list[tuple[int, int]]:
-        """
-        Smooth the path by b spline, using splev and splprep
-        """
-        try:
-            # Numpy slicing
-            clean_path = np.array(clean_path)
-
-            row = clean_path[:, 0] # select everything but only keep the 0th index
-            col = clean_path[:, 1] # same but 1st
-
-            # Main smoothing part. splprep for patter analysing, linspace for point generating, splev for drawing
-            tck, u = splprep([row, col], s=smooth_factor * len(clean_path), k=3) # default k = 3, cubic
-            u_new = np.linspace(0, 1, int(len(clean_path) * res_multi)) # draw original nodes * resolution upsampling to create smoother path
-            new_row, new_col = splev(u_new, tck)
-
-            return new_row.astype(np.float32), new_col.astype(np.float32)
-
-        except Exception as e:
-            print(f"Trajectory Gen Error: {e}")
-            return None, None
+    # def _compute_b_spline(self, clean_path: list[tuple[int, int]], smooth_factor: float, res_multi: int) -> list[tuple[int, int]]:
+    #     """
+    #     Smooth the path by b spline, using splev and splprep
+    #     """
+    #     try:
+    #         # Numpy slicing
+    #         clean_path = np.array(clean_path)
+    #
+    #         row = clean_path[:, 0] # select everything but only keep the 0th index
+    #         col = clean_path[:, 1] # same but 1st
+    #
+    #         # Main smoothing part. splprep for patter analysing, linspace for point generating, splev for drawing
+    #         tck, u = splprep([row, col], s=smooth_factor * len(clean_path), k=3) # default k = 3, cubic
+    #         u_new = np.linspace(0, 1, int(len(clean_path) * res_multi)) # draw original nodes * resolution upsampling to create smoother path
+    #         new_row, new_col = splev(u_new, tck)
+    #
+    #         return new_row.astype(np.float32), new_col.astype(np.float32)
+    #
+    #     except Exception as e:
+    #         print(f"Trajectory Gen Error: {e}")
+    #         return None, None

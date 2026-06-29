@@ -72,7 +72,11 @@ class AutoPilot:
         )
 
     def reset(self):
-        """Clearing both PID when transition of target, and boost -> cruise phase"""
+        """
+        Clearing both PID when transition of target, and boost -> cruise phase
+        Resetting allows us to clear out the accumulated error and control in PID,
+        as cruise and boost phase has totally different behaviour.
+        """
         self.alt_pid.reset()
         self.spd_pid.reset()
 
