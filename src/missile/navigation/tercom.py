@@ -24,7 +24,7 @@ class TERCOM:
     """
     TERCOM (Terrain Contour Matching): A navigation system that guides missiles by
     comparing ground elevation profiles measured by radar altimeter with pre-stored
-    terrain maps to determine position and correct flight path. Implemented by Kalman Filter.
+    terrain maps to determine position and correct flight path.
 
     The terrain check is performed periodically (the rate is set by the
     navigation computer; intended ~every 2 seconds).

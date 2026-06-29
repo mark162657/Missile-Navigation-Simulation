@@ -15,4 +15,3 @@ class PathFollower:
         self.trajectory = trajectory
         self.profile = profile
 
-        

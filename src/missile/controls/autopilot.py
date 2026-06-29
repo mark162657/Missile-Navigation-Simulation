@@ -45,6 +45,9 @@ class AutoPilot:
             target_spd: the target speed
             lateral_accel_cmd: the lateral acceleration command calculated in guidance path_follower
             dt: delta time (time changes
+
+        Return:
+            Fill in the fields for ControlInput, including: throttle (0-1), accel_turn, accel_climb.
         """
 
         curr_alt = state.est_alt
@@ -64,8 +67,8 @@ class AutoPilot:
 
         return ControlInput(
             throttle=throttle,
-            accel_turn = accel_turn,
-            accel_climb = accel_climb
+            accel_turn=accel_turn,
+            accel_climb=accel_climb
         )
 
     def reset(self):
