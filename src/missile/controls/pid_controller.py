@@ -46,7 +46,7 @@ class PIDController:
         self.integral += error * dt
         i = self.Ki * self.integral
 
-        # D
+        # D:
         if self.prev_mea is None:
             d = 0.0
         else:
