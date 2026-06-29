@@ -18,6 +18,6 @@ class PathFollower:
         self.profile = profile
 
     def _l1_lateral_accel(self):
-        
+        pass
 
 

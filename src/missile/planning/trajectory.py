@@ -29,8 +29,11 @@ class TrajectoryGenerator:
         clean_path = self._remove_duplication(raw_path)
         if len(clean_path) < 3: return np.array([])
 
-        # assign rows and cols to the clean path which duplications are removed
-        rows, cols = clean_path
+        # split the deduplicated (row, col) pairs column-wise into separate
+        # row / col sequences (what get_terrain_profile and pixel_to_lat_lon expect)
+        clean = np.array(clean_path)
+        rows = clean[:, 0]
+        cols = clean[:, 1]
 
         # Get elevation by get_terrain_profile function in CPP
         ground_elevation = self.engine.get_terrain_profile(rows, cols)
@@ -62,8 +65,6 @@ class TrajectoryGenerator:
         Args:
             - path: the list contains tuple (representing pixels)... yeah just path
         """
-        pixels = np.array(path)
-        diffs = np.diff(pixels)
         return [k for k, g in groupby(path)]
 
 
