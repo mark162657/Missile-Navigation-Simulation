@@ -58,6 +58,8 @@ Turbulence fidelity (rule 7: representative, structure matters)
     stable, gives the correct correlation structure, and leaves an obvious
     upgrade hook. Numbers are representative; the layered structure is the
     point.
+
+Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
 
 from __future__ import annotations

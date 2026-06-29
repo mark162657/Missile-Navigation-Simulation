@@ -50,6 +50,8 @@ WIND (weather.py)
 
 Frame: ENU (East-North-Up), z positive up -- matches state.py / ins.py.
 Coordinate convention for body axes: x forward, y right, z down.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
 
 from __future__ import annotations

@@ -26,6 +26,8 @@ The booster PARAMETERS live in missile.profile.BoosterSpec (the data half of
 the same pattern as DetailedSpec/INS); this module is the behaviour half.
 Build one from a profile's spec: `SolidBooster(profile.booster)` (the
 FlightSequencer does this for you).
+
+Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
 
 from __future__ import annotations

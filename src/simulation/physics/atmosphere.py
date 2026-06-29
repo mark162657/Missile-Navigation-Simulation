@@ -23,6 +23,8 @@ WHO CONSUMES IT
 This file is the single home for the universal physical constants (rule 9).
 Airframe-specific numbers (reference area, aero coefficients) live with the
 module that owns them (aerodynamics.py), not here.
+
+CAuthored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
 
 from __future__ import annotations

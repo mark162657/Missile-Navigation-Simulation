@@ -7,6 +7,8 @@ its PRODUCER; the plant (simulation.physics.dynamics) only CONSUMES it. Keeping
 it here -- in its own dependency-light module -- lets both the autopilot and
 dynamics import the TYPE without dragging in any behaviour, and keeps the
 dependency arrow pointing the one allowed way (simulation -> missile).
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
 
 from __future__ import annotations

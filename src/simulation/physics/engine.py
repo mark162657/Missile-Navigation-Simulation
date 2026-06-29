@@ -26,6 +26,8 @@ Mass/fuel convention (chosen here; MissileState has no mass field by design):
 
 Numbers below are representative of an F107-class small turbofan. Exact values
 are not critical (rule 7).
+
+Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
 
 from __future__ import annotations
