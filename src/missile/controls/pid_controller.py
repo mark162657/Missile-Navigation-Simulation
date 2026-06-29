@@ -12,7 +12,7 @@ class PIDController:
             kp, ki, kd: weighting factor for P, I, and D controller
             out_max, out_min: the max and min output available (for e.g. max and min thrust level)
         """
-        if out_max > out_min:
+        if out_max <= out_min:
             raise ValueError(f"out_min: {out_min} must be less than out_max: {out_max}.")
 
         self.Kp = float(kp)
@@ -53,6 +53,9 @@ class PIDController:
             # Derivative based on MEASUREMENT (not error): avoids a spike when the
             # setpoint jumps. Negative sign makes it a brake against fast motion.
             d = - self.Kd * (measurement - self.prev_mea) / dt
+
+        # updating previous measurement by newest measurement
+        self.prev_mea = measurement
 
         # clamp (limit the output raw in range of out_min and out_max)
         raw = p + i + d
