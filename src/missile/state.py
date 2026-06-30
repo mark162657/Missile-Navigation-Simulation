@@ -73,7 +73,7 @@ class MissileState:
     # Missile flight stage record (defaults to pre-launch; physics/sim loop advance it)
     missile_stage: FlightStage = FlightStage.PRE_LAUNCHED
 
-    def get_speed(self) -> float:
+    def get_ground_speed(self) -> float:
         """Return speed magnitude from velocity components, m/s."""
         return float(np.linalg.norm([self.vel_east, self.vel_north, self.vel_up]))
 
@@ -157,4 +157,4 @@ class MissileState:
         self.yaw = (self.yaw + yaw_rate * dt) % (2 * math.pi)
 
         self.time += dt
-        self.distance_traveled += self.get_speed() * dt
+        self.distance_traveled += self.get_ground_speed() * dt

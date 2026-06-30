@@ -137,7 +137,7 @@ def main() -> None:
           f"alt {ins_pos[2]:8.2f} m")
     print(f"  pos error : east {east_e:+.3f} m  north {north_e:+.3f} m  "
           f"alt {alt_e:+.3f} m  | horizontal {horiz_err:.3f} m")
-    print(f"  true  vel : {true_vel}  (|v| {state.get_speed():.2f} m/s)")
+    print(f"  true  vel : {true_vel}  (|v| {state.get_ground_speed() :.2f} m/s)")
     print(f"  INS   vel : {ins_vel}")
     print(f"  vel error : {vel_err:.4f} m/s")
     # INS normalizes Euler angles to [0, 2pi); MissileState does not. Wrap the

@@ -14,7 +14,6 @@ class PathFollower:
             coordinate: CoordinateSystem,
             l1_distance: float=300.0
     ):
-
         # dealing with path
         self.path = trajectory.get_trajectory()
         self.path_length = len(self.path)
@@ -22,7 +21,6 @@ class PathFollower:
         # set up the profile and coordinate system
         self.profile = profile
         self.coord = coordinate
-
 
         # convert path coordinates to enu
         if self.path.ndim != 2 or self.path.shape[1] < 2:
@@ -41,7 +39,11 @@ class PathFollower:
         self.last_idx = 0
 
     def update(self):
-        pass
+        """
+
+        """
+        target_alt = self._target_altitude()
+        target_spd = ()
 
     def _l1_lateral_accel(
             self,
@@ -64,6 +66,12 @@ class PathFollower:
         """
         pref_alt = self.profile.preferred_agl()
         return self.ground_elev[aim_idx] + pref_alt
+
+    def enter_terminal_guidance(self):
+        """
+        A handoff to handle the normal in-flight guidance to terminal guidance for a final attack angle and detonation.
+        """
+        pass
 
 
 

@@ -51,7 +51,7 @@ class AutoPilot:
         """
 
         curr_alt = state.est_alt
-        curr_spd = state.get_speed()
+        curr_spd = state.get_ground_speed()
 
         # handles error for PID (target - measurement)
         alt_error = target_alt - curr_alt
