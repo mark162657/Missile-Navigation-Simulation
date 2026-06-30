@@ -14,10 +14,20 @@ class PathFollower:
             coordinate: CoordinateSystem,
             l1_distance: float=300.0
     ):
-        self.trajectory = trajectory
+        self.path = trajectory.get_trajectory()
         self.profile = profile
 
-    def _l1_lateral_accel(self):
+    def _l1_lateral_accel(
+            self,
+            pos_enu: np.ndarray,
+            heading: float,
+            speed: float,
+            aim_pt
+    ) -> float:
         pass
+
+
+
+
 
 
