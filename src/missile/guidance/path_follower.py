@@ -43,13 +43,16 @@ class PathFollower:
 
         """
         target_alt = self._target_altitude()
-        target_spd = ()
+        target_spd = self.profile.basic.cruise_speed_ms
+
+        while i < self.path_length:
+            pass
 
     def _l1_lateral_accel(
             self,
             pos_enu: np.ndarray,
             heading: float,
-            speed: float,
+            target_speed: float,
             aim_pt
     ) -> float:
         pass
@@ -69,7 +72,7 @@ class PathFollower:
 
     def enter_terminal_guidance(self):
         """
-        A handoff to handle the normal in-flight guidance to terminal guidance for a final attack angle and detonation.
+        A handover from the normal in-flight guidance to terminal guidance for a final attack angle and detonation.
         """
         pass
 
