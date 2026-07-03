@@ -66,7 +66,7 @@ class PathFollower:
 
         lateral_accel_cmd = self._l1_lateral_accel(pos_enu, enu_bearing, enu_ground_speed, aim_pt_enu, kl=2.0)
 
-        return lateral_accel_cmd, target_spd, target_alt
+        return lateral_accel_cmd, target_alt, target_spd
 
     def _l1_lateral_accel(
             self,

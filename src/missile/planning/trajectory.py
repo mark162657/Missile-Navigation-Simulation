@@ -48,8 +48,6 @@ class TrajectoryGenerator:
             # check if no data region
             if height < -100:
                 continue
-
-
             trajectory.append([lat, lon, height])
 
         final_3d_trajectory = np.asarray(trajectory, dtype=float)
@@ -63,10 +61,11 @@ class TrajectoryGenerator:
         We use groupby from itertools. Probably the fastest
 
         Args:
-            - path: the list contains tuple (representing pixels)... yeah just path
+            - path: the list contains tuple (representing pixels)... yeah, just path
         """
         return [k for k, g in groupby(path)]
 
+    # Removed due to no need for b_spline with path_follower being built
 
     # def _compute_b_spline(self, clean_path: list[tuple[int, int]], smooth_factor: float, res_multi: int) -> list[tuple[int, int]]:
     #     """
