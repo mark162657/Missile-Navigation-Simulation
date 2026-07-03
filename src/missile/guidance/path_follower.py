@@ -25,7 +25,7 @@ class PathFollower:
             lookahead_dist: L1 distance, which guidance aims
         """
         # dealing with path
-        self.path = trajectory.get_trajectory()
+        self.path = trajectory
 
         # set up the profile and coordinate system
         self.profile = profile
@@ -51,12 +51,14 @@ class PathFollower:
         """
 
         """
+        # turn the current lat/lon position to ENU
         pos_enu = self.coord.latlong_to_enu(state.est_lat, state.est_lon)
 
-        target_alt = self._target_altitude()
+        closest_idx = self._find_closest(pos_enu)
+        aim_idx = self._lookahead(closest_idx, self.l1)
         target_spd = self.profile.basic.cruise_speed_ms
+        target_alt = self._target_altitude(aim_idx)
 
-        aim_idx = self._lookahead(self.last_idx, self.l1)
 
 
 
@@ -82,7 +84,7 @@ class PathFollower:
         pref_alt = self.profile.preferred_agl()
         return self.ground_elev[aim_idx] + pref_alt
 
-    def _find_closest(self, pos_enu, window=50):
+    def _find_closest(self, pos_enu, window=50) -> int:
         """
         The purpose is to find the closest point on the path to the missile's position.
         As the wind and turbulence push the missie off-course, the missile needs to determine the closest point it
@@ -94,11 +96,11 @@ class PathFollower:
         seg = self.traj_enu[self.last_idx:end] # search traj_enu from last idx to end idx
         dist = np.linalg.norm(seg - pos_enu, axis=1)
         closest_idx = self.last_idx + int(np.argmin(dist))
+        self.last_idx = closest_idx # advance
+
         return closest_idx
 
-
-
-    def _lookahead(self, closest_idx, l1):
+    def _lookahead(self, closest_idx, l1) -> int:
         """
         L1: lookahead distance.
         Dist compute the distance from this point to the next point by conducting vector norm.
@@ -112,6 +114,13 @@ class PathFollower:
             i += 1
 
         return i
+
+    def progress_tracker(self, closest_idx) -> float:
+        """
+        This is a helper function to track the progress of the guidance that will be used in the GUI.
+        Use the anchor point (closest_idx) and the entire path distance to find the relative progress.
+        """
+        return closest_idx / self.traj_length * 100
 
 
 
