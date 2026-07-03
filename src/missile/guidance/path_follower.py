@@ -62,7 +62,7 @@ class PathFollower:
         aim_idx = self._lookahead(closest_idx, self.l1)
         target_spd = self.profile.basic.cruise_speed_ms
         target_alt = self._target_altitude(aim_idx)
-        aim_pt_enu = self.traj_enu[self.aim_idx]
+        aim_pt_enu = self.traj_enu[aim_idx]
 
         lateral_accel_cmd = self._l1_lateral_accel(pos_enu, enu_bearing, enu_ground_speed, aim_pt_enu, kl=2.0)
 

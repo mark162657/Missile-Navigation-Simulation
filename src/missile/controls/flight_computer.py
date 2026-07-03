@@ -1,4 +1,4 @@
-from autopilot import AutoPilot
+from missile.controls.autopilot import AutoPilot
 from missile.state import MissileState
 from missile.profile import MissileProfile
 from missile.planning.trajectory import TrajectoryGenerator

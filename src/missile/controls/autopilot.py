@@ -8,8 +8,8 @@ import numpy.typing as npt
 
 from missile.profile import MissileProfile
 from missile.state import MissileState
-from pid_controller import PIDController
-from control_input import ControlInput
+from missile.controls.pid_controller import PIDController
+from missile.controls.control_input import ControlInput
 from simulation.physics import atmosphere
 
 # gravity m/s
@@ -18,12 +18,17 @@ _G = 9.80665
 class AutoPilot:
     def __init__(self, profile: MissileProfile):
         self.profile = profile
-        accel_max = profile.get_max_lateral_acceleratio()
+        accel_max = profile.get_max_lateral_acceleration()
 
         # initiate pid controller for altitude and speed
         # with soft limit (pid saturation)
-        self.alt_pid = PIDController(kp=0.0, ki=0.0, kd=0.0, out_max=accel_max, out_min=-accel_max)
-        self.spd_pid = PIDController(kp=0.0, ki=0.0, kd=0.0, out_max=1.0, out_min=0) #throttle: 0 - 1
+        #
+        # NOTE: these gains are STARTING POINTS, not tuned values -- you must
+        # tune them against dynamics.step() (see the tuning notes in the chat).
+        #   alt_pid: altitude error (m) -> extra climb accel (m/s^2).
+        #   spd_pid: speed error (m/s)  -> throttle delta (0..1).
+        self.alt_pid = PIDController(kp=0.25, ki=0.008, kd=0.50, out_max=accel_max, out_min=-accel_max)
+        self.spd_pid = PIDController(kp=0.02, ki=0.005, kd=0.0, out_max=1.0, out_min=0) #throttle: 0 - 1
 
     def update(
             self,
