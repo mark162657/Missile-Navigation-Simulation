@@ -12,11 +12,10 @@ class PathFollower:
             trajectory: TrajectoryGenerator,
             profile: MissileProfile,
             coordinate: CoordinateSystem,
-            l1_distance: float=300.0
+            lookahead_dist: float=300.0
     ):
         # dealing with path
         self.path = trajectory.get_trajectory()
-        self.path_length = len(self.path)
 
         # set up the profile and coordinate system
         self.profile = profile
@@ -31,29 +30,32 @@ class PathFollower:
             [self.coord.latlong_to_enu(float(lat), float(lon)) for lat, lon in lat_lon], dtype=float
         )
         self.traj_enu.setflags(write=False)
-
+        self.traj_length = self.traj_enu.shape[0]
         # extract ground elevation from path
         self.ground_elev = self.path[:, 2]
 
-        self.l1 = l1_distance
+        self.l1 = lookahead_dist
         self.last_idx = 0
 
-    def update(self):
+    def update(self, state: MissileState):
         """
 
         """
+        pos_enu = self.coord.latlong_to_enu(state.est_lat, state.est_lon)
+
         target_alt = self._target_altitude()
         target_spd = self.profile.basic.cruise_speed_ms
 
-        while i < self.path_length:
-            pass
+        aim_idx = self._lookahead(self.last_idx, self.l1)
+
+
 
     def _l1_lateral_accel(
             self,
             pos_enu: np.ndarray,
             heading: float,
             target_speed: float,
-            aim_pt
+            aim_idx
     ) -> float:
         pass
 
@@ -70,11 +72,28 @@ class PathFollower:
         pref_alt = self.profile.preferred_agl()
         return self.ground_elev[aim_idx] + pref_alt
 
-    def enter_terminal_guidance(self):
-        """
-        A handover from the normal in-flight guidance to terminal guidance for a final attack angle and detonation.
-        """
+    def _find_closest(self, pos_enu, window=50):
         pass
+
+    def _lookahead(self, closest_idx, l1):
+        """
+        L1: lookahead distance.
+        Dist compute the distance from this point to the next point, by conducting vector norm.
+        Subtracting one point vector from the next point vector.
+
+        closest_idx -> L1 meters -> aim_idx (target)
+        """
+        i, dist = closest_idx, 0.0
+        while  i < self.traj_length - 1 and dist < l1:
+            dist += np.linalg.norm(self.traj_enu[i+1] - self.traj_enu[i])
+            i += 1
+
+        return i
+
+
+
+
+
 
 
 
