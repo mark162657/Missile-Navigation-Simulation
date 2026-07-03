@@ -14,6 +14,16 @@ class PathFollower:
             coordinate: CoordinateSystem,
             lookahead_dist: float=300.0
     ):
+        """
+        Initialising necessary data, including convert entire trajectory from lat/lon to ENU, and
+        calculating its distance, and other basic actions.
+
+        Args:
+            trajectory: the imported trajectory found by pathfinder
+            profile: simply missile profile / specs
+            coordinate: the coordinate system used to convert lat/lon to ENU...
+            lookahead_dist: L1 distance, which guidance aims
+        """
         # dealing with path
         self.path = trajectory.get_trajectory()
 
@@ -73,12 +83,25 @@ class PathFollower:
         return self.ground_elev[aim_idx] + pref_alt
 
     def _find_closest(self, pos_enu, window=50):
-        pass
+        """
+        The purpose is to find the closest point on the path to the missile's position.
+        As the wind and turbulence push the missie off-course, the missile needs to determine the closest point it
+        is anchoring to.
+        Search through 50 points (window)
+        """
+
+        end = min(self.last_idx + window, self.traj_length)
+        seg = self.traj_enu[self.last_idx:end] # search traj_enu from last idx to end idx
+        dist = np.linalg.norm(seg - pos_enu, axis=1)
+        closest_idx = self.last_idx + int(np.argmin(dist))
+        return closest_idx
+
+
 
     def _lookahead(self, closest_idx, l1):
         """
         L1: lookahead distance.
-        Dist compute the distance from this point to the next point, by conducting vector norm.
+        Dist compute the distance from this point to the next point by conducting vector norm.
         Subtracting one point vector from the next point vector.
 
         closest_idx -> L1 meters -> aim_idx (target)
