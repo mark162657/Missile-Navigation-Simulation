@@ -25,7 +25,7 @@ This is an **algorithm / navigation / guidance / pathfinding showcase**, not a h
 - Guidance path follower — L1 / pure-pursuit law (`missile/guidance/path_following.py` is a stub)
 - Flight computer — BOOST → CRUISE → TERMINAL mode machine (`missile/controls/flight_computer.py` is a stub)
 - End-to-end `NavigationComputer` fusion loop (currently driven by a toy constant-accel plant, not `dynamics.step()`)
-- `datalink/` and `terminal/` packages (planned, empty)
+- `datalink/` and `terminal/` packages (scaffolded as packages, no modules yet)
 - Automated test suite (manual scripts in `tests/` only)
 
 ---
@@ -58,7 +58,7 @@ data/
 tests/                    Manual pathfinding / physics / nav / DEM scripts
 ```
 
-Set `PYTHONPATH=src` when running Python from the project root.
+Every directory under `src/` is an explicit Python package (each has an `__init__.py`). Imports are absolute and rooted at `src/` (e.g. `from missile.navigation.ins import INS`), so set `PYTHONPATH=src` when running Python from the project root.
 
 **Dependency rule:** the arrow points one way — `simulation → missile`, never the reverse. The plant (`simulation.physics`) consumes types owned by the missile side (e.g. `ControlInput`); the missile avionics never import from `simulation`.
 
