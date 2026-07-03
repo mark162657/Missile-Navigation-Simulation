@@ -54,22 +54,45 @@ class PathFollower:
         # turn the current lat/lon position to ENU
         pos_enu = self.coord.latlong_to_enu(state.est_lat, state.est_lon)
 
+        # ground_speed and bearing using hypot(East, North) and atan(East, North)
+        enu_ground_speed = np.hypot(state.vel_east, state.vel_north)
+        enu_bearing = np.atan2(state.vel_east, state.vel_north)
+
         closest_idx = self._find_closest(pos_enu)
         aim_idx = self._lookahead(closest_idx, self.l1)
         target_spd = self.profile.basic.cruise_speed_ms
         target_alt = self._target_altitude(aim_idx)
 
-
+        lateral = self._l1_lateral_accel(pos_enu, enu_bearing, enu_ground_speed, aim_idx, kl=1)
 
 
     def _l1_lateral_accel(
             self,
             pos_enu: np.ndarray,
-            heading: float,
-            target_speed: float,
-            aim_idx
+            enu_bearing: float,
+            enu_ground_speed: float,
+            aim_pt_enu: np.ndarray,
+            kl: float = 2.0
     ) -> float:
-        pass
+        """
+        Mathematical definitions:
+
+        """
+        delta = np.asarray(aim_pt_enu) - np.asarray(pos_enu)
+
+        v_g = enu_ground_speed
+
+        # calculate raw tracking error (eta)
+        chi_l = np.atan2(delta[0], delta[1])
+        eta = np.clip(np.atan2(np.sin(chi_l - enu_bearing), np.cos(chi_l - enu_bearing)), -np.pi/2, np.pi/2)
+        a_ref = kl * v_g ** 2 / self.l1 * np.sin(eta) # main formula
+
+        # limit the acceleration command to be within the max lateral acceleration capable
+        a_max = self.profile.get_max_lateral_acceleration()
+
+        # clamp the a_ref in max acceleration and min acceleration (-max and +max)
+        return float(np.clip(a_ref, -a_max, a_max))
+
 
     def _target_altitude(self, aim_idx: int) -> float:
         """
