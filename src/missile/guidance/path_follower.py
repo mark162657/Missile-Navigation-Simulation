@@ -56,15 +56,17 @@ class PathFollower:
 
         # ground_speed and bearing using hypot(East, North) and atan(East, North)
         enu_ground_speed = np.hypot(state.vel_east, state.vel_north)
-        enu_bearing = np.atan2(state.vel_east, state.vel_north)
+        enu_bearing = np.arctan2(state.vel_east, state.vel_north)
 
         closest_idx = self._find_closest(pos_enu)
         aim_idx = self._lookahead(closest_idx, self.l1)
         target_spd = self.profile.basic.cruise_speed_ms
         target_alt = self._target_altitude(aim_idx)
+        aim_pt_enu = self.traj_enu[self.aim_idx]
 
-        lateral = self._l1_lateral_accel(pos_enu, enu_bearing, enu_ground_speed, aim_idx, kl=1)
+        lateral_accel_cmd = self._l1_lateral_accel(pos_enu, enu_bearing, enu_ground_speed, aim_pt_enu, kl=2.0)
 
+        return lateral_accel_cmd, target_spd, target_alt
 
     def _l1_lateral_accel(
             self,
@@ -77,14 +79,17 @@ class PathFollower:
         """
         Mathematical definitions:
 
+        Reference:
+            Stastny, T. (2018). L1 guidance logic extension for small UAVs: handling high winds and small loiter radii.
+            ArXiv.org. https://doi.org/10.48550/arxiv.1804.04209
         """
         delta = np.asarray(aim_pt_enu) - np.asarray(pos_enu)
 
         v_g = enu_ground_speed
 
         # calculate raw tracking error (eta)
-        chi_l = np.atan2(delta[0], delta[1])
-        eta = np.clip(np.atan2(np.sin(chi_l - enu_bearing), np.cos(chi_l - enu_bearing)), -np.pi/2, np.pi/2)
+        chi_l = np.arctan2(delta[0], delta[1])
+        eta = np.clip(np.arctan2(np.sin(chi_l - enu_bearing), np.cos(chi_l - enu_bearing)), -np.pi/2, np.pi/2)
         a_ref = kl * v_g ** 2 / self.l1 * np.sin(eta) # main formula
 
         # limit the acceleration command to be within the max lateral acceleration capable
