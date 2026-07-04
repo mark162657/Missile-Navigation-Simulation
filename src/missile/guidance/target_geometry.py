@@ -79,7 +79,21 @@ class TargetGeometry:
             original_latlon: tuple[float, float],
             meter: bool=True
     ) -> float:
+        """
+        Great-circle ground distance between two geographic points using the
+        Haversine formula (spherical Earth, mean radius 6371 km).
 
+        Uses the atan2 form of the central angle, which stays numerically stable
+        for both very short and near-antipodal separations.
+
+        Args:
+            target_latlon:   (lat, lon) of the target, degrees
+            original_latlon: (lat, lon) of the origin point, degrees
+            meter:           True -> meters, False -> kilometers
+
+        Return:
+            Surface (great-circle) distance between the two points.
+        """
         if meter:
             R = 6371000.0  # Earth radius in meters
         else:
