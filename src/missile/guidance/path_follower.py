@@ -77,10 +77,45 @@ class PathFollower:
             kl: float = 2.0
     ) -> float:
         """
-        Mathematical definitions:
+        Nonlinear L1 lateral-acceleration guidance (Park/Deyst/How).
+
+        The follower picks an aim point on the path an L1 distance ahead of the
+        vehicle, then commands the centripetal acceleration needed to fly the
+        circular arc that passes through the current position and that aim
+        point. Two formulas do the work:
+
+        1. L1 angle  eta  -- the angle from the velocity vector to the
+           line-of-sight (LOS) to the aim point:
+
+               delta   = p_aim - p                     (ENU east/north vector)
+               chi_L   = atan2(delta_E, delta_N)        LOS bearing (from North)
+               psi     = atan2(v_E,   v_N)              ground-track bearing
+               eta     = wrap_to_pi(chi_L - psi),  clamped to [-pi/2, +pi/2]
+
+           `wrap_to_pi(x) = atan2(sin x, cos x)` keeps the difference in
+           (-pi, pi]; the clamp keeps a rear-hemisphere aim point (|eta|>pi/2)
+           from flipping the sign of the command.
+
+        2. Lateral acceleration command:
+
+               a_cmd = k_L * V_g^2 / L1 * sin(eta)
+
+           where V_g = |v| is ground speed, L1 the lookahead distance, and k_L
+           a gain. The classic law uses k_L = 2, which is exactly the
+           centripetal acceleration a = V_g^2 / R of the arc of radius
+           R = L1 / (2 sin eta) through p and p_aim; k_L then tunes the
+           stiffness/damping around that geometry. The result is clamped to the
+           airframe's +/- a_max lateral-g envelope.
+
+        Sign convention: +a_cmd turns toward the right of the velocity vector
+        (matches ControlInput.accel_turn), i.e. eta>0 (aim point to the right)
+        commands a right turn.
 
         Reference:
-            Stastny, T. (2018). L1 guidance logic extension for small UAVs: handling high winds and small loiter radii.
+            Park, S., Deyst, J., & How, J. (2004). A New Nonlinear Guidance
+            Logic for Trajectory Tracking. AIAA GNC.
+            Stastny, T. (2018). L1 guidance logic extension for small UAVs:
+            handling high winds and small loiter radii.
             ArXiv.org. https://doi.org/10.48550/arxiv.1804.04209
         """
         delta = np.asarray(aim_pt_enu) - np.asarray(pos_enu)
