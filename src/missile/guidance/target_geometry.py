@@ -64,15 +64,6 @@ class TargetGeometry:
             meter
         )
 
-    def ground_range(self, state: MissileState) -> float:
-        pass
-
-    def slant_range(self, state: MissileState) -> float:
-        pass
-
-    def bearing(self, state: MissileState) -> float:
-        pass
-
     def _haversine_meter(
             self,
             target_latlon: tuple[float, float],
