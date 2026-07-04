@@ -16,7 +16,12 @@ class FlightStage(Enum):
     TERMINAL = auto() # Terminal guidance (with impact angle)
     IMPACT = auto()   # Detonate boom
 
-
+class GuidanceStage(Enum):
+    """Guidance stages of the cruise missile."""
+    NONE = auto()
+    BOOST = auto()
+    MIDCOURSE = auto()
+    TERMINAL = auto()
 @dataclass
 class MissileState:
     """
@@ -72,6 +77,9 @@ class MissileState:
 
     # Missile flight stage record (defaults to pre-launch; physics/sim loop advance it)
     missile_stage: FlightStage = FlightStage.PRE_LAUNCHED
+
+    # Missile guidance stage record (defaults to none; control loop advance it)
+    guidance_stage: GuidanceStage = GuidanceStage.NONE
 
     def get_ground_speed(self) -> float:
         """Return speed magnitude from velocity components, m/s."""

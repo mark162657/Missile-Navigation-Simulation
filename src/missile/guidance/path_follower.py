@@ -186,10 +186,8 @@ class PathFollower:
         return closest_idx / self.traj_length * 100
 
 
-
-
-
-
+    def remaining_path_distance(self, mode="ground"|"3d"):
+        pass
 
 
 
