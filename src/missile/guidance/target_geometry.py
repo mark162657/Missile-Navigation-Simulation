@@ -36,12 +36,22 @@ class TargetGeometry:
         return self._haversine_meter(
             self.target_latlon,
             (state.est_lat, state.est_lon),
-            meter,
+            meter
         )
 
+    def direct_3d_distance(
+            self,
+            state: MissileState,
+            target_alt: float,
+            meter: bool=True
+    ):
 
-    def direct_3d_distance(self):
-        pass
+        return self._haversine_meter(
+            self.target_latlon,
+            (state.est_lat, state.est_lon, state.est_alt),
+            self.target_alt,
+            meter
+        )
 
     def ground_range(self, state: MissileState) -> float:
         pass
@@ -78,3 +88,8 @@ class TargetGeometry:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
         return R * c
+
+    def _3d_haversine(
+            self,
+            
+    ):
