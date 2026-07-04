@@ -33,17 +33,30 @@ class TerminalGuidance:
         Args:
             state: current missile state
         """
-        return np.artan2(state.vel_up, np.sqrt(state.vel_east**2 + state.vel_north**2))
+        return np.arctan2(state.vel_up, np.sqrt(state.vel_east**2 + state.vel_north**2))
 
-    def _radius_of_curvature(self):
+    @staticmethod
+    def _radius_of_curvature(a: float, b: float, t: float) -> float:
         """
-        Calculate the radius of curvature at the “nearest” point on ellipse
+        Calculate the radius of curvature at a point on the terminal ellipse,
+        given the ellipse parameter t (the "nearest point" comes from the
+        nearest-point search; here we just evaluate the curvature there).
 
-        Mathematical expression:
-            R_C(t) = (a^2 * sin^2 t + b^2 * cos^2 t)^(3/2) / (a * b)
+        For the ellipse (x, y) = (a * cos(t), b * sin(t)):
+            R_C(t) = (a^2 * sin^2(t) + b^2 * cos^2(t))^(3/2) / (a * b)
+
+        Args:
+            a: semi-axis of the ellipse along x (downrange), meters
+            b: semi-axis of the ellipse along y (height), meters
+            t: ellipse parameter at the nearest point, radians
+
+        Return:
+            Radius of curvature R_C at parameter t, meters.
 
         Reference:
             Ellipse radius of curvature. (n.d.).
             SKM Classes Bangalore. https://skmclasses.weebly.com/ellipse-radius-of-curvature.html
         """
-        pass
+        sin_t = math.sin(t)
+        cos_t = math.cos(t)
+        return (a**2 * sin_t**2 + b**2 * cos_t**2) ** 1.5 / (a * b)
