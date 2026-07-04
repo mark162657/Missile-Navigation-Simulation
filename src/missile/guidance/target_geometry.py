@@ -42,14 +42,25 @@ class TargetGeometry:
     def direct_3d_distance(
             self,
             state: MissileState,
-            target_alt: float,
             meter: bool=True
-    ):
+    ) -> float:
+        """
+        Direct 3D slant distance from the missile's current estimated position
+        to the target: great-circle ground distance combined with the altitude
+        difference.
 
-        return self._haversine_meter(
+        Args:
+            state: current missile state (uses est_lat / est_lon / est_alt)
+            meter: True -> meters, False -> kilometers
+
+        Return:
+            Straight-line slant distance to target.
+        """
+        return self._3d_haversine(
             self.target_latlon,
-            (state.est_lat, state.est_lon, state.est_alt),
             self.target_alt,
+            (state.est_lat, state.est_lon),
+            state.est_alt,
             meter
         )
 
@@ -91,5 +102,30 @@ class TargetGeometry:
 
     def _3d_haversine(
             self,
-            
-    ):
+            target_latlon: tuple[float, float],
+            target_alt: float,
+            original_latlon: tuple[float, float],
+            original_alt: float,
+            meter: bool=True
+    ) -> float:
+        """
+        3D straight-line (slant) distance built on top of the 2D haversine:
+        the great-circle ground distance and the altitude difference form the
+        two legs of a right triangle.
+
+            slant = sqrt(ground^2 + d_alt^2)
+
+        Args:
+            target_latlon:   (lat, lon) of the target, degrees
+            target_alt:      target altitude, meters MSL
+            original_latlon: (lat, lon) of the missile, degrees
+            original_alt:    missile altitude, meters MSL
+            meter:           True -> meters, False -> kilometers
+        """
+        ground = self._haversine_meter(target_latlon, original_latlon, meter)
+
+        d_alt = target_alt - original_alt
+        if not meter:
+            d_alt /= 1000.0  # altitudes are meters; match the km ground leg
+
+        return math.hypot(ground, d_alt)
