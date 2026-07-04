@@ -20,7 +20,7 @@ class PathFollower:
 
         Args:
             trajectory: the imported trajectory found by pathfinder
-            profile: simply missile profile / specs
+            profile: missile profile / specs
             coordinate: the coordinate system used to convert lat/lon to ENU...
             lookahead_dist: L1 distance, which guidance aims
         """
@@ -92,7 +92,7 @@ class PathFollower:
                psi     = atan2(v_E,   v_N)              ground-track bearing
                eta     = wrap_to_pi(chi_L - psi),  clamped to [-pi/2, +pi/2]
 
-           `wrap_to_pi(x) = atan2(sin x, cos x)` keeps the difference in
+           wrap_to_pi(x) = atan2(sin x, cos x) keeps the difference in
            (-pi, pi]; the clamp keeps a rear-hemisphere aim point (|eta|>pi/2)
            from flipping the sign of the command.
 
@@ -152,9 +152,14 @@ class PathFollower:
         The purpose is to find the closest point on the path to the missile's position.
         As the wind and turbulence push the missie off-course, the missile needs to determine the closest point it
         is anchoring to.
-        Search through 50 points (window)
-        """
 
+        Args:
+            pos_enu: the current position of the missile in ENU
+            window: the number of points to search through
+
+        Return:
+            The index of the closest point on the path to the missile's position.
+        """
         end = min(self.last_idx + window, self.traj_length)
         seg = self.traj_enu[self.last_idx:end] # search traj_enu from last idx to end idx
         dist = np.linalg.norm(seg - pos_enu, axis=1)
@@ -165,11 +170,16 @@ class PathFollower:
 
     def _lookahead(self, closest_idx, l1) -> int:
         """
-        L1: lookahead distance.
         Dist compute the distance from this point to the next point by conducting vector norm.
         Subtracting one point vector from the next point vector.
-
         closest_idx -> L1 meters -> aim_idx (target)
+
+        Args:
+            l1: lookahead distance
+            closest_idx: the index of the trajectory point that is closest to the missile's position
+
+        Return:
+            The index of the trajectory point that is L1 meters ahead of the closest point.
         """
         i, dist = closest_idx, 0.0
         while  i < self.traj_length - 1 and dist < l1:

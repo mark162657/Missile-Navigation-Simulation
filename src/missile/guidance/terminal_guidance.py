@@ -24,6 +24,7 @@ class TerminalGuidance:
     def terminal_init_range(self):
         pass
 
+    @staticmethod
     def _flight_path_angle(self, state: MissileState):
         """
         Get the flight path angle (relative to horizontal) of the missile.
