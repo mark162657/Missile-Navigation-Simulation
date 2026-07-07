@@ -105,7 +105,8 @@ class NavigationComputer:
         true_acceleration: np.ndarray | list[float],
         mission_terminated: bool=False,
         true_angular_velocity: list[float] | None = None,
-        run_seconds: int=10000) -> None:
+        run_seconds: int=10000
+    ) -> None:
         """
         Run the navigation loop for a fixed amount of elapsed time.
 
