@@ -1,5 +1,4 @@
 import numpy as np
-import math
 
 from missile.planning.trajectory import TrajectoryGenerator
 from missile.profile import MissileProfile

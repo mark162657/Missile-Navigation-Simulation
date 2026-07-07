@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from dataclasses import dataclass
 
 from guidance.target_geometry import TargetGeometry
 from missile.state import MissileState
