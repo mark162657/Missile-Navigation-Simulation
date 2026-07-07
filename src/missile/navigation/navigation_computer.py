@@ -28,11 +28,12 @@ class NavigationComputer:
             gps_freq_hz: frequency of GPS measurements in Hz
             ins_freq_hz: frequency of INS measurements in Hz
             tercom_freq_hz: frequency of TERCOM measurements in Hz
+            process_noise_std: standard deviation of process noise for INS and KF
         """
 
         self.start_gps = true_start_gps
 
-        # Setup proper project root of DEM
+        # Set up proper project root of DEM
         self.dem_name = dem_name
         tif_path = PROJECT_ROOT / "data" / "dem" / dem_name
         self.dem_loader = DEMLoader(tif_path)

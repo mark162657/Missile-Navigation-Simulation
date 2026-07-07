@@ -25,7 +25,6 @@ class FlightComputer:
 
     def step(self, state: MissileState, dt: float) -> ControlInput:
         stage = self._resolve_stage(state)
-
         # these stages are handled by flight sequencer
         if stage in (FlightStage.PRE_LAUNCHED, FlightStage.BOOST, FlightStage.IMPACT):
             return ControlInput()
@@ -43,17 +42,19 @@ class FlightComputer:
         return state.missile_stage
 
     def _step_cruise(self, state: MissileState, dt: float) -> ControlInput:
+        """Updating the path-following guidance and then returning the control input"""
         lateral_accel, target_alt, target_spd = self.path_follower.update(state)
         self.autopilot.update(state, target_alt, target_spd, lateral_accel, dt)
         return self.autopilot.update(state, target_alt, target_spd, lateral_accel, dt)
 
     def _step_terminal(self, state: MissileState, dt: float) -> ControlInput:
+        """Updating the terminal guidance and then returning the control input"""
         cmd = self.terminal.update(state, dt)
         throttle = self._speed_throttle(state, cmd.target_spd, dt)
         return ControlInput(throttle=throttle, accel_turn=cmd.accel_turn, accel_climb=cmd.accel_climb)
 
-
     def _speed_throttle(self, state: MissileState, target_spd: float, dt: float) -> float:
+        """Return the throttle value from the PID controller based on current and target speed"""
         curr_spd = self.state.get_ground_speed()
         spd_error = self.target_spd - curr_spd
         return self.autopilot.spd_pid.update(spd_error, curr_spd, dt)

@@ -1,7 +1,7 @@
 """
 Main simulation loop — single-rate tick orchestrator (structure A).
 """
-
+from missile.profile import MissileProfile
 
 class SimulationConfig:
     pass
@@ -13,8 +13,13 @@ def plan_mission(config):
 
 class Simulation:
 
-    def __init__(self, profile, config):
-        pass
+    def __init__(self, profile, config, start, target):
+        self.start_gps = start
+        self.target_gps = target
+        self.profile = MissileProfile()
+        self.config = config
+
+
 
     @classmethod
     def from_config(cls, config):
