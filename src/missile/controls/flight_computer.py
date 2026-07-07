@@ -58,7 +58,7 @@ class FlightComputer:
         spd_error = self.target_spd - curr_spd
         return self.autopilot.spd_pid.update(spd_error, curr_spd, dt)
 
-    def _reset(self):
+    def _reset(self) -> None:
         """Reset the autopilot during transition of guidance stage"""
         self.autopilot.reset()
 
