@@ -44,3 +44,5 @@ class Simulation:
         self.trajector = TrajectoryGenerator(
             self.pathfinding.engine, self.pathfinding.dem_loader
         )
+        self.target = TargetGeometry(config.target_gps[:2], self.coord, config.target_gps[2])
+
