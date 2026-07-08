@@ -70,7 +70,8 @@ class NavigationComputer:
 
         self.next_gps = self.gps_period # first GPS fix one period in
         self.next_tercom = self.tercom_period # first TERCOM fix one period in
-        
+    def step(self):
+        pass
     def run_navigation_loop(
         self,
         true_acceleration: np.ndarray | list[float],
@@ -194,15 +195,20 @@ class NavigationComputer:
         if matched_lat is not None:
             self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl(self.state.true_alt)) # msl obtain from baro altimeter
         
-    def _is_terrain_suitable(self,
-        terrain_patch: np.ndarray,
-        est_lat: float,
-        est_lon: float,
-        patch_size: int=25) -> bool:
+    def _is_terrain_suitable(
+            self,
+            terrain_patch: np.ndarray,
+            est_lat: float,
+            est_lon: float,
+            patch_size: int=25
+    ) -> bool:
         """
         Check for terrain roughness to determine whether the terrain is rough enough to conduct accurate TERCOM.
         TERCOM is highly based on terrain signature, a flat terrain with cause error and inaccuracy.
         Determined by standard deviation.
+
+        Return:
+            True if terrain is rough enough, False otherwise.
         """
 
         patch = terrain_patch
