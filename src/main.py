@@ -2,6 +2,7 @@
 Main simulation loop — single-rate tick orchestrator (structure A).
 """
 from missile.profile import MissileProfile
+from missile.planning.pathfinding_backend import Pathfinding
 
 class SimulationConfig:
     pass
@@ -13,12 +14,17 @@ def plan_mission(config):
 
 class Simulation:
 
-    def __init__(self, profile, config, start, target):
+    def __init__(self, profile, config, start, target, DEM_NAME):
         self.start_gps = start
         self.target_gps = target
         self.profile = MissileProfile()
         self.config = config
+        self.pathfinding = Pathfinding(str(DEM_NAME))
 
+
+    def run_pathfinding(self):
+        pf = self.pathfinding
+        pf.find_path(self.start_gps, self.target_gps)
 
 
     @classmethod

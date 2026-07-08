@@ -23,7 +23,7 @@ class Pathfinding:
     def __init__(self, DEM_NAME: str) -> None:
         """
         Args:
-            - DEM_NAME: the name of the DEM file
+            DEM_NAME: the name of the DEM file
         """
         
         # Load dem, requesting dem file name:
@@ -43,7 +43,6 @@ class Pathfinding:
 
         start_lat = self.dem_loader.transform[5]
         pixel_height = self.dem_loader.transform[4]
-
 
         # Setup lookup table
         row_indices = np.arange(self.rows, dtype=np.float64) # double: float64
@@ -81,9 +80,9 @@ class Pathfinding:
         """
         Main interface to run the A* algorithm, serve as a caller for receiving info and calling the C++ engine.
         Args:
-            - start: (row, col) tuple pair for pixel
-            - end: (row, col) tuple pair for pixel
-            - heuristic_weight: multiplies the heuristic cost; set to 2.0 for faster, directed searches or 1.0 for
+            start: (row, col) tuple pair for pixel
+            end: (row, col) tuple pair for pixel
+            heuristic_weight: multiplies the heuristic cost; set to 2.0 for faster, directed searches or 1.0 for
             the guaranteed shortest path (currently no difference lol).
             The higher the heuristic_weight, potentially, the compile time increases.
         """
@@ -119,7 +118,7 @@ class Pathfinding:
         For map plotting (2D) and path smoothing.
         
         Arg:
-            - pixel_path: the list returned by find_path function from C++
+            pixel_path: the list returned by find_path function from C++
         """
         if not pixel_path: return []
 
@@ -142,7 +141,7 @@ class Pathfinding:
         z = Altitude (Meters above sea level - from DEM) - Previously Y
 
         Arg:
-            - pixel_path: the list that contains the path (by pixels) found by pathfinding algorithm
+            pixel_path: the list that contains the path (by pixels) found by pathfinding algorithm
         """
         if not pixel_path: return []
         
