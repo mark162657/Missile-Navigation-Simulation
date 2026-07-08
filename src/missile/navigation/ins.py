@@ -99,7 +99,8 @@ class INS:
         """
         An injection point to replace the INS estimate with an externally corrected state (e.g. fed
         back from the Kalman Filter after a GPS/TERCOM fix).
-        Basically allow an external system to update the INS state.
+        Allow an external system to update the INS state.
+        e
         """
         self.pos = np.asarray(corrected_pos, dtype=float).copy()
         self.vel = np.asarray(corrected_vel, dtype=float).copy()

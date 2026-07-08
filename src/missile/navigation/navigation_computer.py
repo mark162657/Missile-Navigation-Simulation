@@ -72,7 +72,15 @@ class NavigationComputer:
         self.next_tercom = self.tercom_period # first TERCOM fix one period in
 
     def step(self, imu: IMU, state: MissileState, sim_time: float, dt: float) -> None:
-
+        """
+        Update navigation state with IMU measurements and periodic GPS/TERCOM fixes.
+        
+        Args:
+            imu: IMU measurement with true acceleration and angular velocity
+            state: current missile state to update with navigation estimates
+            sim_time: simulation time (seconds)
+            dt: timestamp duration (seconds)
+        """
         # INS + KF predicts
         acc_meas, gyro_meas = self.imu.imu_error(
             # true accel_enu and angular_velocity from MissileDynamics
@@ -104,81 +112,9 @@ class NavigationComputer:
             self._tercom_update()
             self.next_tercom += self.tercom_period
 
-
-    # def run_navigation_loop(
-    #     self,
-    #     true_acceleration: np.ndarray | list[float],
-    #     mission_terminated: bool=False,
-    #     true_angular_velocity: list[float] | None = None,
-    #     run_seconds: int=10000
-    # ) -> None:
-    #     """
-    #     Run the navigation loop for a fixed amount of elapsed time.
-    #
-    #     Args:
-    #         run_seconds: Total runtime duration, in seconds, measured from the
-    #             start of the loop (sim_time = 0). So this combines with
-    #             condition checks, prevents the loop to endlessly run forever.
-    #             We set it to 1,0000-second default, so it will stop in 1,0000 seconds,
-    #             which is 2.78 hrs.
-    #         mission_terminated: If True, the navigation loop will terminate
-    #     """
-    #
-    #     true_acceleration = np.asarray(true_acceleration, dtype=float)
-    #
-    #     if true_angular_velocity is None:
-    #         yaw_rate = 0.0
-    #     else:
-    #         yaw_rate = float(true_angular_velocity[2])
-    #
-    #     # Reset schedule checkpoints to t = 0
-    #     self.next_ins = 0.0
-    #     self.next_gps = self.gps_period # first gps fix one period in
-    #     self.next_tercom = self.tercom_period # first TERCOM fix one period in
-    #
-    #     # Use our own sim_time instead of InternalTimer for accuracy
-    #     sim_time = 0.0
-    #
-    #     while not mission_terminated and sim_time < run_seconds:
-    #
-    #         # -- INS update: predict (every tick) --
-    #         if sim_time >= self.next_ins:
-    #             # turn m/s into lat/lon/alt change
-    #             self.state.update_physics(
-    #                 self.ins_period,
-    #                 true_acceleration,
-    #                 yaw_rate
-    #             )
-    #             # IMU turns the true motion into noisy measurement
-    #             true_ang_vel = (np.zeros(3) if true_angular_velocity is None # if somehow true_ang_vel is None
-    #                             else np.asarray(true_angular_velocity, dtype=float))
-    #             acc_meas, gyro_meas = self.imu.imu_error(
-    #                 true_acceleration, true_ang_vel, self.ins_period
-    #             )
-    #
-    #             # corrupted measurements are fed into ins and kf
-    #             self.ins.predict(acc_meas, self.ins_period, gyro_meas)
-    #             self.KF.predict(acc_meas)
-    #             self.state.apply_ins_estimate(self.ins)
-    #
-    #             self.next_ins += self.ins_period
-    #
-    #         if sim_time >= self.next_gps and not self.gps.is_jammed:
-    #             mea = self.gps.get_gps_location(self.state.true_position())
-    #
-    #             if mea is not None:
-    #                 self._apply_gps_fix(mea)
-    #                 self.state.gps_valid = True
-    #             else:
-    #                 self.state.gps_valid = False
-    #
-    #             self.next_gps += self.gps_period
-    #
-    #         if sim_time >= self.next_tercom:
-    #             self._tercom_update()
-    #             self.next_tercom += self.tercom_period
-    #
-    #         sim_time += self.ins_period
+    def _calibrate_ins(self, state: MissileState, start_gps) -> None:
+        """Calibrate INS with the first GPS measurement."""
+        pass
 
     # --- KF SYNC ---
     def _sync_kf_to_ins_and_state(self, state: MissileState) -> None:
