@@ -60,7 +60,7 @@ class Simulation:
         self.sequencer: FlightSequencer
         self.nav = None # navigation computer
 
-        self.state: MissileState | None = None
+        self.state: MissileState
         self.sim_time: float = 0.0
         self._result: dict | None = None
 
@@ -106,7 +106,6 @@ class Simulation:
             raise RuntimeError("Pathfinding failed: no route start -> target.")
 
         return path
-
 
     # Pre-launched
     def _build_initial_state(self, true_start_gps: tuple[float, float, float]) -> MissileState:
@@ -233,13 +232,39 @@ class Simulation:
         self.nav.step(imu, self.state, self.sim_time, dt)
 
     def _update_stage(self) -> None:
+        """
+        Check if terminal guidance has started, if so, switch the FlightStage in missile state.
+        Done in FlightComputer, if terminal guidance is engaged (terminal_latched=True), and the
+        current FlightStage is CRUISE, then switch to TERMINAL.
+        """
+        if self.flight_computer is None:
+            return
 
+        if self.flight_computer.terminal_latched and self.state.missile_stage==FlightStage.CRUISE:
+            self.state = replace(self.state, missile_stage=FlightStage.TERMINAL)
 
+    def _hit_obstacle(self) -> bool:
+        """
+        Check if the missile has hit an obstacle, terrain.
+        Return:
+            True if the missile has hit an obstacle, False otherwise.
+        """
+        _SEA_LEVEL_M = 0.0
 
+        if self.state.missile_stage == FlightStage.IMPACT:
+            return False
 
+        ground = self.pathfinding.dem_loader.get_elevation(
+            self.state.true_lat, self.state.true_lon
+        )
 
+        if ground is None or not math.isfinite(ground):
+            ground = max(ground, _SEA_LEVEL_M)
 
+        return self.state.true_alt <= ground
 
-
-
-
+    def _check_impact(self) -> None:
+        """
+        
+        """
+        pass

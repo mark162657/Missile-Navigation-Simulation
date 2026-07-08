@@ -24,7 +24,7 @@ class FlightComputer:
         self.path_follower = PathFollower(trajectory, profile, coordinate, lookahead_dist=lookahead_dist)
         self.terminal = TerminalGuidance(target, profile, impact_angle_deg, approach_azimuth_rad)
         self.autopilot = AutoPilot(profile)
-        self._terminal_latched = False
+        self.terminal_latched = False
 
     def step(self, state: MissileState, dt: float) -> ControlInput:
         stage = self._resolve_stage(state)
@@ -36,10 +36,10 @@ class FlightComputer:
         return self._step_cruise(state, dt)
 
     def _resolve_stage(self, state: MissileState) -> FlightStage:
-        if self._terminal_latched:
+        if self.terminal_latched:
             return FlightStage.TERMINAL
         if state.missile_stage == FlightStage.CRUISE and self.terminal.should_engage(state):
-            self._terminal_latched = True
+            self.terminal_latched = True
             self._reset()
             return FlightStage.TERMINAL
         return state.missile_stage
