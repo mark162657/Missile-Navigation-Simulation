@@ -10,7 +10,7 @@ from missile.guidance.target_geometry import TargetGeometry
 from missile.planning.pathfinding_backend import Pathfinding
 from missile.planning.trajectory import TrajectoryGenerator
 from missile.navigation.navigation_computer import NavigationComputer
-from simulation.physics.dynamics import MissileDynamics
+from simulation.physics.dynamics import MissileDynamics, IMUMeasurement
 from simulation.physics.sequencer import FlightSequencer
 from simulation.sensors import InternalTimer
 from terrain.coordinates import CoordinateSystem
@@ -36,6 +36,10 @@ class SimulationConfig:
     approach_azimuth_radius: float | None = None
     impact_angle_deg: float = -30.0 # desired dive angle at impact (negative for a dive)
 
+    # TODO Missile-identifier hashed
+    missile_id: str = ""
+    command_centre_id: str = ""
+
 
 class Simulation:
     def __init__(self, profile: MissileProfile, config: SimulationConfig) -> None:
@@ -51,9 +55,9 @@ class Simulation:
 
         # Setting up control related
         self.trajectory: np.ndarray | None = None
-        self.flight_computer: FlightComputer | None = None
-        self.dynamics: MissileDynamics | None = None
-        self.sequencer: FlightSequencer | None = None
+        self.flight_computer: FlightComputer
+        self.dynamics: MissileDynamics
+        self.sequencer: FlightSequencer
         self.nav = None # navigation computer
 
         self.state: MissileState | None = None
@@ -174,6 +178,48 @@ class Simulation:
             profile=self.profile,
         )
         self.dynamics = MissileDynamics(self.profile, sequencer=self.sequencer)
+
+        # mirror BOOST into state
+        self.state = replace(self.state, missile_stage=FlightStage.BOOST)
+
+    # Simulation loop post-ignition
+    def step(self, dt: float | None = None) -> None:
+        pass
+
+    def _step_guidance(self, dt: float) -> ControlInput:
+        """
+        Produce a control command using FlightComputer for this tick.
+        Returns ControlInput for PRE_LAUNCHED / BOOST / IMPACT.
+        These stages are handled by FlightSequencer, not FlightComputer.
+
+        Args:
+            dt: timestamp / tick
+        """
+        if self.state.missile_stage in (FlightStage.PRE_LAUNCHED, FlightStage.BOOST, FlightStage.IMPACT):
+            return ControlInput()
+        return self.flight_computer.step(self.state, dt)
+
+
+    def _step_physics(self, control: ControlInput, dt: float) -> IMUMeasurement:
+        """
+        Update the physical state of the missile using dynamics.py for every tick.
+        Dynamics apply the control input and return the state and IMU measurement.
+
+        Args:
+            control: control input calculated from FlightComputer
+            dt: timestamp / tick
+
+        Returns:
+            IMU measurement of the missile.
+        """
+        self.state, imu = self.dynamics.step(self.state, control, dt)
+        return imu
+
+    def _step_navigation(self, imu: IMUMeasurement, dt: float) -> None:
+        
+
+
+
 
 
 
