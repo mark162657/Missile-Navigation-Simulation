@@ -41,9 +41,6 @@ class NavigationComputer:
         # Initialise baro altimeter for msl height
         self.baro_alt = BaroAltimeter()
 
-        # Initialise State through _build_initial_state method
-        self.state = self._build_initial_state(true_start_gps)
-
         # Set the update freq
         self.gps_period = 1.0 / gps_freq_hz
         self.ins_period = 1.0 / ins_freq_hz
@@ -71,35 +68,8 @@ class NavigationComputer:
         # Setting threshold for stdev of patch height to determine if terrain is rough enough for TERCOM
         self.tercom_roughness_threshold_m = 5.0
 
-    def _build_initial_state(self, true_start_gps: tuple[float, float, float]) -> MissileState:
-        """
-        Build and initialise the initial state of a missile in state.py
-        This serve as the only point which initial state.py is built.
-
-        TODO:
-        move to main loop
-        """
-        lat, lon, alt = true_start_gps
-        return MissileState(
-            true_lat=lat,
-            true_lon=lon,
-            true_alt=alt,
-            est_lat=lat,
-            est_lon=lon,
-            est_alt=alt,
-            vel_east=0.0,
-            vel_north=0.0,
-            vel_up=0.0,
-            roll=0.0,
-            pitch=0.0,
-            yaw=0.0,
-            time=0.0,
-            distance_traveled=0.0,
-            distance_to_target=0.0,
-            gps_valid=True,
-            tercom_active=False,
-            ins_calibrated=True
-        )
+        self.next_gps = self.gps_period # first GPS fix one period in
+        self.next_tercom = self.tercom_period # first TERCOM fix one period in
         
     def run_navigation_loop(
         self,

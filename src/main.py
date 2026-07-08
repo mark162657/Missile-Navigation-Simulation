@@ -17,7 +17,7 @@ from terrain.coordinates import CoordinateSystem
 class SimulationConfig:
     # Geographic setup
     dem_name: str
-    start_gps: tuple(float, float, float) # 3d location of starting location (lat, lon, agl)
+    start_gps: tuple(float, float, float) # 3d location of starting location (lat, lon, elev)
     target_gps: tuple(float, float, float)
 
     # Planning
@@ -45,4 +45,42 @@ class Simulation:
             self.pathfinding.engine, self.pathfinding.dem_loader
         )
         self.target = TargetGeometry(config.target_gps[:2], self.coord, config.target_gps[2])
+
+        # Setting up control related
+        self.trajectory: np.ndarray | None = None
+        self.flight_computer: FlightComputer | None = None
+        self.dynamics: MissileDynamics | None = None
+        self.sequencer: FlightSequencer | None = None
+        self.nav = None # navigation computer
+
+        self.state: MissileState | None = None
+        self.sim_time: float = 0.0
+        self._result: dict | None = None
+
+
+    @classmethod
+    def from_config(cls, profile: MissileProfile, config: SimulationConfig) -> "Simulation":
+        """Build a simulation from a profile and a configuration. Mirroring the (profile, config) pair."""
+        return cls(profile, config)
+
+    def plan_mission(self) -> np.ndarray:
+        """
+        Run Pathifnding algorithm start -> target and receive the returned trajectory.
+
+        Return:
+            the (N, 3) [lat, lon, ground_elev] array
+        """
+        raw_pixel_path = self.run_patfinding()
+
+    def run_pathfinding(self) -> list[tuple[int, int]]:
+        """
+        A* pathfinding over DEM in pixel coordinates (convert gps -> row/col coordinate)
+
+        Return:
+            path in pixel coordinate
+        """
+        start_rc = self.pathfinding.dem_loader.lat_lon_to_pixel()
+
+
+
 
