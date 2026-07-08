@@ -15,8 +15,8 @@ Public API (so the simulation loop can do
 `from simulation.physics import MissileDynamics, ControlInput, IMUMeasurement`):
 """
 
+from missile.controls.control_input import ControlInput
 from simulation.physics.dynamics import (
-    ControlInput,
     IMUMeasurement,
     MissileDynamics,
 )

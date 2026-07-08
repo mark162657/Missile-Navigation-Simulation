@@ -87,7 +87,7 @@ def main() -> None:
     launch_lat, launch_lon, launch_alt = 36.0, -115.0, 100.0
     cruise_v = profile.basic.cruise_speed_ms  # m/s
 
-    # No control surfaces: the autopilot commands a maneuver acceleration. To
+    # No controls surfaces: the autopilot commands a maneuver acceleration. To
     # hold level flight it commands ~g of vertical accel to cancel gravity.
     hold_level_accel = 9.80665     # m/s^2 (counters gravity at gamma = 0)
 
@@ -137,7 +137,7 @@ def main() -> None:
           f"alt {ins_pos[2]:8.2f} m")
     print(f"  pos error : east {east_e:+.3f} m  north {north_e:+.3f} m  "
           f"alt {alt_e:+.3f} m  | horizontal {horiz_err:.3f} m")
-    print(f"  true  vel : {true_vel}  (|v| {state.get_speed():.2f} m/s)")
+    print(f"  true  vel : {true_vel}  (|v| {state.get_ground_speed() :.2f} m/s)")
     print(f"  INS   vel : {ins_vel}")
     print(f"  vel error : {vel_err:.4f} m/s")
     # INS normalizes Euler angles to [0, 2pi); MissileState does not. Wrap the

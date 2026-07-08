@@ -28,6 +28,8 @@ NO CONTROL SURFACES
     acceleration (by the autopilot) and is bounded here only by the g-envelope.
     Coefficient values are representative of a Tomahawk-class subsonic cruise
     airframe; exact numbers are not critical (rule 7), the structure is.
+
+    Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
 
 from __future__ import annotations

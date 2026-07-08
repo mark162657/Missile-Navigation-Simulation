@@ -208,7 +208,7 @@ private:
     // No-data check
     if (current_elev <= -100.0f || neighbor_elev <= -100.0f)
       return std::numeric_limits<float>::infinity();
-
+偷
     // Base distances: recalculate heuristic here to avoid function call cost
     // yes, so extract every penny as possible lol, for handling at least 800
     // million pixels
@@ -221,7 +221,7 @@ private:
     double dist_x = std::abs(col2 - col1) * ptr_lat_lookup[row1];
     float dist_cost = std::sqrt((dist_x * dist_x) + (dist_y * dist_y));
 
-    // !! Crucial !! Apply extra serious penalty on altitude change, otherwise
+    // Apply extra serious penalty on altitude change, otherwise
     // the algorithm will still choose short distance vs low-altitude terrain
     // Note: This is also the part which results in the significant increase in
     // compile time (at least in Python)

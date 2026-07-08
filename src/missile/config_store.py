@@ -22,6 +22,7 @@ BASIC_FIELDS = [
     "min_altitude",
     "max_altitude",
     "max_g_force",
+    "max_longitudinal_g_boost", # max g force going forward (longitudinal) during BOOST phase
     "sustained_turn_rate",
     "sustained_g_force",
     "evasive_turn_rate",
@@ -38,6 +39,7 @@ BASIC_UNITS = {
     "min_altitude": "m MSL",
     "max_altitude": "m MSL",
     "max_g_force": "g",
+    "max_longitudinal_g_boost": "g",
     "sustained_turn_rate": "deg/s",
     "sustained_g_force": "g",
     "evasive_turn_rate": "deg/s",
@@ -50,6 +52,7 @@ BASIC_UNITS = {
 # files (and migrations) still load instead of hard-failing.
 BASIC_DEFAULTS = {
     "max_range": 0.0,
+    "max_longitudinal_g_boost": 20.0,
     "cruise_agl_min": 30.0,
     "cruise_agl_max": 100.0,
 }
@@ -154,6 +157,11 @@ def validate_configuration(config: dict) -> dict:
     basic_norm = {}
     for f in BASIC_FIELDS:
         if f not in basic_in:
+            # Fields added after the initial schema fall back to a default so
+            # older config files still load; only truly-required fields raise.
+            if f in BASIC_DEFAULTS:
+                basic_norm[f] = float(BASIC_DEFAULTS[f])
+                continue
             raise ValueError(f"Missing basic field: {f}")
         try:
             basic_norm[f] = float(basic_in[f])

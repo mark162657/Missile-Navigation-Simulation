@@ -38,6 +38,8 @@ SIMPLIFICATIONS (kept deliberately light -- the project's focus is nav/guidance)
     - The pitch-over is an open-loop programmed schedule (smoothstep), not a
       closed-loop gravity turn or boost guidance law.
     - Azimuth is set to the cruise heading at launch (no programmed turn).
+
+Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
 
 from __future__ import annotations

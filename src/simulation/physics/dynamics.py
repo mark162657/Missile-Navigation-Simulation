@@ -50,6 +50,8 @@ WIND (weather.py)
 
 Frame: ENU (East-North-Up), z positive up -- matches state.py / ins.py.
 Coordinate convention for body axes: x forward, y right, z down.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
 
 from __future__ import annotations
@@ -64,6 +66,7 @@ from simulation.physics import atmosphere
 from simulation.physics.aerodynamics import S_REF, BOOST_DRAG_CD, Aerodynamics
 from simulation.physics.engine import Engine
 from simulation.physics.weather import WindField
+from missile.controls.control_input import ControlInput
 from missile.profile import MissileProfile
 from missile.state import FlightStage, MissileState
 from terrain import coordinates
@@ -73,29 +76,6 @@ if TYPE_CHECKING:
 
 
 _EPS_SPEED = 1e-3  # m/s, below which aero/airflow direction is ill-defined
-
-
-@dataclass
-class ControlInput:
-    """
-    Autopilot output consumed by the physics (the only thing that drives it).
-
-    NO CONTROL SURFACES: the missile is treated as a whole point mass. The
-    autopilot commands a maneuver acceleration PERPENDICULAR to the velocity
-    vector; physics clamps it to the g-envelope and rotates the velocity by it.
-
-    Fields:
-        throttle    : engine throttle, 0..1 (along-velocity energy input)
-        accel_turn  : horizontal maneuver acceleration, m/s^2 (+ = to the right
-                      of velocity). Rotates HEADING.
-        accel_climb : vertical maneuver acceleration, m/s^2 (+ = pull up).
-                      Rotates the FLIGHT-PATH ANGLE. NOTE: to hold level flight
-                      the autopilot must command ~g here to counter gravity --
-                      that is the controller's job, not the plant's.
-    """
-    throttle: float = 0.0
-    accel_turn: float = 0.0
-    accel_climb: float = 0.0
 
 
 @dataclass

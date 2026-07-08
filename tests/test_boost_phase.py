@@ -93,7 +93,7 @@ def main() -> None:
     )
 
     # Cruise command applied once the turbofan takes over (ignored during boost).
-    # No control surfaces: ~g of vertical accel holds level once cruising.
+    # No controls surfaces: ~g of vertical accel holds level once cruising.
     cruise_control = ControlInput(throttle=0.55, accel_climb=9.80665)
 
     dt = 0.01
@@ -122,7 +122,7 @@ def main() -> None:
                 and sequencer.stage == FlightStage.CRUISE):
             print(f"  >> booster separation at t={state.time:.2f}s  "
                   f"(mass {dynamics.current_mass_kg:.0f} kg, "
-                  f"V={state.get_speed():.1f} m/s, alt={state.true_alt:.0f} m)")
+                  f"V={state.get_ground_speed() :.1f} m/s, alt={state.true_alt:.0f} m)")
             separated_reported = True
         prev_stage = sequencer.stage
 
@@ -130,11 +130,11 @@ def main() -> None:
             err = pos_err_m(state.true_position(), ins.get_state()[0])
             mass = dynamics.current_mass_kg + sequencer.attached_booster_mass()
             print(f"{state.time:5.1f} {sequencer.stage.name:>7} "
-                  f"{state.true_alt:8.1f} {state.get_speed():7.1f} "
+                  f"{state.true_alt:8.1f} {state.get_ground_speed() :7.1f} "
                   f"{math.degrees(state.pitch):6.1f} {mass:8.1f} {err:9.3f}")
 
     print(f"\nFinal: stage={sequencer.stage.name}  "
-          f"alt={state.true_alt:.0f} m  V={state.get_speed():.1f} m/s  "
+          f"alt={state.true_alt:.0f} m  V={state.get_ground_speed() :.1f} m/s  "
           f"dist={state.distance_traveled/1000:.2f} km")
     print(f"Booster separated: {sequencer.booster.separated}  | "
           f"cruise fuel left: {dynamics.engine.fuel_remaining_kg:.1f} kg")
