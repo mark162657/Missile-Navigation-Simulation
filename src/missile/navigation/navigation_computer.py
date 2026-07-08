@@ -92,12 +92,17 @@ class NavigationComputer:
             mea = self.gps.get_gps_location(self.state.true_position())
 
             if mea is not None:
-                self._apply_gps_fix(mea)
+                self._apply_gps_fix(mea, state)
                 self.state.gps_valid = True
             else:
                 self.state.gps_valid = False
 
             self.next_gps += self.gps_period
+
+        # TERCOM fix
+        if sim_time >= self.next_tercom:
+            self._tercom_update()
+            self.next_tercom += self.tercom_period
 
 
     # def run_navigation_loop(
@@ -177,14 +182,14 @@ class NavigationComputer:
 
     # --- KF SYNC ---
     def _sync_kf_to_ins_and_state(self, state: MissileState) -> None:
-        """Push the processed KF state into INS, then mirror it into MissileState"""
+        """Push the processed KF state into INS, then mirror it into MissileState."""
         est_pos, est_vel = self.KF.get_state()
         self.ins.correct_state(est_pos, est_vel)
         ins_pos, _, _ = self.ins.get_state() # apply ins correction to state when we receive data from GPS/TERCOM
         state.apply_ins_estimate(self.ins)
         
     def _apply_gps_fix(self, gps_measurement, state: MissileState) -> None:
-        """Fuse a 3D GPS fix [lat, lon, alt], then sync INS and shared state"""
+        """Fuse a 3D GPS fix [lat, lon, alt], then sync INS and shared state."""
         mea = np.asarray(gps_measurement, dtype=float)
         self.KF.update(mea.tolist(), sensor_type="GPS")
         self._sync_kf_to_ins_and_state(state)
@@ -196,7 +201,7 @@ class NavigationComputer:
             baro_alt_msl: float,
             state: MissileState
     ) -> None:
-        """Fuse TERCOM's lat/lon coordinate with altitude (MSL) from BaroAltimeter. Turn 2D -> 3D (with alt)"""
+        """Fuse TERCOM's lat/lon coordinate with altitude (MSL) from BarAltimeter. Turn 2D -> 3D (with alt)"""
         self.KF.update([float(matched_lat), float(matched_lon), float(baro_alt_msl)], sensor_type="TERCOM")
         self._sync_kf_to_ins_and_state(state)
 
