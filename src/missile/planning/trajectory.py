@@ -20,6 +20,9 @@ class TrajectoryGenerator:
         Balancing continuity and local control.
         We ignore altitude during 2D smoothing (flight altitude handled by flight computer/autopilot),
         we focus on x, y (lat/lon).
+
+        Args:
+            raw_path: the raw path returned from pathfinder
         """
 
         # check length
@@ -61,7 +64,7 @@ class TrajectoryGenerator:
         We use groupby from itertools. Probably the fastest
 
         Args:
-            - path: the list contains tuple (representing pixels)... yeah, just path
+            path: the list contains tuple (representing pixels)... yeah, just path
         """
         return [k for k, g in groupby(path)]
 

@@ -1,76 +1,46 @@
-"""
-Main simulation loop — single-rate tick orchestrator (structure A).
-"""
+import math
+import numpy as np
+from dataclasses import dataclass, replace
+
 from missile.profile import MissileProfile
+from missile.state import MissileState, FlightStage
+from missile.controls.control_input import ControlInput
+from missile.controls.flight_computer import FlightComputer
+from missile.guidance.target_geometry import TargetGeometry
 from missile.planning.pathfinding_backend import Pathfinding
+from missile.planning.trajectory import TrajectoryGenerator
+from simulation.physics.dynamics import MissileDynamics
+from simulation.physics.sequencer import FlightSequencer
+from terrain.coordinates import CoordinateSystem
 
+@dataclass
 class SimulationConfig:
-    pass
+    # Geographic setup
+    dem_name: str
+    start_gps: tuple(float, float, float) # 3d location of starting location (lat, lon, agl)
+    target_gps: tuple(float, float, float)
 
+    # Planning
+    heuristic_weight: float = 2.0
 
-def plan_mission(config):
-    pass
+    # Midcourse guidance
+    lookhead_dist: float = 300.0
+    dt: float = 0.01 # sim tick, 100Hz
+    max_flight_time_s: float = 7200 # hard guard for max flight time to prevent burning your pc (default 2hr)
+    impact_radius_m: float = 10 # horizontal miss in meter that still counts as a hit
+
+    # Terminal guidance
+    approach_azimuth_radius: float | None = None
+    impact_angle_deg: float = -30.0 # desired dive angle at impact (negative for a dive)
 
 
 class Simulation:
-
-    def __init__(self, profile, config, start, target, DEM_NAME):
-        self.start_gps = start
-        self.target_gps = target
-        self.profile = MissileProfile()
+    def __init__(self, profile: MissileProfile, config: SimulationConfig) -> None:
+        self.profile = profile
         self.config = config
-        self.pathfinding = Pathfinding(str(DEM_NAME))
 
-
-    def run_pathfinding(self):
-        pf = self.pathfinding
-        pf.find_path(self.start_gps, self.target_gps)
-
-
-    @classmethod
-    def from_config(cls, config):
-        pass
-
-    def step(self, dt=None):
-        pass
-
-    def run(self, duration_s=None):
-        pass
-
-    def report(self):
-        pass
-
-    def alive(self):
-        pass
-
-    def _build_initial_state(self):
-        pass
-
-    def _ignite(self):
-        pass
-
-    def _step_guidance(self, dt):
-        pass
-
-    def _step_physics(self, control, dt):
-        pass
-
-    def _step_navigation(self, dt):
-        pass
-
-    def _update_stages(self):
-        pass
-
-    def _check_impact(self):
-        pass
-
-    def _check_mission_complete(self):
-        pass
-
-
-def main():
-    pass
-
-
-if __name__ == "__main__":
-    main()
+        self.coord = CoordinateSystem(config.start_gps[0], config.start_gps[1])
+        self.pathfinding = Pathfinding(config.dem_name)
+        self.trajector = TrajectoryGenerator(
+            self.pathfinding.engine, self.pathfinding.dem_loader
+        )

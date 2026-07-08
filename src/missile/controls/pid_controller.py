@@ -8,6 +8,7 @@ class PIDController:
             out_min: float
     ):
         """
+        Setting up PID controller parameters
         Args:
             kp, ki, kd: weighting factor for P, I, and D controller
             out_max, out_min: the max and min output available (for e.g. max and min thrust level)
@@ -35,7 +36,7 @@ class PIDController:
                 - output is saturating
                 - error has the same sign as controller output
         Args:
-            - error: setpoint - measurement (target - measurement)
+            error: setpoint - measurement (target - measurement)
         """
         if dt <= 0.0: # when dt is broken (cannot be ≤ 0), we will only rely on P controller
             raise ValueError("dt must be greater than 0.0")

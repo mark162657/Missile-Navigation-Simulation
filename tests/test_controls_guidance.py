@@ -23,7 +23,7 @@ from missile.controls.control_input import ControlInput
 from missile.controls.pid_controller import PIDController
 from missile.controls.autopilot import AutoPilot
 from missile.profile import MissileProfile, BasicSpec, DetailedSpec
-from missile.state import MissileState, FlightStage, GuidanceStage
+from missile.state import MissileState, FlightStage
 from missile.guidance.target_geometry import TargetGeometry
 from missile.guidance.terminal_guidance import TerminalGuidance, TerminalCommand
 from terrain.coordinates import CoordinateSystem
