@@ -165,7 +165,7 @@ class Simulation:
             lookahead_dist=self.config.lookahead_dist_m
         )
 
-        self.navigation_computer = NavigationComputer(
+        self.nav = NavigationComputer(
             true_start_gps=self.config.start_gps,
             dem_name=self.config.dem_name,
         )
@@ -184,7 +184,12 @@ class Simulation:
 
     # Simulation loop post-ignition
     def step(self, dt: float | None = None) -> None:
-        pass
+        dt = self.config.dt if dt is None else dt
+
+        control = self._step_guidance(dt) # missile control
+        imu = self._step_physcis(control, dt) # physics and imu
+        self._step_navigation(imu, dt) # navigation modules
+
 
     def _step_guidance(self, dt: float) -> ControlInput:
         """
@@ -217,9 +222,19 @@ class Simulation:
 
     def _step_navigation(self, imu: IMUMeasurement, dt: float) -> None:
         """
-        
+        Update the navigation estimate from this tick's IMU measurement.
+        Truths are advanced and handled in MissileDynamics.
+
+        Args:
+            imu: IMU measurement of the missile (from physics)
+            dt: timestamp / tick
+
         """
-        self.navigation_computer.step(imu, self.state, self.sim_time, dt)
+        self.nav.step(imu, self.state, self.sim_time, dt)
+
+    def _update_stage(self) -> None:
+
+
 
 
 
