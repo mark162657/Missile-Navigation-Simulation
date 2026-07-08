@@ -112,10 +112,6 @@ class NavigationComputer:
             self._tercom_update()
             self.next_tercom += self.tercom_period
 
-    def _calibrate_ins(self, state: MissileState, start_gps) -> None:
-        """Calibrate INS with the first GPS measurement."""
-        pass
-
     # --- KF SYNC ---
     def _sync_kf_to_ins_and_state(self, state: MissileState) -> None:
         """Push the processed KF state into INS, then mirror it into MissileState."""

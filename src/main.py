@@ -9,9 +9,12 @@ from missile.controls.flight_computer import FlightComputer
 from missile.guidance.target_geometry import TargetGeometry
 from missile.planning.pathfinding_backend import Pathfinding
 from missile.planning.trajectory import TrajectoryGenerator
+from missile.navigation.navigation_computer import NavigationComputer
 from simulation.physics.dynamics import MissileDynamics
 from simulation.physics.sequencer import FlightSequencer
+from simulation.sensors import InternalTimer
 from terrain.coordinates import CoordinateSystem
+
 
 @dataclass
 class SimulationConfig:
@@ -56,7 +59,6 @@ class Simulation:
         self.state: MissileState | None = None
         self.sim_time: float = 0.0
         self._result: dict | None = None
-
 
     @classmethod
     def from_config(cls, profile: MissileProfile, config: SimulationConfig) -> "Simulation":
@@ -137,8 +139,41 @@ class Simulation:
             missile_stage=FlightStage.PRE_LAUNCHED
         )
 
+    def _approach_azimuth(self) -> float:
+        """Terminal approach bearing (rad, CW from north)."""
+        if self.config.approach_azimuth_radius is None:
+            return self.config.approach_azimuth_rad
+        heading_deg = self.coord.get_heading(
+            self.config.start_gps[0], self.config.start_gps[1],
+            self.config.target_gps[0], self.config.target_gps[1]
+        )
+        return math.radians(heading_deg)
 
+    def _pre_ignition_setup(self):
+        """Start navigation and flight computer before the ignition during pre-launched."""
+        self.flight_computer = FlightComputer(
+            trajectory=self.trajectory,
+            profile=self.profile,
+            target=self.target,
+            coordinate=self.coord,
+            impact_angle_deg=self.config.impact_angle_deg,
+            approach_azimuth_rad=self._approach_azimuth(),
+            lookahead_dist=self.config.lookahead_dist_m
+        )
 
+        self.navigation_computer = NavigationComputer(
+            true_start_gps=self.config.start_gps,
+            dem_name=self.config.dem_name,
+        )
+
+    # Ignition phase
+    def _ignite(self) -> None:
+        """Initialise the boost sequencer, transition from PRE_LAUNCHED -> BOOST."""
+        self.sequencer = FlightSequencer(
+            cruise_heading_rad=self._approach_azimuth(),
+            profile=self.profile,
+        )
+        self.dynamics = MissileDynamics(self.profile, sequencer=self.sequencer)
 
 
 

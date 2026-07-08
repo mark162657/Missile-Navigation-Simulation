@@ -150,8 +150,8 @@ class BoosterSpec:
         launch_mode        : str  (default launch platform / boost attitude:
                                     "GROUND" | "SURFACE_VLS" | "SUBMARINE")
     """
-    booster_thrust_N: float = 45000.0
-    burn_time_s: float = 7.0
+    booster_thrust_N: float = 26690.0  # Mk 135 approx. 6,000 lbf
+    burn_time_s: float = 12.0          # Mk 135 reported burn, below 15 s max
     propellant_mass_kg: float = 145.0
     casing_mass_kg: float = 150.0
     launch_mode: str = "SURFACE_VLS"
