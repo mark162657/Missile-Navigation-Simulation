@@ -55,7 +55,7 @@ class NavigationComputer:
             init_vel=[0.0, 0.0, 0.0]
         )
 
-        est_location = [self.state.est_lat, self.state.est_lon]
+        est_location = [true_start_gps[0], true_start_gps[1]]
         self.tercom = TERCOM(est_location, dem_name)
 
         self.KF = KalmanFilter(
@@ -73,7 +73,7 @@ class NavigationComputer:
 
     def step(self, imu: IMU, state: MissileState, sim_time: float, dt: float) -> None:
         """
-        Update navigation state with IMU measurements and periodic GPS/TERCOM fixes.
+        Update the navigation state with IMU measurements and periodic GPS/TERCOM fixes.
         
         Args:
             imu: IMU measurement with true acceleration and angular velocity
@@ -97,19 +97,19 @@ class NavigationComputer:
 
         # GPS fix
         if sim_time >= self.next_gps and not self.gps.is_jammed:
-            mea = self.gps.get_gps_location(self.state.true_position())
+            mea = self.gps.get_gps_location(state.true_position())
 
             if mea is not None:
                 self._apply_gps_fix(mea, state)
-                self.state.gps_valid = True
+                state.gps_valid = True
             else:
-                self.state.gps_valid = False
+            state.gps_valid = False
 
             self.next_gps += self.gps_period
 
         # TERCOM fix
         if sim_time >= self.next_tercom:
-            self._tercom_update()
+            self._tercom_update(state)
             self.next_tercom += self.tercom_period
 
     # --- KF SYNC ---
@@ -138,34 +138,34 @@ class NavigationComputer:
         self._sync_kf_to_ins_and_state(state)
 
     # --- TERCOM RELATED ---
-    def _tercom_update(self) -> None:
+    def _tercom_update(self, state: MissileState) -> None:
         """Run one TERCOM fix if terrain is suitable"""
 
-        est_lat, est_lon, _ = self.state.est_position()
+        est_lat, est_lon, _ = state.est_position()
 
         patch = self.dem_loader.get_elevation_patch(
             est_lat, est_lon, patch_size=25, normalized=False
         )
 
         if not self._is_terrain_suitable(patch, est_lat, est_lon):
-            self.state.tercom_active = False
+            state.tercom_active = False
             return
 
-        true_lat, true_lon, _ = self.state.true_position()
+        true_lat, true_lon, _ = state.true_position()
         sensed_patch = self.dem_loader.get_elevation_patch(true_lat, true_lon, patch_size=7, normalized=True)
 
         if sensed_patch is None:
-            self.state.tercom_active = False
+            state.tercom_active = False
             return
 
         matched_lat, matched_lon, _ = self.tercom.process_update(
             sensed_patch, est_lat, est_lon
         )
 
-        self.state.tercom_active = matched_lat is not None
+        state.tercom_active = matched_lat is not None
 
         if matched_lat is not None:
-            self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl(self.state.true_alt)) # msl obtain from baro altimeter
+            self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl(state.true_alt)) # msl obtain from baro altimeter
         
     def _is_terrain_suitable(
             self,

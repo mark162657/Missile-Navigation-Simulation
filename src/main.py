@@ -216,7 +216,11 @@ class Simulation:
         return imu
 
     def _step_navigation(self, imu: IMUMeasurement, dt: float) -> None:
+        """
         
+        """
+        self.navigation_computer.step(imu, self.state, self.sim_time, dt)
+
 
 
 
