@@ -103,7 +103,7 @@ class NavigationComputer:
                 self._apply_gps_fix(mea, state)
                 state.gps_valid = True
             else:
-            state.gps_valid = False
+                state.gps_valid = False
 
             self.next_gps += self.gps_period
 
