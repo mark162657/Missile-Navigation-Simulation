@@ -1,0 +1,3 @@
+class GuidanceLaw:
+    #TODO
+    pass

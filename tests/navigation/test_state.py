@@ -26,7 +26,7 @@ def make_state(**overrides):
 
 def test_get_speed():
     s = make_state(vel_east=3.0, vel_north=4.0, vel_up=0.0)
-    assert s.get_speed() == pytest.approx(5.0)
+    assert s.get_ground_speed() == pytest.approx(5.0)
 
 
 def test_position_helpers():

@@ -12,10 +12,9 @@ class FlightStage(Enum):
     """Flight stages of the cruise missile."""
     PRE_LAUNCHED = auto()
     BOOST = auto()
-    CRUISE = auto()
-    TERMINAL = auto()
-    IMPACT = auto()
-
+    CRUISE = auto()   # Cruise/in-flight guidance
+    TERMINAL = auto() # Terminal guidance (with impact angle)
+    IMPACT = auto()   # Detonate boom
 
 @dataclass
 class MissileState:
@@ -56,9 +55,9 @@ class MissileState:
     vel_up: float
 
     # Orientation (radians)
-    roll: float
-    pitch: float
-    yaw: float
+    roll: float # USELESS for now
+    pitch: float# mostly USELESS
+    yaw: float # heading
 
     # Time and bookkeeping (mirrors INS where applicable)
     time: float
@@ -70,7 +69,10 @@ class MissileState:
     tercom_active: bool
     ins_calibrated: bool
 
-    def get_speed(self) -> float:
+    # Missile flight stage record (defaults to pre-launch; physics/sim loop advance it)
+    missile_stage: FlightStage = FlightStage.PRE_LAUNCHED
+
+    def get_ground_speed(self) -> float:
         """Return speed magnitude from velocity components, m/s."""
         return float(np.linalg.norm([self.vel_east, self.vel_north, self.vel_up]))
 
@@ -154,4 +156,4 @@ class MissileState:
         self.yaw = (self.yaw + yaw_rate * dt) % (2 * math.pi)
 
         self.time += dt
-        self.distance_traveled += self.get_speed() * dt
+        self.distance_traveled += self.get_ground_speed() * dt

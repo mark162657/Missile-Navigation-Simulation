@@ -75,11 +75,11 @@ class KalmanFilter:
             velocity += a * dt
         A 3D B control matrix looks like this
         B =
-            [ 0.5Δ^2,       0,       0],
-            [      0, 0.5Δt^2,       0],
-            [      0,       0, 0.5Δt^2],
-            [     Δt,       0,       0],
-            [      0,      Δt,       0],
+            [ 0.5Δ^2,       0,       0]
+            [      0, 0.5Δt^2,       0]
+            [      0,       0, 0.5Δt^2]
+            [     Δt,       0,       0]
+            [      0,      Δt,       0]
             [      0,       0,      Δt]
         """
         b = np.zeros((6, 3))
@@ -101,8 +101,8 @@ class KalmanFilter:
 
         A 3d A transition matrix looks like this
         A =
-            [1, 0, 0, Δt,  0,  0],
-            [0, 1, 0,  0, Δt,  0],
+            [1, 0, 0, Δt,  0,  0]
+            [0, 1, 0,  0, Δt,  0]
             [0, 0, 1,  0,  0, Δt]
         """
         a = np.eye(6)

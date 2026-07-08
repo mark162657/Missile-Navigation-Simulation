@@ -5,7 +5,6 @@ class InternalTimer:
     """
     Onboard navigation clock for multi-rate sensor scheduling (INS / GPS / TERCOM).
     """
-
     def __init__(self):
         self.absolute_start_time = None
         self._start_perf_counter = None

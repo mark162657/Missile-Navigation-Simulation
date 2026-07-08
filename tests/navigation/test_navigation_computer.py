@@ -1,4 +1,11 @@
-"""Tests for missile.navigation.navigation_computer.NavigationComputer."""
+"""Tests for missile.navigation.navigation_computer.NavigationComputer.
+
+NavigationComputer is now a pure per-tick ESTIMATION service: it does not own a
+MissileState and does not advance truth. The estimation helpers take the shared
+state as an argument, and the per-tick entry point is step(imu, state, sim_time,
+dt). (The old state-owning run_navigation_loop / update_physics scaffolding was
+moved into the main simulation loop.)
+"""
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -26,13 +33,17 @@ def make_state(**overrides):
 
 
 def bare_nav(**attrs):
-    """NavigationComputer with __init__ bypassed and collaborators injected."""
+    """NavigationComputer with __init__ bypassed and collaborators injected.
+
+    No nav.state: the estimation methods operate on a MissileState passed in.
+    """
     nav = object.__new__(NavigationComputer)
     nav.ins_period = 0.002
     nav.gps_period = 0.2
     nav.tercom_period = 1.0
     nav.tercom_roughness_threshold_m = 5.0
-    nav.state = make_state()
+    nav.next_gps = nav.gps_period
+    nav.next_tercom = nav.tercom_period
     nav.ins = INS(init_pos=[LAT, LON, ALT], init_vel=[0.0, 0.0, 0.0])
     nav.KF = KalmanFilter(
         dt=nav.ins_period,
@@ -40,6 +51,7 @@ def bare_nav(**attrs):
         init_velocity=[0.0, 0.0, 0.0],
         process_noise_std=0.05,
     )
+    nav.imu = MagicMock()
     nav.gps = MagicMock(is_jammed=False)
     nav.tercom = MagicMock()
     nav.dem_loader = MagicMock()
@@ -49,44 +61,58 @@ def bare_nav(**attrs):
     return nav
 
 
+class _FakeIMU:
+    """Minimal stand-in for dynamics.IMUMeasurement (only the fields step() reads)."""
+    def __init__(self, accel_enu=None, angular_velocity=None):
+        self.accel_enu = np.zeros(3) if accel_enu is None else np.asarray(accel_enu, dtype=float)
+        self.angular_velocity = np.zeros(3) if angular_velocity is None else np.asarray(angular_velocity, dtype=float)
+
+
 # ==========================================================================
 # Construction
 # ==========================================================================
-def test_init_constructs_with_stub_dependencies(monkeypatch):
+def test_init_constructs_estimators_without_owning_state(monkeypatch):
     import missile.navigation.navigation_computer as nc
 
     monkeypatch.setattr(nc, "DEMLoader", lambda *a, **k: MagicMock())
     monkeypatch.setattr(nc, "BaroAltimeter", lambda *a, **k: MagicMock())
-    nav = NavigationComputer(start_gps=(LAT, LON, ALT), dem_name="fake.tif")
-    assert isinstance(nav.state, MissileState)
-    assert nav.state.gps_valid is True
+    monkeypatch.setattr(nc, "TERCOM", lambda *a, **k: MagicMock())
+    nav = NavigationComputer(true_start_gps=(LAT, LON, ALT), dem_name="fake.tif")
+
     assert isinstance(nav.ins, INS)
     assert isinstance(nav.KF, KalmanFilter)
     assert nav.gps is not None
     assert nav.tercom is not None
+    # The nav computer no longer owns a MissileState (main.Simulation does).
+    assert not hasattr(nav, "state")
 
 
 # ==========================================================================
-# KF -> INS -> state synchronisation
+# KF -> INS -> state synchronisation (position only)
 # ==========================================================================
-def test_sync_kf_to_ins_and_state():
+def test_sync_estimate_writes_position_only():
     nav = bare_nav()
+    state = make_state()
     nav.KF.x = np.array([100.0, 200.0, ALT, 1.0, 2.0, 3.0])
     expected_pos, expected_vel = nav.KF.get_state()
 
-    nav._sync_kf_to_ins_and_state()
+    nav._sync_estimate_to_state(state)
 
+    # INS is fully corrected internally (position + velocity)...
     np.testing.assert_allclose(nav.ins.pos, expected_pos)
     np.testing.assert_allclose(nav.ins.vel, expected_vel)
-    np.testing.assert_allclose(nav.state.est_position(), expected_pos)
-    np.testing.assert_allclose(nav.state.get_velocity(), expected_vel)
+    # ...but only POSITION is mirrored onto the shared state (the plant owns
+    # velocity/attitude), so est_* moves and vel_* is left untouched.
+    np.testing.assert_allclose(state.est_position(), expected_pos)
+    np.testing.assert_allclose(state.get_velocity(), [0.0, 0.0, 0.0])
 
 
 def test_apply_gps_fix_pulls_estimate_toward_measurement():
     nav = bare_nav()
+    state = make_state()
     measurement = [LAT + 0.01, LON - 0.01, ALT + 20.0]
-    nav._apply_gps_fix(measurement)
-    est = nav.state.est_position()
+    nav._apply_gps_fix(measurement, state)
+    est = state.est_position()
     assert abs(est[0] - measurement[0]) < abs(LAT - measurement[0])
     assert abs(est[1] - measurement[1]) < abs(LON - measurement[1])
     assert abs(est[2] - measurement[2]) < abs(ALT - measurement[2])
@@ -94,8 +120,9 @@ def test_apply_gps_fix_pulls_estimate_toward_measurement():
 
 def test_apply_tercom_fix_updates_state():
     nav = bare_nav()
-    nav._apply_tercom_fix(LAT + 0.02, LON + 0.02, ALT + 5.0)
-    est = nav.state.est_position()
+    state = make_state()
+    nav._apply_tercom_fix(LAT + 0.02, LON + 0.02, ALT + 5.0, state)
+    est = state.est_position()
     assert abs(est[0] - (LAT + 0.02)) < 0.02
     assert abs(est[2] - (ALT + 5.0)) < 5.0
 
@@ -142,18 +169,18 @@ def _rough_patch_loader():
 def test_tercom_update_accepts_normalized_keyword():
     nav = bare_nav(dem_loader=_rough_patch_loader())
     nav.tercom.process_update.return_value = (None, None, None)
-    nav._tercom_update()  # must not raise TypeError
+    nav._tercom_update(make_state())  # must not raise TypeError
 
 
 def test_tercom_update_sets_active_flag_on_match():
     nav = bare_nav(dem_loader=_rough_patch_loader())
     nav.tercom.process_update.return_value = (LAT + 0.01, LON + 0.01, np.eye(3))
     nav.baro_alt.get_baro_msl.return_value = ALT
-    nav.state.tercom_active = False
+    state = make_state(tercom_active=False)
 
-    nav._tercom_update()
+    nav._tercom_update(state)
 
-    assert nav.state.tercom_active is True
+    assert state.tercom_active is True
 
 
 def test_tercom_update_clears_active_when_sensed_patch_unavailable():
@@ -166,11 +193,11 @@ def test_tercom_update_clears_active_when_sensed_patch_unavailable():
 
     loader.get_elevation_patch.side_effect = fake
     nav = bare_nav(dem_loader=loader)
-    nav.state.tercom_active = True
+    state = make_state(tercom_active=True)
 
-    nav._tercom_update()
+    nav._tercom_update(state)
 
-    assert nav.state.tercom_active is False
+    assert state.tercom_active is False
     nav.tercom.process_update.assert_not_called()
 
 
@@ -181,62 +208,55 @@ def test_tercom_update_skips_when_terrain_flat():
         np.full((patch_size, patch_size), 100.0)
     )
     nav = bare_nav(dem_loader=loader)
-    nav.state.tercom_active = True
-    nav._tercom_update()
-    assert nav.state.tercom_active is False
+    state = make_state(tercom_active=True)
+    nav._tercom_update(state)
+    assert state.tercom_active is False
     nav.tercom.process_update.assert_not_called()
 
 
 # ==========================================================================
-# run_navigation_loop scheduling
+# step() -- per-tick estimation (replaces run_navigation_loop)
 # ==========================================================================
-class _CountdownLimit:
-    """Bounds the navigation loop without relying on wall-clock time."""
-
-    def __init__(self, limit):
-        self.limit = limit
-        self.calls = 0
-
-    def __gt__(self, other):
-        self.calls += 1
-        return self.calls <= self.limit
-
-
-def test_run_loop_respects_mission_terminated():
+def test_step_predicts_ins_kf_and_writes_position_only():
     nav = bare_nav()
-    nav.state = MagicMock()
-    nav.run_navigation_loop([0.0, 0.0, 0.0], mission_terminated=True)
-    nav.state.update_physics.assert_not_called()
+    nav.imu.imu_error.return_value = (np.zeros(3), np.zeros(3))
+    nav.gps.get_gps_location.return_value = None
+    nav.dem_loader.get_elevation_patch.return_value = np.full((25, 25), 100.0)  # flat -> TERCOM skips
+    state = make_state()
+
+    nav.step(_FakeIMU(), state, sim_time=0.0, dt=nav.ins_period)
+
+    # IMU truth was corrupted once, INS dead-reckoned, and a position estimate written.
+    nav.imu.imu_error.assert_called_once()
+    assert np.all(np.isfinite(state.est_position()))
+    # Truth velocity/attitude is the plant's; step() must not touch it.
+    np.testing.assert_allclose(state.get_velocity(), [0.0, 0.0, 0.0])
 
 
-def test_run_loop_steps_ins_many_times():
+def test_step_does_not_advance_truth():
+    """step() must never call the old MissileState.update_physics truth integrator."""
     nav = bare_nav()
-    nav.state = MagicMock()
-    nav.state.est_position.return_value = np.array([LAT, LON, ALT])
-    nav.state.true_position.return_value = np.array([LAT, LON, ALT])
-    nav.ins = MagicMock()
-    nav.KF = MagicMock()
+    nav.imu.imu_error.return_value = (np.zeros(3), np.zeros(3))
     nav.gps.get_gps_location.return_value = None
     nav.dem_loader.get_elevation_patch.return_value = np.full((25, 25), 100.0)
+    state = MagicMock()
+    state.true_position.return_value = np.array([LAT, LON, ALT])
+    state.est_position.return_value = np.array([LAT, LON, ALT])
 
-    nav.run_navigation_loop([1.0, 0.0, 0.0], run_seconds=_CountdownLimit(2000))
+    nav.step(_FakeIMU(), state, sim_time=0.0, dt=nav.ins_period)
 
-    assert nav.state.update_physics.call_count > 100
-    assert nav.ins.predict.call_count > 100
-    assert nav.KF.predict.call_count > 100
+    state.update_physics.assert_not_called()
 
 
-def test_run_loop_reaches_gps_schedule():
+def test_step_takes_a_gps_fix_at_the_gps_rate():
     nav = bare_nav()
-    nav.state = MagicMock()
-    nav.state.est_position.return_value = np.array([LAT, LON, ALT])
-    nav.state.true_position.return_value = np.array([LAT, LON, ALT])
-    nav.ins = MagicMock()
-    nav.KF = MagicMock()
-    nav.KF.get_state.return_value = (np.array([LAT, LON, ALT]), np.array([0.0, 0.0, 0.0]))
+    nav.imu.imu_error.return_value = (np.zeros(3), np.zeros(3))
     nav.gps.get_gps_location.return_value = np.array([LAT, LON, ALT])
     nav.dem_loader.get_elevation_patch.return_value = np.full((25, 25), 100.0)
+    state = make_state()
 
-    nav.run_navigation_loop([0.0, 0.0, 0.0], run_seconds=_CountdownLimit(2000))
+    # sim_time past the first GPS checkpoint -> a fix is pulled.
+    nav.step(_FakeIMU(), state, sim_time=nav.gps_period, dt=nav.ins_period)
 
     assert nav.gps.get_gps_location.call_count >= 1
+    assert state.gps_valid is True
