@@ -460,19 +460,23 @@ def _ask_float(msg: str, default: float | None = None) -> float:
 
 def _ask_gps(label: str, dem_name: str) -> tuple[float, float, float]:
     dem = DEMLoader(dem_name)
-    if dem is None:
-        raise ValueError(
-            f"Could not load DEM file {dem_name}. "
-            "Please check the DEM file."
-        )
+
     lat = _ask_float(f"{label} latitude (deg)")
     lon = _ask_float(f"{label} longitude (deg)")
-    alt = _ask_float(f"{label} altitude (m MSL) [Pixel_elev]", default=dem.get_elevation(lat, lon) or 0.0)
-    if alt is None:
-        raise ValueError(
-            f"Could not get elevation for {label} ({lat}, {lon}). "
-            "Please check the DEM file."
+
+    default_alt = dem.get_elevation(lat, lon)
+    if default_alt is None:
+        print(
+            f"Warning: Could not read DEM elevation for {label} at "
+            f"({lat}, {lon}). Defaulting altitude to 0.0 m."
         )
+        default_alt = 0.0
+
+    alt = _ask_float(
+        f"{label} altitude (m MSL) [Pixel_elev]",
+        default=default_alt,
+    )
+
     return (lat, lon, alt)
 
 
