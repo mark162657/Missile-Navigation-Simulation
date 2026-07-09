@@ -30,5 +30,9 @@
     "ins_update_rate_hz": 200.0,
     "gps_update_rate_hz": 5.0,
     "tercom_update_rate_hz": 1.0
+  },
+  "warhead": {
+    "warhead_name": "WDU-36/B",
+    "blast_radius_m": 40.0
   }
 }

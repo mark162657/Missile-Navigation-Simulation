@@ -64,6 +64,8 @@ class Simulation:
         self.sim_time: float = 0.0
         self._result: dict | None = None
 
+        self._SEA_LEVEL_M = 0.0
+
     @classmethod
     def from_config(cls, profile: MissileProfile, config: SimulationConfig) -> "Simulation":
         """Build a simulation from a profile and a configuration. Mirroring the (profile, config) pair."""
@@ -259,12 +261,24 @@ class Simulation:
         )
 
         if ground is None or not math.isfinite(ground):
-            ground = max(ground, _SEA_LEVEL_M)
+            ground = max(ground, self._SEA_LEVEL_M)
 
         return self.state.true_alt <= ground
 
     def _check_impact(self) -> None:
         """
-        
+
         """
-        pass
+        if self.state.missile_stage == FlightStage.IMPACT:
+            return
+
+        ground = self.pathfinding.dem_loader.get_elevation(
+            self.state.true_lat, self.state.true_lon
+        )
+
+        if ground is None or not math.isfinite(ground):
+            ground = max(ground, self._SEA_LEVEL_M)
+
+        if self.state.true_alt <= ground:
+
+

@@ -170,6 +170,24 @@ class BoosterSpec:
 
 
 @dataclass
+class WarheadSpec:
+    """
+    SECTION 4 — warhead / terminal effects.
+
+    Consumed by the impact/detonation layer (simulation.impact + the result
+    scoring) to decide the lethal outcome of an impact. Like the other non-basic
+    sections it carries defaults, so older config files still load; the defaults
+    describe the Tomahawk's WDU-36/B unitary warhead.
+
+    Units:
+        blast_radius_m : m  (effective lethal blast/frag radius; a target inside
+                             this ground distance of the impact counts as killed)
+    """
+    warhead_name: str = "WDU-36/B"
+    blast_radius_m: float = 40.0
+
+
+@dataclass
 class MissileProfile:
     """
     Full missile profile = SECTION 1 (basic) + SECTION 2 (detailed).
@@ -182,6 +200,7 @@ class MissileProfile:
     basic: BasicSpec
     detailed: DetailedSpec = field(default_factory=DetailedSpec)
     booster: BoosterSpec = field(default_factory=BoosterSpec)
+    warhead: WarheadSpec = field(default_factory=WarheadSpec)
 
     # ------------------------------------------------------------------
     # Construction from / to plain dicts (config_store / JSON bridge)
@@ -205,8 +224,10 @@ class MissileProfile:
         detailed = DetailedSpec(**detailed_data)
         booster_data = config.get("booster") or {}
         booster = BoosterSpec(**booster_data)
+        warhead_data = config.get("warhead") or {}
+        warhead = WarheadSpec(**warhead_data)
         return cls(name=config["name"], basic=basic, detailed=detailed,
-                   booster=booster)
+                   booster=booster, warhead=warhead)
 
     def to_config(self) -> dict:
         """Serialize back to a nested dict suitable for JSON storage."""
@@ -215,6 +236,7 @@ class MissileProfile:
             "basic": asdict(self.basic),
             "detailed": asdict(self.detailed),
             "booster": asdict(self.booster),
+            "warhead": asdict(self.warhead),
         }
 
     # ------------------------------------------------------------------
