@@ -92,8 +92,7 @@ class NavigationComputer:
         self.KF.predict(acc_meas)
 
         # between fix from GPS/TERCOM, we rekon ins result as true location and apply it to state
-        ins_pos, _, _ = self.ins.get_state()
-        state.apply_ins_estimate(ins_pos)
+        state.apply_ins_estimate(self.ins)
 
         # GPS fix
         if sim_time >= self.next_gps and not self.gps.is_jammed:
@@ -165,7 +164,7 @@ class NavigationComputer:
         state.tercom_active = matched_lat is not None
 
         if matched_lat is not None:
-            self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl(state.true_alt)) # msl obtain from baro altimeter
+            self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl(state.true_alt), state) # msl obtain from baro altimeter
         
     def _is_terrain_suitable(
             self,

@@ -283,7 +283,7 @@ class Simulation:
         )
 
         if ground is None or not math.isfinite(ground):
-            ground = max(ground, self._SEA_LEVEL_M)
+            ground = self._SEA_LEVEL_M
         return float(ground)
 
     def _at_ground(self) -> bool:
@@ -439,6 +439,7 @@ def plain_mission_only(profile: MissileProfile, config: SimulationConfig) -> Non
 
 # ----------------------------------------------------------------
 # Interactive setup (profile + config)
+# Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 # ----------------------------------------------------------------
 def _ask(msg: str, default: str | None = None) -> str:
     hint = f" [{default}]" if default not in (None, "") else ""
