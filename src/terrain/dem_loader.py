@@ -18,41 +18,38 @@ from matplotlib.colors import LinearSegmentedColormap, LightSource
 class DEMLoader:
     """Loads and queries elevation data from a single SRTM/merged DEM file."""
 
-    class DEMLoader:
-        """Loads and queries elevation data from a single SRTM/merged DEM file."""
+    def __init__(self, dem_path: Path | str) -> None:
+        """
+        Initialise DEM loader. Reads full DEM into self.data.
 
-        def __init__(self, dem_path: Path | str) -> None:
-            """
-            Initialise DEM loader. Reads full DEM into self.data.
+        Args:
+            dem_path: path to the .tif DEM file, or a DEM filename located in data/dem
+        """
+        requested_path = Path(dem_path)
 
-            Args:
-                dem_path: path to the .tif DEM file, or a DEM filename located in data/dem
-            """
-            requested_path = Path(dem_path)
+        if requested_path.exists():
+            self.path = requested_path
+        else:
+            project_root = Path(__file__).resolve().parents[2]
+            dem_dir_path = project_root / "data" / "dem" / requested_path.name
 
-            if requested_path.exists():
-                self.path = requested_path
+            if dem_dir_path.exists():
+                self.path = dem_dir_path
             else:
-                project_root = Path(__file__).resolve().parents[2]
-                dem_dir_path = project_root / "data" / "dem" / requested_path.name
+                raise FileNotFoundError(
+                    "DEM file not found.\n"
+                    f"Checked direct path: {requested_path.resolve()}\n"
+                    f"Checked data/dem path: {dem_dir_path}\n"
+                    "Place the DEM .tif file in data/dem, or provide the full path."
+                )
 
-                if dem_dir_path.exists():
-                    self.path = dem_dir_path
-                else:
-                    raise FileNotFoundError(
-                        "DEM file not found.\n"
-                        f"Checked direct path: {requested_path.resolve()}\n"
-                        f"Checked data/dem path: {dem_dir_path}\n"
-                        "Place the DEM .tif file in data/dem, or provide the full path."
-                    )
-
-            with rasterio.open(self.path) as src:
-                self.data = src.read(1)
-                self.transform = src.transform
-                self.crs = src.crs
-                self.bounds = src.bounds
-                self.shape = self.data.shape
-                self.nodata = src.nodata
+        with rasterio.open(self.path) as src:
+            self.data = src.read(1)
+            self.transform = src.transform
+            self.crs = src.crs
+            self.bounds = src.bounds
+            self.shape = self.data.shape
+            self.nodata = src.nodata
 
     # -------------------------------------------------------------------------
     # [FIX-3c] Windowed read — reads only a rectangular sub-region from disk
