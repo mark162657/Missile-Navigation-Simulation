@@ -36,8 +36,11 @@ class PIDController:
             Clamp when:
                 - output is saturating
                 - error has the same sign as controller output
+
         Args:
-            error: setpoint - measurement (target - measurement)
+            error: diff between setpoint and target (target - measurement)
+            measurement: current measurement of the process state/value
+            dt: timestamp / tick
         """
         if dt <= 0.0: # when dt is broken (cannot be ≤ 0), we will only rely on P controller
             raise ValueError("dt must be greater than 0.0")

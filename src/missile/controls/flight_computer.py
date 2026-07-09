@@ -29,8 +29,7 @@ class FlightComputer:
         """
         This resolve and figure out which stage we are in.
         If Cruise, then we call _step_cruise, which call autopilot -> ControlInput.
-        If Terminal, then we call _step_terminal, which returns ControlInput directly,
-        via Terminal Guidance calculation.
+        If Terminal, then we call _step_terminal, which returns ControlInput via Terminal Guidance calculation.
         Terminal does not go through Autopilot.
         """
         stage = self._resolve_stage(state)

@@ -12,8 +12,8 @@ from missile.controls.pid_controller import PIDController
 from missile.controls.control_input import ControlInput
 from simulation.physics import atmosphere
 
-# gravity m/s
 _G = 9.80665 # gravity m/s
+_K_H = 0.5 # 1/s, scaling factor of converting altitude error to V/S command
 _VS_MAX = 20 # maximum vertical speed cap m/s
 
 class AutoPilot:
@@ -53,15 +53,19 @@ class AutoPilot:
 
         curr_alt = state.est_alt
         curr_spd = state.get_ground_speed()
-
-        vs_cmd = max(_VS_MAX, )
+        curr_vs = state.vel_up
 
         # handles error for PID (target - measurement)
-        alt_error = target_alt - curr_alt
+        alt_error = target_alt - curr_alt # diff in target and current altitude
         spd_error = target_spd - curr_spd
 
+        # V/S command
+        # h_cmd = K_h * Delta_h (altitude error)
+        vs_cmd = max(-_VS_MAX, min(_VS_MAX, _K_H * alt_error)) # outer max() cap the dive, inner min() cap the climb
+
         # altitude command
-        accel_climb = _G + self.vs_pid.update(alt_error, curr_alt, dt)
+        vs_error = vs_cmd - curr_vs
+        accel_climb = _G + self.vs_pid.update(vs_error, curr_vs, dt)
 
         # speed command
         throttle = self.spd_pid.update(spd_error, curr_spd, dt)
