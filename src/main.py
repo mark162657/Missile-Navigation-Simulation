@@ -304,7 +304,7 @@ class Simulation:
             return False
         return self.target.direct_ground_distance(self.state) <= self.config.detonation_radius_m
 
-    def _check_impact(self, detonated=False) -> None:
+    def _check_impact(self) -> None:
         """
         Check impact by: if stage is not impact already. Check if the missile hit the terrain obstacle or not.
         If not impacted already, and not hit an obstacle accidentally.
@@ -312,36 +312,33 @@ class Simulation:
         if self.state.missile_stage == FlightStage.IMPACT:
             return
         if not self._at_ground():
-            return  # still airborne
+            return  # still in the air
 
         warhead = self.profile.warhead
 
-        # Facts read off the (last-tick) state -- computed BEFORE flipping to IMPACT,
-        # so _detonate() and hit_terrain see the real pre-impact stage.
         miss_distance_m = self.target.direct_ground_distance(self.state)
         detonated = self._detonate()
         hit_terrain = self.state.missile_stage != FlightStage.TERMINAL
 
-        if detonated is not None:
-            self.state = replace(self.state, missile_stage=FlightStage.IMPACT)
-            self.result = MissionResult(
-                outcome = MissionResult.classify(
-                miss_distance_m, warhead.blast_radius_m, hit_terrain, detonated=detonated
-                ),
-                miss_distance_m=miss_distance_m,
-                impact_angle_deg=self._impact_angle_deg(),
-                impact_speed_ms=self.state.get_ground_speed(),
-                impact_gps=(self.true_lat, self.true_lon, self.true_alt),
-                flight_time_s=self.state.time,
-                distance_flown_m=self.state.distance_traveled,
-                start_gps=self.config.start_gps,
-                target_gps=self.config.target_gps,
-                detonated=detonated,
-                missile_id=self.config.missile_id,
-                command_centre_id=self.config.command_centre_id,
-            )
-        else:
-            return
+        self.state = replace(self.state, missile_stage=FlightStage.IMPACT)
+        self.result = MissionResult(
+            outcome = MissionResult.classify(
+            miss_distance_m, warhead.blast_radius_m, hit_terrain, detonated=detonated
+            ),
+            miss_distance_m=miss_distance_m,
+            impact_angle_deg=self._impact_angle_deg(),
+            impact_speed_ms=self.state.get_ground_speed(),
+            impact_gps=(self.true_lat, self.true_lon, self.true_alt),
+            flight_time_s=self.state.time,
+            distance_flown_m=self.state.distance_traveled,
+            start_gps=self.config.start_gps,
+            target_gps=self.config.target_gps,
+            detonated=detonated,
+            missile_id=self.config.missile_id,
+            command_centre_id=self.config.command_centre_id,
+        )
+        self.state = replace(self.state, missile_stage=FlightStage.IMPACT)
+
 
 
 
