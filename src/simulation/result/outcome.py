@@ -11,8 +11,7 @@ from enum import Enum
 class Outcome(str, Enum):
     HIT = "hit"          # warhead detonated within lethal radius of the target
     MISS = "miss"        # reached the ground/target area but outside lethal radius
-    CFIT = "cfit"        # controlled flight into terrain: hit a hill en route
-    WATER = "water"      # ground contact over ocean / no-data terrain
+    CFIT = "cfit"        # controlled flight into terrain: hit the surface short of target
     DUD = "dud"          # impacted on/near target but the warhead did not detonate
     TIMEOUT = "timeout"  # never impacted within the flight-time guard
     ABORTED = "aborted"  # run terminated early (error / manual abort)

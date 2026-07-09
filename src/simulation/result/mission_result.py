@@ -48,10 +48,14 @@ class MissionResult:
     flight_time_s: float | None = None
     distance_flown_m: float | None = None
 
+    # Detonation / warhead (from the profile's WarheadSpec)
+    detonated: bool | None = None             # did the warhead go off on impact?
+    warhead_name: str | None = None           # e.g. "WDU-36/B"
+    blast_radius_m: float | None = None        # lethal radius used for the HIT/MISS call
+
     # Context (handy when scanning a folder full of result files)
     start_gps: tuple[float, float, float] | None = None
     target_gps: tuple[float, float, float] | None = None
-    detonated: bool | None = None
     missile_id: str = ""
     command_centre_id: str = ""
 
@@ -69,19 +73,16 @@ class MissionResult:
         lethal_radius_m: float,
         *,
         hit_terrain: bool = False,
-        over_water: bool = False,
         detonated: bool = True,
     ) -> Outcome:
         """
         Map raw impact facts to an Outcome (the hit/miss/CFIT verdict).
 
-        Order matters: a terrain / water collision is decided by WHERE it hit,
+        Order matters: hitting the surface short of the target (CFIT) is decided
         before any lethal-radius scoring against the intended target.
         """
         if hit_terrain:
             return Outcome.CFIT
-        if over_water:
-            return Outcome.WATER
         if not detonated:
             return Outcome.DUD
         return Outcome.HIT if miss_distance_m <= lethal_radius_m else Outcome.MISS
@@ -139,6 +140,9 @@ class MissionResult:
             parts.append(f"miss={self.miss_distance_m:.1f} m")
         if self.impact_angle_deg is not None:
             parts.append(f"impact_angle={self.impact_angle_deg:.1f} deg")
+        if self.detonated is not None:
+            warhead = self.warhead_name or "warhead"
+            parts.append(f"{warhead}={'detonated' if self.detonated else 'dud'}")
         if self.flight_time_s is not None:
             parts.append(f"t={self.flight_time_s:.1f} s")
         return "  ".join(parts)

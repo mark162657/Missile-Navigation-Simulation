@@ -12,7 +12,7 @@ from missile.planning.trajectory import TrajectoryGenerator
 from missile.navigation.navigation_computer import NavigationComputer
 from simulation.physics.dynamics import MissileDynamics, IMUMeasurement
 from simulation.physics.sequencer import FlightSequencer
-from simulation.sensors import InternalTimer
+from simulation.result import MissionResult
 from terrain.coordinates import CoordinateSystem
 
 
@@ -251,34 +251,64 @@ class Simulation:
         Return:
             True if the missile has hit an obstacle, False otherwise.
         """
+        return self._at_ground()
+
+    def _ground(self):
         _SEA_LEVEL_M = 0.0
 
-        if self.state.missile_stage == FlightStage.IMPACT:
-            return False
-
         ground = self.pathfinding.dem_loader.get_elevation(
             self.state.true_lat, self.state.true_lon
         )
 
         if ground is None or not math.isfinite(ground):
             ground = max(ground, self._SEA_LEVEL_M)
+        return ground
 
-        return self.state.true_alt <= ground
+    def _detonate(self):
+        valid_target_gps
 
-    def _check_impact(self) -> None:
+    def _check_impact(self, detonated=False) -> None:
         """
-
+        Check impact by: if stage is not impact already. Check if the missile hit the terrain obstacle or not.
+        If not impacted already, and not hit an obstacle accidentally.
         """
+        ground = self._ground()
         if self.state.missile_stage == FlightStage.IMPACT:
-            return
+            return self.state.true_alt <= ground
 
-        ground = self.pathfinding.dem_loader.get_elevation(
-            self.state.true_lat, self.state.true_lon
+        ground = self.ground()
+
+        if self.state.true_alt > ground:
+            return # still in the air
+
+        vh = math.hypot(self.state.vel_east, self.state.vel_north)
+        impact_gamma_deg = math.degrees(math.atan2(self.state.vel_up, vh)) # dive angle (negative for a dive)
+        miss_distance_m = self.target.direct_ground_distance(self.state) # the ground distance to the target
+
+        warhead = self.profile.warhead
+        hit_terrain = self._hit_obstacne()
+
+        detonated = True
+        self.state = replace(self.state, missile_stage=FlightStage.IMPACT)
+        self.result = MissionResult(
+            outcome = MissionResult.classify(
+            miss_distance_m, warhead.blast_radius_m, hit_terrain, detonated=detonated
+            ),
+            miss_distance_m=miss_distance_m,
+            impact_angle_deg=impact_gamma_deg,
+            impact_speed_ms=self.state.get_ground_speed(),
+            impact_gps=(self.true_lat, self.true_lon, self.true_alt),
+            flight_time_s=self.state.time,
+            distance_flown_m=self.state.distance_traveled,
+            start_gps=self.config.start_gps,
+            target_gps=self.config.target_gps,
+            detonated=detonated,
+            missile_id=self.config.missile_id,
+            command_centre_id=self.config.command_centre_id,
         )
 
-        if ground is None or not math.isfinite(ground):
-            ground = max(ground, self._SEA_LEVEL_M)
 
-        if self.state.true_alt <= ground:
+
+
 
 
