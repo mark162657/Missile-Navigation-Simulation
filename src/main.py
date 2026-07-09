@@ -247,15 +247,7 @@ class Simulation:
         if self.flight_computer.terminal_latched and self.state.missile_stage==FlightStage.CRUISE:
             self.state = replace(self.state, missile_stage=FlightStage.TERMINAL)
 
-    def _hit_obstacle(self) -> bool:
-        """
-        Check if the missile has hit an obstacle, terrain.
-        Return:
-            True if the missile has hit an obstacle, False otherwise.
-        """
-        return self._at_ground()
-
-    def _ground(self):
+    def _ground_elevation_msl(self) -> float:
         _SEA_LEVEL_M = 0.0
 
         ground = self.pathfinding.dem_loader.get_elevation(
@@ -264,7 +256,25 @@ class Simulation:
 
         if ground is None or not math.isfinite(ground):
             ground = max(ground, self._SEA_LEVEL_M)
-        return ground
+        return float(ground)
+
+    def _at_ground(self) -> bool:
+        """
+        True the tick the missile reaches/at the ground elevation (terrain or target)
+
+        Return:
+            True if the missile is at the ground elevation, False otherwise.
+        """
+        return self.state.true_alt <= self._ground_elevation_msl()
+
+    def _impact_angle_deg(self) -> float:
+        """
+        Actual missile flight-path (dive) gained from velocity vector.
+
+        Return:
+             degrees of the impact angle, negative for a dive.
+        """
+        return math.degrees(math.atan2(self.state.vel_up, math.hypot(self.state.vel_east, self.state.vel_north)))
 
     def _within_target_radius(
             self,
@@ -275,7 +285,6 @@ class Simulation:
         Return True if the missile is within radius_m of target_gps.
 
         Args:
-            state: current state of the missile
             target_gps: (lat, lon) of the target
             radius_m: radius around target that is valid for the missile to be detonated
         """
@@ -291,37 +300,28 @@ class Simulation:
         Return:
             True if the missile is within the detonation radius, False otherwise.
         """
-        if self.state.missile_stage is not FlightStage.TERMINAL:
+        if self.state.missile_stage != FlightStage.TERMINAL:
             return False
-
-        if (self.state.missile_stage == FlightStage.TERMINAL
-                and self._within_target_radius(self.config.target_gps[:2], self.config.detonation_radius_m)):
-            return True
-
-        return None
+        return self.target.direct_ground_distance(self.state) <= self.config.detonation_radius_m
 
     def _check_impact(self, detonated=False) -> None:
         """
         Check impact by: if stage is not impact already. Check if the missile hit the terrain obstacle or not.
         If not impacted already, and not hit an obstacle accidentally.
         """
-        ground = self._ground()
         if self.state.missile_stage == FlightStage.IMPACT:
             return
-
-        ground = self.ground()
-        
-        if self.state.true_alt > ground:
-            return # still in the air
-
-        vh = math.hypot(self.state.vel_east, self.state.vel_north)
-        impact_gamma_deg = math.degrees(math.atan2(self.state.vel_up, vh)) # dive angle (negative for a dive)
-        miss_distance_m = self.target.direct_ground_distance(self.state) # the ground distance to the target
+        if not self._at_ground():
+            return  # still airborne
 
         warhead = self.profile.warhead
-        hit_terrain = self._hit_obstacne()
 
+        # Facts read off the (last-tick) state -- computed BEFORE flipping to IMPACT,
+        # so _detonate() and hit_terrain see the real pre-impact stage.
+        miss_distance_m = self.target.direct_ground_distance(self.state)
         detonated = self._detonate()
+        hit_terrain = self.state.missile_stage != FlightStage.TERMINAL
+
         if detonated is not None:
             self.state = replace(self.state, missile_stage=FlightStage.IMPACT)
             self.result = MissionResult(
@@ -329,7 +329,7 @@ class Simulation:
                 miss_distance_m, warhead.blast_radius_m, hit_terrain, detonated=detonated
                 ),
                 miss_distance_m=miss_distance_m,
-                impact_angle_deg=impact_gamma_deg,
+                impact_angle_deg=self._impact_angle_deg(),
                 impact_speed_ms=self.state.get_ground_speed(),
                 impact_gps=(self.true_lat, self.true_lon, self.true_alt),
                 flight_time_s=self.state.time,

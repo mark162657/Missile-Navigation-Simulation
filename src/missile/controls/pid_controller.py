@@ -9,6 +9,7 @@ class PIDController:
     ):
         """
         Setting up PID controller parameters
+
         Args:
             kp, ki, kd: weighting factor for P, I, and D controller
             out_max, out_min: the max and min output available (for e.g. max and min thrust level)
@@ -79,8 +80,13 @@ class PIDController:
         self.integral = 0.0
         self.prev_mea = None
 
-    def _clamp(self, value):
+    def _clamp(self, value) -> float:
         """
-        Clamping prevent integrator windup
+        Clamping prevent integrator windup.
+        Args:
+            value: raw output from the PID controller
+
+        Return:
+            clamped output within range of out_min and out_max
         """
         return max(self.out_min, min(self.out_max, value))

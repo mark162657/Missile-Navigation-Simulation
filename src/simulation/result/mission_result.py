@@ -84,7 +84,7 @@ class MissionResult:
         if hit_terrain:
             return Outcome.CFIT
         if not detonated:
-            return Outcome.DUD
+            return Outcome.MISS
         return Outcome.HIT if miss_distance_m <= lethal_radius_m else Outcome.MISS
 
     @classmethod
