@@ -36,7 +36,7 @@ class SimulationConfig:
     impact_radius_m: float = 10 # horizontal miss in meter that still counts as a hit
 
     # Terminal guidance
-    approach_azimuth_radius: float | None = None
+    approach_azimuth_rad: float | None = None
     impact_angle_deg: float = -30.0 # desired dive angle at impact (negative for a dive)
 
     detonation_radius_m: float = 25.0 # detonate if missile is within this radius m of target
@@ -160,7 +160,7 @@ class Simulation:
 
     def _approach_azimuth(self) -> float:
         """Terminal approach bearing (rad, CW from north)."""
-        if self.config.approach_azimuth_radius is None:
+        if self.config.approach_azimuth_rad is not None:
             return self.config.approach_azimuth_rad
         heading_deg = self.coord.get_heading(
             self.config.start_gps[0], self.config.start_gps[1],
@@ -177,7 +177,7 @@ class Simulation:
             coordinate=self.coord,
             impact_angle_deg=self.config.impact_angle_deg,
             approach_azimuth_rad=self._approach_azimuth(),
-            lookahead_dist=self.config.lookahead_dist_m
+            lookahead_dist=self.config.lookahead_dist
         )
 
         self.nav = NavigationComputer(
