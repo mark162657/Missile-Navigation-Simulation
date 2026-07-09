@@ -31,7 +31,7 @@ class SimulationConfig:
 
     # Midcourse guidance
     lookahead_dist: float = 300.0
-    dt: float = 0.01 # sim tick, 100Hz
+    dt: float = 0.002 # sim tick, 500Hz
     max_flight_time_s: float = 7200 # hard guard for max flight time to prevent burning your pc (default 2hr)
     impact_radius_m: float = 10 # horizontal miss in meter that still counts as a hit
 
