@@ -16,14 +16,15 @@ from simulation.physics.dynamics import MissileDynamics, IMUMeasurement
 from simulation.physics.sequencer import FlightSequencer
 from simulation.result import MissionResult
 from terrain.coordinates import CoordinateSystem
+from terrain.dem_loader import DEMLoader
 
 
 @dataclass
 class SimulationConfig:
     # Geographic setup
     dem_name: str
-    start_gps: tuple(float, float, float) # 3d location of starting location (lat, lon, elev)
-    target_gps: tuple(float, float, float)
+    start_gps: tuple[float, float, float] # 3d location of starting location (lat, lon, elev)
+    target_gps: tuple[float, float, float]
 
     # Planning
     heuristic_weight: float = 2.0
@@ -93,7 +94,7 @@ class Simulation:
         """
 
         # run the pathfinder and get the raw pixel/row coordinate
-        raw_pixel_path = self.run_patfinding()
+        raw_pixel_path = self.run_pathfinding()
 
         # turn the raw path to trajectory in gps and ground_elev
         self.trajectory = self.trajectory_gen.get_trajectory(raw_pixel_path)
@@ -305,7 +306,7 @@ class Simulation:
 
     def _within_target_radius(
             self,
-            target_gps: tuple(float, float),
+            target_gps: tuple[float, float],
             radius_m: float | int
     ) -> bool:
         """
@@ -457,10 +458,21 @@ def _ask_float(msg: str, default: float | None = None) -> float:
             print("  Please enter a number.")
 
 
-def _ask_gps(label: str) -> tuple[float, float, float]:
+def _ask_gps(label: str, dem_name: str) -> tuple[float, float, float]:
+    dem = DEMLoader(dem_name)
+    if dem is None:
+        raise ValueError(
+            f"Could not load DEM file {dem_name}. "
+            "Please check the DEM file."
+        )
     lat = _ask_float(f"{label} latitude (deg)")
     lon = _ask_float(f"{label} longitude (deg)")
-    alt = _ask_float(f"{label} altitude (m MSL)", default=0.0)
+    alt = _ask_float(f"{label} altitude (m MSL) [Pixel_elev]", default=dem.get_elevation(lat, lon) or 0.0)
+    if alt is None:
+        raise ValueError(
+            f"Could not get elevation for {label} ({lat}, {lon}). "
+            "Please check the DEM file."
+        )
     return (lat, lon, alt)
 
 
@@ -485,8 +497,8 @@ def setup_mission() -> Simulation:
 
     print("\n--- Mission setup ---")
     dem_name = _choose_dem()
-    start_gps = _ask_gps("Launch")
-    target_gps = _ask_gps("Target")
+    start_gps = _ask_gps("Launch", dem_name)
+    target_gps = _ask_gps("Target", dem_name)
 
     # Essentials above; everything else keeps its SimulationConfig default unless
     # the user overrides it here.
