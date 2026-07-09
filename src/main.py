@@ -10,6 +10,8 @@ from missile.guidance.target_geometry import TargetGeometry
 from missile.planning.pathfinding_backend import Pathfinding
 from missile.planning.trajectory import TrajectoryGenerator
 from missile.navigation.navigation_computer import NavigationComputer
+from missile.profile_selector import choose_profile
+from paths import PROJECT_ROOT
 from simulation.physics.dynamics import MissileDynamics, IMUMeasurement
 from simulation.physics.sequencer import FlightSequencer
 from simulation.result import MissionResult
@@ -433,8 +435,82 @@ def plain_mission_only(profile: MissileProfile, config: SimulationConfig) -> Non
     sim.plan_mission()
     return sim
 
+
+# ----------------------------------------------------------------
+# Interactive setup (profile + config)
+# ----------------------------------------------------------------
+def _ask(msg: str, default: str | None = None) -> str:
+    hint = f" [{default}]" if default not in (None, "") else ""
+    raw = input(f"{msg}{hint}: ").strip()
+    return raw or (default or "")
+
+
+def _ask_float(msg: str, default: float | None = None) -> float:
+    hint = f" [{default}]" if default is not None else ""
+    while True:
+        raw = input(f"{msg}{hint}: ").strip()
+        if not raw and default is not None:
+            return float(default)
+        try:
+            return float(raw)
+        except ValueError:
+            print("  Please enter a number.")
+
+
+def _ask_gps(label: str) -> tuple[float, float, float]:
+    lat = _ask_float(f"{label} latitude (deg)")
+    lon = _ask_float(f"{label} longitude (deg)")
+    alt = _ask_float(f"{label} altitude (m MSL)", default=0.0)
+    return (lat, lon, alt)
+
+
+def _choose_dem() -> str:
+    dem_dir = PROJECT_ROOT / "data" / "dem"
+    dems = sorted(p.name for p in dem_dir.glob("*.tif"))
+    if not dems:
+        return _ask("DEM filename (in data/dem/)")
+    print("\nAvailable DEMs:")
+    for i, name in enumerate(dems, 1):
+        print(f"  {i}. {name}")
+    while True:
+        raw = input(f"Choice [1-{len(dems)}]: ").strip()
+        if raw.isdigit() and 1 <= int(raw) <= len(dems):
+            return dems[int(raw) - 1]
+        print("  Invalid choice.")
+
+
+def setup_mission() -> Simulation:
+    """Interactively build a profile + config, return a ready Simulation."""
+    profile = choose_profile()  # pick existing / create new
+
+    print("\n--- Mission setup ---")
+    dem_name = _choose_dem()
+    start_gps = _ask_gps("Launch")
+    target_gps = _ask_gps("Target")
+
+    # Essentials above; everything else keeps its SimulationConfig default unless
+    # the user overrides it here.
+    config = SimulationConfig(
+        dem_name=dem_name,
+        start_gps=start_gps,
+        target_gps=target_gps,
+        impact_angle_deg=_ask_float("Impact/dive angle (deg, negative = dive)", default=-30.0),
+        detonation_radius_m=_ask_float("Detonation radius (m)", default=25.0),
+        missile_id=_ask("Missile ID (optional)", default=""),
+        command_centre_id=_ask("Command centre ID (optional)", default=""),
+    )
+    return Simulation(profile, config)
+
+
 def main() -> None:
-    pass
+    sim = setup_mission()
+    sim.run(None)
+
+
+if __name__ == "__main__":
+    main()
+
+
 
 
 
