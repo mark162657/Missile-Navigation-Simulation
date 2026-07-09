@@ -70,7 +70,16 @@ class Simulation:
 
     @classmethod
     def from_config(cls, profile: MissileProfile, config: SimulationConfig) -> "Simulation":
-        """Build a simulation from a profile and a configuration. Mirroring the (profile, config) pair."""
+        """
+        Build a simulation from a profile and a configuration. Mirroring the (profile, config) pair.
+
+        Args:
+            profile: MissileProfile object
+            config: SimulationConfig object
+
+        Return:
+            Simulation class object
+        """
         return cls(profile, config)
 
     def plan_mission(self) -> np.ndarray:
@@ -156,7 +165,7 @@ class Simulation:
         )
         return math.radians(heading_deg)
 
-    def _pre_ignition_setup(self):
+    def _pre_ignition_setup(self) -> None:
         """Start navigation and flight computer before the ignition during pre-launched."""
         self.flight_computer = FlightComputer(
             trajectory=self.trajectory,
@@ -202,6 +211,9 @@ class Simulation:
 
         Args:
             dt: timestamp / tick
+
+        Return:
+            ControlInput for the missile.
         """
         if self.state.missile_stage in (FlightStage.PRE_LAUNCHED, FlightStage.BOOST, FlightStage.IMPACT):
             return ControlInput()
@@ -338,6 +350,54 @@ class Simulation:
             command_centre_id=self.config.command_centre_id,
         )
         self.state = replace(self.state, missile_stage=FlightStage.IMPACT)
+
+
+    def _check_mission_complete(self) -> bool:
+        """
+        Check if the mission ends on impact or timeout.
+
+        Return:
+            True if the mission is complete, False otherwise.
+        """
+        return (self.state.missile_stage == FlightStage.IMPACT
+               or self.state.time >= self.config.max_flight_time_s)
+
+    # ----------------------------------------------------------------
+    # Main Driver Loop
+    # ----------------------------------------------------------------
+
+    def run(self, max_duration_s: float) -> None:
+        """
+        Plan -> ignite -> fly -> check result -> repeat or impact.
+
+        Args:
+            max_duration_s: optional override maximum duration of the simulation in seconds.
+        """
+        if max_duration_s is not None:
+            self.config.max_flight_time_s = max_duration_s
+        if self.trajectory is None:
+            self.plan_mission()
+        if self.dynamics is None:
+            self._pre_ignition_setup()
+        if self.sequencer is None:
+            self._ignite()
+
+        while self._alive():
+            self.step()
+
+
+    def _alive(self) -> bool:
+        """
+        Check if the simulation / missile is still alive.
+
+        Return:
+            True if the simulation is still alive, False otherwise.
+        """
+        return not self._check_mission_complete()
+
+
+
+
 
 
 
