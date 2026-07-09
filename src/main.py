@@ -36,6 +36,8 @@ class SimulationConfig:
     approach_azimuth_radius: float | None = None
     impact_angle_deg: float = -30.0 # desired dive angle at impact (negative for a dive)
 
+    detonation_radius_m: float = 25.0 # detonate if missile is within this radius m of target
+
     # TODO Missile-identifier hashed
     missile_id: str = ""
     command_centre_id: str = ""
@@ -264,8 +266,39 @@ class Simulation:
             ground = max(ground, self._SEA_LEVEL_M)
         return ground
 
-    def _detonate(self):
-        valid_target_gps
+    def _within_target_radius(
+            self,
+            target_gps: tuple(float, float),
+            radius_m: float | int
+    ) -> bool:
+        """
+        Return True if the missile is within radius_m of target_gps.
+
+        Args:
+            state: current state of the missile
+            target_gps: (lat, lon) of the target
+            radius_m: radius around target that is valid for the missile to be detonated
+        """
+        target_lat, target_lon = target_gps
+        dx = (self.state.true_lon - target_lon) * self.coord.meter_per_deg_lon_at(target_lat)
+        dy = (self.state.true_lat - target_lat) * self.coord.meter_per_deg_lat(target_lat)
+        return math.hypot(dx, dy) <= radius_m
+
+    def _detonate(self) -> bool:
+        """
+        Detonate the missile if it is within the detonation radius around the target.
+
+        Return:
+            True if the missile is within the detonation radius, False otherwise.
+        """
+        if self.state.missile_stage is not FlightStage.TERMINAL:
+            return False
+
+        if (self.state.missile_stage == FlightStage.TERMINAL
+                and self._within_target_radius(self.config.target_gps[:2], self.config.detonation_radius_m)):
+            return True
+
+        return None
 
     def _check_impact(self, detonated=False) -> None:
         """
@@ -274,10 +307,10 @@ class Simulation:
         """
         ground = self._ground()
         if self.state.missile_stage == FlightStage.IMPACT:
-            return self.state.true_alt <= ground
+            return
 
         ground = self.ground()
-
+        
         if self.state.true_alt > ground:
             return # still in the air
 
@@ -288,24 +321,30 @@ class Simulation:
         warhead = self.profile.warhead
         hit_terrain = self._hit_obstacne()
 
-        detonated = True
-        self.state = replace(self.state, missile_stage=FlightStage.IMPACT)
-        self.result = MissionResult(
-            outcome = MissionResult.classify(
-            miss_distance_m, warhead.blast_radius_m, hit_terrain, detonated=detonated
-            ),
-            miss_distance_m=miss_distance_m,
-            impact_angle_deg=impact_gamma_deg,
-            impact_speed_ms=self.state.get_ground_speed(),
-            impact_gps=(self.true_lat, self.true_lon, self.true_alt),
-            flight_time_s=self.state.time,
-            distance_flown_m=self.state.distance_traveled,
-            start_gps=self.config.start_gps,
-            target_gps=self.config.target_gps,
-            detonated=detonated,
-            missile_id=self.config.missile_id,
-            command_centre_id=self.config.command_centre_id,
-        )
+        detonated = self._detonate()
+        if detonated is not None:
+            self.state = replace(self.state, missile_stage=FlightStage.IMPACT)
+            self.result = MissionResult(
+                outcome = MissionResult.classify(
+                miss_distance_m, warhead.blast_radius_m, hit_terrain, detonated=detonated
+                ),
+                miss_distance_m=miss_distance_m,
+                impact_angle_deg=impact_gamma_deg,
+                impact_speed_ms=self.state.get_ground_speed(),
+                impact_gps=(self.true_lat, self.true_lon, self.true_alt),
+                flight_time_s=self.state.time,
+                distance_flown_m=self.state.distance_traveled,
+                start_gps=self.config.start_gps,
+                target_gps=self.config.target_gps,
+                detonated=detonated,
+                missile_id=self.config.missile_id,
+                command_centre_id=self.config.command_centre_id,
+            )
+        else:
+            return
+
+
+
 
 
 
