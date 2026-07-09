@@ -14,7 +14,7 @@ from missile.profile_selector import choose_profile
 from paths import PROJECT_ROOT
 from simulation.physics.dynamics import MissileDynamics, IMUMeasurement
 from simulation.physics.sequencer import FlightSequencer
-from simulation.result import MissionResult
+from simulation.result import MissionResult, FlightLogger
 from terrain.coordinates import CoordinateSystem
 from terrain.dem_loader import DEMLoader
 
@@ -349,14 +349,14 @@ class Simulation:
         hit_terrain = self.state.missile_stage != FlightStage.TERMINAL
 
         self.state = replace(self.state, missile_stage=FlightStage.IMPACT)
-        self.result = MissionResult(
+        self._result = MissionResult(
             outcome = MissionResult.classify(
-            miss_distance_m, warhead.blast_radius_m, hit_terrain, detonated=detonated
+            miss_distance_m, warhead.blast_radius_m, hit_terrain=hit_terrain, detonated=detonated
             ),
             miss_distance_m=miss_distance_m,
             impact_angle_deg=self._impact_angle_deg(),
             impact_speed_ms=self.state.get_ground_speed(),
-            impact_gps=(self.true_lat, self.true_lon, self.true_alt),
+            impact_gps=(self.state.true_lat, self.state.true_lon, self.state.true_alt),
             flight_time_s=self.state.time,
             distance_flown_m=self.state.distance_traveled,
             start_gps=self.config.start_gps,
@@ -382,12 +382,16 @@ class Simulation:
     # Main Driver Loop
     # ----------------------------------------------------------------
 
-    def run(self, max_duration_s: float) -> None:
+    def run(self, max_duration_s: float | None = None) -> MissionResult:
         """
-        Plan -> ignite -> fly -> check result -> repeat or impact.
+        Plan -> ignite -> fly -> log telemetry -> save result.
 
         Args:
-            max_duration_s: optional override maximum duration of the simulation in seconds.
+            max_duration_s: optional override of config.max_flight_time_s.
+
+        Return:
+            the MissionResult (also saved to data/results/; a per-flight CSV is
+            written to data/logs/).
         """
         if max_duration_s is not None:
             self.config.max_flight_time_s = max_duration_s
@@ -398,9 +402,30 @@ class Simulation:
         self._pre_ignition_setup()
         self._ignite()
 
-        # step: guidance / physics and navigation update per tick
-        while self._alive():
-            self.step()
+        # Per-flight telemetry: one CSV in data/logs/, sampled at 10 Hz.
+        self.logger = FlightLogger(interval_s=0.1, missile_id=self.config.missile_id).open()
+        try:
+            # step: guidance / physics and navigation update per tick
+            while self._alive():
+                self.step()
+                self._log_flight()
+            # always capture the final (impact) tick, ignoring the sample interval
+            self._log_flight(force=True)
+        finally:
+            self.logger.close()
+
+        return self._finalise_result()
+
+    def _log_flight(self, force: bool = False) -> None:
+        """Record one telemetry row for the current tick (ground alt + target range)."""
+        self.logger.record(
+            self.state, self.sim_time,
+            distance_to_target_m=self.target.direct_ground_distance(self.state),
+            ground_alt_m=self.pathfinding.dem_loader.get_elevation(
+                self.state.true_lat, self.state.true_lon
+            ),
+            force=force,
+        )
 
     def _alive(self) -> bool:
         """

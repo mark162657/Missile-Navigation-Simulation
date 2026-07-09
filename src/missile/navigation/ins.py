@@ -76,6 +76,20 @@ class INS:
 
         # Strapdown integration in geographic frame (constant-acceleration over dt).
         previous_velocity = self.vel.copy()
+
+        # Guard against a diverged solution: the latitude must stay physical.
+        # meter_per_deg_lon_at(lat) carries a cos(lat) factor that -> 0 at the
+        # poles, so an out-of-range latitude would turn the longitude update into
+        # inf/NaN and only surface later as a cryptic error (e.g. a Haversine
+        # "math domain error"). Fail loudly here, at the source, instead.
+        lat_deg = float(self.pos[0])
+        if not math.isfinite(lat_deg) or abs(lat_deg) > 89.9:
+            raise RuntimeError(
+                f"INS estimate diverged: non-physical latitude {lat_deg} deg at "
+                f"t={self.time:.3f}s (pos={self.pos.tolist()}, vel={self.vel.tolist()}). "
+                "The navigation solution has run away from the true trajectory."
+            )
+
         m_lat = coordinates.meter_per_deg_lat(self.pos[0])
         m_lon = coordinates.meter_per_deg_lon_at(self.pos[0])
 

@@ -232,6 +232,10 @@ class TargetGeometry:
 
         # Apply Haversine formula
         a = math.sin(dLat / 2) ** 2 + math.cos(olat) * math.cos(tlat) * math.sin(dLon / 2) ** 2
+        # Numeric safety: floating-point rounding (and non-physical inputs from a
+        # diverged nav estimate) can push `a` a hair outside [0, 1], which would
+        # make math.sqrt raise a ValueError("math domain error"). Clamp instead.
+        a = min(1.0, max(0.0, a))
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
         return R * c
