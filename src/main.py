@@ -196,12 +196,25 @@ class Simulation:
 
     # Simulation loop post-ignition
     def step(self, dt: float | None = None) -> None:
+        """
+        Step the simulation forward by dt seconds.
+        Step guidance, physics, navigation, and check impact every tick.
+
+        Args:
+            dt: timestamp / tick
+        """
         dt = self.config.dt if dt is None else dt
 
         control = self._step_guidance(dt) # missile control
         imu = self._step_physcis(control, dt) # physics and imu
         self._step_navigation(imu, dt) # navigation modules
+        self._update_stage()
 
+        # check impact every tick
+        self._check_impact()
+
+        # driving navigation's GPS/TERCOM
+        self.sim_time += dt
 
     def _step_guidance(self, dt: float) -> ControlInput:
         """
@@ -377,14 +390,14 @@ class Simulation:
             self.config.max_flight_time_s = max_duration_s
         if self.trajectory is None:
             self.plan_mission()
-        if self.dynamics is None:
-            self._pre_ignition_setup()
-        if self.sequencer is None:
-            self._ignite()
 
+        self.state = self._build_initial_state(self.config.start_gps)
+        self._pre_ignition_setup()
+        self._ignite()
+
+        # step: guidance / physics and navigation update per tick
         while self._alive():
             self.step()
-
 
     def _alive(self) -> bool:
         """
@@ -396,6 +409,32 @@ class Simulation:
         return not self._check_mission_complete()
 
 
+
+    def _finalise_result(self) -> MissionResult:
+        """
+        Fill in a MissionResult for timeout condition, happens if ended without impact.
+        Lastly, save and report.
+        """
+        if self._result is None:
+            self._result = MissionResult.timeout(
+                flight_time_s=self.state.time,
+                distance_flown_m=self.state.distance_traveled,
+                start_gps=self.config.start_gps,
+                target_gps=self.config.target_gps,
+                missile_id=self.config.missile_id,
+                command_centre_id=self.config.command_centre_id,
+            )
+        self._result.save()  # -> data/results/<id>_<timestamp>.json
+        print(self._result.summary())
+        return self._result
+
+def plain_mission_only(profile: MissileProfile, config: SimulationConfig) -> None:
+    sim = Simulation(profile, config)
+    sim.plan_mission()
+    return sim
+
+def main() -> None:
+    pass
 
 
 
