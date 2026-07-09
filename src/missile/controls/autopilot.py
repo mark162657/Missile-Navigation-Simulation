@@ -13,7 +13,8 @@ from missile.controls.control_input import ControlInput
 from simulation.physics import atmosphere
 
 # gravity m/s
-_G = 9.80665
+_G = 9.80665 # gravity m/s
+_VS_MAX = 20 # maximum vertical speed cap m/s
 
 class AutoPilot:
     def __init__(self, profile: MissileProfile):
@@ -22,7 +23,7 @@ class AutoPilot:
 
         # initiate pid controller for altitude and speed
         # with soft limit (pid saturation)
-        self.alt_pid = PIDController(kp=0.25, ki=0.008, kd=0.50, out_max=accel_max, out_min=-accel_max)
+        self.vs_pid = PIDController(kp=0.25, ki=0.008, kd=0.50, out_max=accel_max, out_min=-accel_max)
         self.spd_pid = PIDController(kp=0.02, ki=0.005, kd=0.0, out_max=1.0, out_min=0) #throttle: 0 - 1
 
     def update(
@@ -53,21 +54,21 @@ class AutoPilot:
         curr_alt = state.est_alt
         curr_spd = state.get_ground_speed()
 
+        vs_cmd = max(_VS_MAX, )
+
         # handles error for PID (target - measurement)
         alt_error = target_alt - curr_alt
         spd_error = target_spd - curr_spd
 
         # altitude command
-        accel_climb = _G + self.alt_pid.update(alt_error, curr_alt, dt)
+        accel_climb = _G + self.vs_pid.update(alt_error, curr_alt, dt)
 
         # speed command
         throttle = self.spd_pid.update(spd_error, curr_spd, dt)
 
-        accel_turn = lateral_accel_cmd
-
         return ControlInput(
             throttle=throttle,
-            accel_turn=accel_turn,
+            accel_turn=lateral_accel_cmd,
             accel_climb=accel_climb
         )
 
@@ -77,7 +78,7 @@ class AutoPilot:
         Resetting allows us to clear out the accumulated error and control in PID,
         as cruise and boost phase has totally different behaviour.
         """
-        self.alt_pid.reset()
+        self.vs_pid.reset()
         self.spd_pid.reset()
 
 

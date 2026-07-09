@@ -9,7 +9,6 @@ from missile.guidance.path_follower import PathFollower
 from missile.guidance.terminal_guidance import TerminalGuidance
 from terrain.coordinates import CoordinateSystem
 
-
 class FlightComputer:
     def __init__(
             self,
@@ -27,6 +26,13 @@ class FlightComputer:
         self.terminal_latched = False
 
     def step(self, state: MissileState, dt: float) -> ControlInput:
+        """
+        This resolve and figure out which stage we are in.
+        If Cruise, then we call _step_cruise, which call autopilot -> ControlInput.
+        If Terminal, then we call _step_terminal, which returns ControlInput directly,
+        via Terminal Guidance calculation.
+        Terminal does not go through Autopilot.
+        """
         stage = self._resolve_stage(state)
         # these stages are handled by flight sequencer
         if stage in (FlightStage.PRE_LAUNCHED, FlightStage.BOOST, FlightStage.IMPACT):
@@ -36,6 +42,7 @@ class FlightComputer:
         return self._step_cruise(state, dt)
 
     def _resolve_stage(self, state: MissileState) -> FlightStage:
+        """Handle the reset of the autopilot during transition of guidance stage from Cruise -> Terminal"""
         if self.terminal_latched:
             return FlightStage.TERMINAL
         if state.missile_stage == FlightStage.CRUISE and self.terminal.should_engage(state):
