@@ -23,7 +23,7 @@ class AutoPilot:
 
         # initiate pid controller for altitude and speed
         # with soft limit (pid saturation)
-        self.vs_pid = PIDController(kp=0.25, ki=0.008, kd=0.50, out_max=accel_max, out_min=-accel_max)
+        self.vs_pid = PIDController(kp=2.0, ki=0.3, kd=0.0, out_max=accel_max, out_min=-accel_max)
         self.spd_pid = PIDController(kp=0.02, ki=0.005, kd=0.0, out_max=1.0, out_min=0) #throttle: 0 - 1
 
     def update(
