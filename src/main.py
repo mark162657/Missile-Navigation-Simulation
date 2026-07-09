@@ -209,7 +209,7 @@ class Simulation:
         dt = self.config.dt if dt is None else dt
 
         control = self._step_guidance(dt) # missile control
-        imu = self._step_physcis(control, dt) # physics and imu
+        imu = self._step_physics(control, dt) # physics and imu
         self._step_navigation(imu, dt) # navigation modules
         self._update_stage()
 
@@ -495,9 +495,81 @@ def _choose_dem() -> str:
         print("  Invalid choice.")
 
 
+# Preset scenarios for quick, repeatable runs. Coordinates fall inside the
+# named DEM; altitudes are resolved from it at setup time.
+TEST_MISSIONS = {
+    "1": {
+        "name": "Simple north-south separation",
+        "dem_name": "merged_dem_sib_N54_N59_E090_E100.tif",
+        "start": (56.000, 95.000),
+        "target": (56.903, 95.000),
+        "desc": "Point A: 56.000°N, 95.000°E -> Point B: 56.903°N, 95.000°E  (~100.3 km)",
+    },
+}
+
+
+def _choose_mission_type() -> str:
+    """Ask whether to build a custom mission or run a preset test mission."""
+    print("\nSelect mission type:")
+    print("  1. Custom mission")
+    print("  2. Test mission")
+    while True:
+        raw = input("Choice [1-2]: ").strip()
+        if raw in ("1", "2"):
+            return raw
+        print("  Invalid choice.")
+
+
+def _choose_test_mission() -> dict:
+    print("\nAvailable test missions:")
+    for key, m in TEST_MISSIONS.items():
+        print(f"  {key}. {m['name']}")
+        print(f"       {m['desc']}")
+    while True:
+        raw = input(f"Choice [1-{len(TEST_MISSIONS)}]: ").strip()
+        if raw in TEST_MISSIONS:
+            return TEST_MISSIONS[raw]
+        print("  Invalid choice.")
+
+
+def _auto_gps(dem: DEMLoader, lat: float, lon: float) -> tuple[float, float, float]:
+    """Resolve a (lat, lon, alt) triple, reading altitude from the DEM."""
+    alt = dem.get_elevation(lat, lon)
+    if alt is None:
+        print(f"Warning: no DEM elevation at ({lat}, {lon}); defaulting altitude to 0.0 m.")
+        alt = 0.0
+    return (lat, lon, alt)
+
+
+def _setup_test_mission(profile: MissileProfile) -> Simulation:
+    """Build a Simulation from a preset scenario, everything else defaulted."""
+    mission = _choose_test_mission()
+    dem_name = mission["dem_name"]
+    dem = DEMLoader(dem_name)
+
+    start_gps = _auto_gps(dem, *mission["start"])
+    target_gps = _auto_gps(dem, *mission["target"])
+
+    print(f"\n--- Test mission: {mission['name']} ---")
+    print(f"  Launch: {start_gps}")
+    print(f"  Target: {target_gps}")
+
+    config = SimulationConfig(
+        dem_name=dem_name,
+        start_gps=start_gps,
+        target_gps=target_gps,
+    )
+    return Simulation(profile, config)
+
+
 def setup_mission() -> Simulation:
     """Interactively build a profile + config, return a ready Simulation."""
+    mission_type = _choose_mission_type()
+
     profile = choose_profile()  # pick existing / create new
+
+    if mission_type == "2":
+        return _setup_test_mission(profile)
 
     print("\n--- Mission setup ---")
     dem_name = _choose_dem()
