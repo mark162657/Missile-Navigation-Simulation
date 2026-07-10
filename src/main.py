@@ -15,6 +15,7 @@ from paths import PROJECT_ROOT
 from simulation.clock import RealtimePacer
 from simulation.physics.dynamics import MissileDynamics, IMUMeasurement
 from simulation.physics.sequencer import FlightSequencer
+from simulation.physics.weather import MeanWindProfile, WindField, W20_MODERATE
 from simulation.result import MissionResult, FlightLogger
 from terrain.coordinates import CoordinateSystem
 from terrain.dem_loader import DEMLoader
@@ -45,6 +46,12 @@ class SimulationConfig:
 
     detonation_radius_m: float = 25.0 # detonate if missile is within this radius m of target
 
+    # Weather (truth-side plant). speed_ref <= 0 -> calm (no wind).
+    wind_speed_ref_ms: float = 8.0          # mean wind at ref height, m/s (~15 kt)
+    wind_from_deg: float | None = None      # met bearing wind blows FROM; None = crosswind
+    wind_turbulence: bool = True            # Dryden gusts on top of the mean profile
+    wind_seed: int | None = 1               # reproducible turbulence; None = random
+
     # TODO Missile-identifier hashed
     missile_id: str = ""
     command_centre_id: str = ""
@@ -71,6 +78,7 @@ class Simulation:
 
         self.state: MissileState
         self.sim_time: float = 0.0
+        self.wind: WindField | None = None
         self._result: dict | None = None
 
         self._SEA_LEVEL_M = 0.0
@@ -137,6 +145,7 @@ class Simulation:
         print(f"  Target : {target[0]:.5f}°N, {target[1]:.5f}°E  alt {target[2]:.1f} m")
         print(f"  Direct : {ground_km:.1f} km")
         print(f"  Missile: {self.profile.name}")
+        print(f"  Wind   : {self._wind_summary()}")
 
         return self._ask_yes_no("\nRun pathfinding?")
 
@@ -159,6 +168,7 @@ class Simulation:
         print(f"  Direct : {ground_km:.1f} km")
         print(f"  Route  : {n_pts:,} trajectory points")
         print(f"  Missile: {self.profile.name}")
+        print(f"  Wind   : {self._wind_summary()}")
 
         return self._ask_yes_no("\nConfirm launch?")
 
@@ -244,6 +254,45 @@ class Simulation:
             dem_name=self.config.dem_name,
         )
 
+    def _wind_from_deg(self) -> float:
+        """Met wind-from bearing (deg CW from north)."""
+        if self.config.wind_from_deg is not None:
+            return float(self.config.wind_from_deg) % 360.0
+        # Default: crosswind from the left of the approach heading.
+        return (math.degrees(self._approach_azimuth()) + 90.0) % 360.0
+
+    def _build_wind(self) -> WindField:
+        """
+        Build the truth-side wind field for this mission.
+
+        Uses WindField.preset (mean log-law profile + Dryden turbulence) when
+        wind is enabled; otherwise WindField.calm().
+        """
+        speed = float(self.config.wind_speed_ref_ms)
+        if speed <= 0.0:
+            return WindField.calm()
+
+        direction = self._wind_from_deg()
+        if not self.config.wind_turbulence:
+            return WindField(mean=MeanWindProfile(speed, direction))
+
+        return WindField.preset(
+            speed_ref=speed,
+            direction_from_deg=direction,
+            w20=W20_MODERATE,
+            seed=self.config.wind_seed,
+        )
+
+    def _wind_summary(self) -> str:
+        """One-line wind description for confirm prompts."""
+        if self.config.wind_speed_ref_ms <= 0.0:
+            return "calm"
+        turb = " + Dryden turb" if self.config.wind_turbulence else ""
+        return (
+            f"{self.config.wind_speed_ref_ms:.1f} m/s from "
+            f"{self._wind_from_deg():.0f}°{turb}"
+        )
+
     # Ignition phase
     def _ignite(self) -> None:
         """Initialise the boost sequencer, transition from PRE_LAUNCHED -> BOOST."""
@@ -253,7 +302,11 @@ class Simulation:
             coordinate=self.coord,
             trajectory=self.trajectory,
         )
-        self.dynamics = MissileDynamics(self.profile, sequencer=self.sequencer)
+        self.wind = self._build_wind()
+        self.dynamics = MissileDynamics(
+            self.profile, sequencer=self.sequencer, wind=self.wind
+        )
+        print(f"Wind: {self._wind_summary()}")
 
         # mirror BOOST into state
         self.state = replace(self.state, missile_stage=FlightStage.BOOST)
@@ -677,12 +730,19 @@ def setup_mission() -> Simulation:
 
     # Essentials above; everything else keeps its SimulationConfig default unless
     # the user overrides it here.
+    wind_from_raw = _ask(
+        "Wind FROM bearing (deg CW from N; blank = auto crosswind)", default=""
+    )
+    wind_from_deg = float(wind_from_raw) if wind_from_raw else None
+
     config = SimulationConfig(
         dem_name=dem_name,
         start_gps=start_gps,
         target_gps=target_gps,
         impact_angle_deg=_ask_float("Impact/dive angle (deg, negative = dive)", default=-30.0),
         detonation_radius_m=_ask_float("Detonation radius (m)", default=25.0),
+        wind_speed_ref_ms=_ask_float("Wind speed at 10 m (m/s, 0 = calm)", default=8.0),
+        wind_from_deg=wind_from_deg,
         missile_id=_ask("Missile ID (optional)", default=""),
         command_centre_id=_ask("Command centre ID (optional)", default=""),
     )
