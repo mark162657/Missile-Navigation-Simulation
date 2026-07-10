@@ -38,13 +38,18 @@ import math
 
 
 # ----------------------------------------------------------------------
-# Airframe constants (representative, subsonic cruise missile)
+# Airframe constants -- Tomahawk-CLASS engineering approximation.
+# These are NOT published Block V data (that polar is proprietary). Values are a
+# defensible cruise-missile calibration: reference area from the thesis's
+# Tomahawk-inspired deployed-wing configuration (1.3047 m^2, rounded), and a
+# conventional parabolic polar CD = CD0 + k*CL^2 with typical low-subsonic
+# cruise-missile coefficients. See Koklucan 2019 (thesis) + NAVAIR family specs.
 # ----------------------------------------------------------------------
-S_REF = 0.83          # aerodynamic reference area, m^2
+S_REF = 1.30          # aerodynamic reference area, m^2 (Tomahawk-class deployed wing)
 
 # Drag: CD = CD0 + K_INDUCED * CL^2 + transonic wave-drag rise
-CD0 = 0.028           # parasite (zero-lift) drag coefficient
-K_INDUCED = 0.12      # induced-drag factor (1 / (pi * e * AR))
+CD0 = 0.035           # parasite (zero-lift) drag coefficient (low-subsonic cruise missile)
+K_INDUCED = 0.059     # induced-drag factor 1/(pi*e*AR) (modest-AR deployable wings)
 
 # Transonic wave-drag bump (small for a subsonic cruise missile, but present).
 CD_WAVE_PEAK = 0.045  # extra CD added at the transonic peak
@@ -53,6 +58,7 @@ M_WAVE_WIDTH = 0.18   # Gaussian half-width of the bump in Mach
 
 # Maximum usable lift coefficient -> sets the aerodynamic g-envelope (the most
 # perpendicular acceleration the airframe can pull before stalling/saturating).
+# With S_REF=1.30 this puts the aerodynamic stall near ~119 m/s at cruise mass.
 CL_MAX = 1.2
 
 # Boost configuration: wings folded + booster attached -> parasite drag only.
