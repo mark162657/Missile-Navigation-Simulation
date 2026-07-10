@@ -33,3 +33,9 @@ frontend/web_planner/dist/
 
 # Ignore docs
 .docsdocs/
+
+# Ignore generated outputs (keep folders via .gitkeep)
+data/logs/*
+!data/logs/.gitkeep
+data/results/*
+!data/results/.gitkeep

@@ -64,7 +64,7 @@ class LaunchMode(Enum):
 
 # Launch (initial) pitch angle by mode, radians.
 _LAUNCH_PITCH = {
-    LaunchMode.GROUND: math.radians(12.0),
+    LaunchMode.GROUND: math.radians(45.0),
     LaunchMode.SURFACE_VLS: math.radians(88.0),
     LaunchMode.SUBMARINE: math.radians(88.0),
 }
