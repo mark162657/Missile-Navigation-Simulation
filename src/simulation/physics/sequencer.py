@@ -16,7 +16,9 @@ WHAT IT OUTPUTS (queried by dynamics.py each step)
     - stage                 : current FlightStage
     - booster_thrust()      : booster thrust this step, N (0 outside BOOST)
     - attached_booster_mass(): casing + remaining propellant, kg (0 after sep)
-    - commanded_attitude()  : (roll, pitch, yaw) rad during BOOST, else None
+    - commanded_attitude(state, dt) : (roll, pitch, yaw) rad during BOOST, else
+                              None. Delegated to closed-loop BoostGuidance
+                              (missile.guidance.boost_guidance).
     - advance(dt)           : burn propellant, step the schedule, and on burnout
                               jettison the booster and switch to CRUISE.
 
@@ -35,9 +37,8 @@ DESIGN NOTE -- two kinds of "stage"
 SIMPLIFICATIONS (kept deliberately light -- the project's focus is nav/guidance)
     - Submarine launch abstracts the underwater/surface-breach phase: it simply
       starts near-vertical at the launch altitude, like surface VLS.
-    - The pitch-over is an open-loop programmed schedule (smoothstep), not a
-      closed-loop gravity turn or boost guidance law.
-    - Azimuth is set to the cruise heading at launch (no programmed turn).
+    - The pitch-over and heading are now closed-loop (see boost_guidance.py): an
+      altitude-scheduled flight-path-angle track plus pure-pursuit route capture.
 
 Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 """
@@ -48,11 +49,15 @@ import math
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from simulation.physics.booster import SolidBooster
-from missile.state import FlightStage
+from missile.state import FlightStage, MissileState
+from missile.guidance.boost_guidance import BoostGuidance, BoostGuidanceSpecs
 
 if TYPE_CHECKING:
     from missile.profile import MissileProfile
+    from terrain.coordinates import CoordinateSystem
 
 
 class LaunchMode(Enum):
@@ -95,6 +100,8 @@ class FlightSequencer:
         booster: SolidBooster | None = None,
         profile: "MissileProfile | None" = None,
         handoff_pitch_rad: float = math.radians(4.0),
+        coordinate: "CoordinateSystem | None" = None,
+        trajectory: np.ndarray | None = None,
     ) -> None:
         """
         Args:
@@ -126,6 +133,18 @@ class FlightSequencer:
         self._launch_pitch = _LAUNCH_PITCH[launch_mode]
         self._elapsed = 0.0  # time since boost ignition, s
 
+        # Closed-loop boost guidance (missile.guidance): vertical pitch-over +
+        # lateral trajectory intercept. Replaces the old open-loop smoothstep.
+        self.boost_guidance = BoostGuidance(
+            specs=BoostGuidanceSpecs(
+                gamma_launch=self._launch_pitch,
+                gamma_handoff=self.handoff_pitch,
+            ),
+            coordinate=coordinate,
+            trajectory=trajectory,
+            cruise_heading_rad=self.cruise_heading,
+        )
+
     # ------------------------------------------------------------------
     # Queries (read-only; called by dynamics at the start of a step)
     # ------------------------------------------------------------------
@@ -141,21 +160,16 @@ class FlightSequencer:
         """Mass the booster still adds to the vehicle (kg); 0 after separation."""
         return self.booster.total_mass
 
-    def commanded_attitude(self) -> tuple[float, float, float] | None:
+    def commanded_attitude(self, state: MissileState, dt: float) -> tuple[float, float, float] | None:
         """
-        Programmed (roll, pitch, yaw) during BOOST, else None.
+        Commanded (roll, pitch, yaw) during BOOST, else None.
 
-        Pitch eases from the launch pitch to the handoff pitch over the burn
-        using a smoothstep, so the missile pitches over from (near-)vertical to
-        the cruise attitude. Roll is zero; yaw is the cruise heading.
+        Delegates to closed-loop BoostGuidance: an altitude-scheduled pitch-over
+        (vertical) plus pure-pursuit intercept of the planned route (lateral).
         """
         if not self.is_boosting:
             return None
-        burn = self.booster.spec.burn_time_s
-        u = 0.0 if burn <= 0.0 else max(0.0, min(self._elapsed / burn, 1.0))
-        s = u * u * (3.0 - 2.0 * u)  # smoothstep
-        pitch = self._launch_pitch + (self.handoff_pitch - self._launch_pitch) * s
-        return (0.0, pitch, self.cruise_heading)
+        return self.boost_guidance.commanded_attitude(state, dt)
 
     # ------------------------------------------------------------------
     # Advance (mutating; called once per step after integration)

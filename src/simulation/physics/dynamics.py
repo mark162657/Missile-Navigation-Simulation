@@ -202,7 +202,7 @@ class MissileDynamics:
         if boosting:
             # BOOST: thrust along the PROGRAMMED body axis, drag only (wings
             # folded), velocity follows; attitude is commanded, not derived.
-            cmd_att = seq.commanded_attitude()            # (roll, pitch, yaw)
+            cmd_att = seq.commanded_attitude(state, dt)   # (roll, pitch, yaw)
             body_x = _heading_pitch_to_unit(cmd_att[2], cmd_att[1])
             thrust = seq.booster_thrust()
 

@@ -191,6 +191,8 @@ class Simulation:
         self.sequencer = FlightSequencer(
             cruise_heading_rad=self._approach_azimuth(),
             profile=self.profile,
+            coordinate=self.coord,
+            trajectory=self.trajectory,
         )
         self.dynamics = MissileDynamics(self.profile, sequencer=self.sequencer)
 
@@ -618,7 +620,7 @@ def setup_mission() -> Simulation:
 
 def main() -> None:
     sim = setup_mission()
-    sim.run(None)
+    sim.run(200)
 
 
 if __name__ == "__main__":
