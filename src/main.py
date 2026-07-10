@@ -12,6 +12,7 @@ from missile.planning.trajectory import TrajectoryGenerator
 from missile.navigation.navigation_computer import NavigationComputer
 from missile.profile_selector import choose_profile
 from paths import PROJECT_ROOT
+from simulation.clock import RealtimePacer
 from simulation.physics.dynamics import MissileDynamics, IMUMeasurement
 from simulation.physics.sequencer import FlightSequencer
 from simulation.result import MissionResult, FlightLogger
@@ -34,6 +35,9 @@ class SimulationConfig:
     dt: float = 0.002 # sim tick, 500Hz
     max_flight_time_s: float = 7200 # hard guard for max flight time to prevent burning your pc (default 2hr)
     impact_radius_m: float = 10 # horizontal miss in meter that still counts as a hit
+
+    # Wall-clock pacing: 1.0 = 1 sim s == 1 real s; 0.0 = as-fast-as-possible
+    realtime_factor: float = 1.0
 
     # Terminal guidance
     approach_azimuth_rad: float | None = None
@@ -102,6 +106,61 @@ class Simulation:
         if self.trajectory is None or len(self.trajectory) < 3:
             raise RuntimeError("Empty trajectory returned.")
         return self.trajectory
+
+    def _ask_yes_no(self, prompt: str, *, default_no: bool = True) -> bool:
+        """Ask a y/n question. Empty input follows default_no."""
+        hint = "[y/N]" if default_no else "[Y/n]"
+        while True:
+            raw = input(f"{prompt} {hint}: ").strip().lower()
+            if raw in ("y", "yes"):
+                return True
+            if raw in ("n", "no"):
+                return False
+            if raw == "":
+                return not default_no
+            print("  Enter y or n.")
+
+    def _confirm_pathfinding(self) -> bool:
+        """
+        Before pathfinding, print mission endpoints and ask whether to plan
+        the route. Returns True to run A*, False to abort.
+        """
+        start = self.config.start_gps
+        target = self.config.target_gps
+        ground_km = self.target.direct_ground_distance(
+            self._build_initial_state(start)
+        ) / 1000.0
+
+        print("\n--- Ready to plan route ---")
+        print(f"  DEM    : {self.config.dem_name}")
+        print(f"  Launch : {start[0]:.5f}°N, {start[1]:.5f}°E  alt {start[2]:.1f} m")
+        print(f"  Target : {target[0]:.5f}°N, {target[1]:.5f}°E  alt {target[2]:.1f} m")
+        print(f"  Direct : {ground_km:.1f} km")
+        print(f"  Missile: {self.profile.name}")
+
+        return self._ask_yes_no("\nRun pathfinding?")
+
+    def _confirm_launch(self) -> bool:
+        """
+        After pathfinding, print a short route summary and ask the operator
+        whether to ignite. Returns True to launch, False to abort.
+        """
+        traj = self.trajectory
+        n_pts = 0 if traj is None else len(traj)
+        start = self.config.start_gps
+        target = self.config.target_gps
+        ground_km = self.target.direct_ground_distance(
+            self._build_initial_state(start)
+        ) / 1000.0
+
+        print("\n--- Pathfinding complete ---")
+        print(f"  Launch : {start[0]:.5f}°N, {start[1]:.5f}°E  alt {start[2]:.1f} m")
+        print(f"  Target : {target[0]:.5f}°N, {target[1]:.5f}°E  alt {target[2]:.1f} m")
+        print(f"  Direct : {ground_km:.1f} km")
+        print(f"  Route  : {n_pts:,} trajectory points")
+        print(f"  Missile: {self.profile.name}")
+
+        return self._ask_yes_no("\nConfirm launch?")
 
     def run_pathfinding(self) -> list[tuple[int, int]]:
         """
@@ -384,21 +443,29 @@ class Simulation:
     # Main Driver Loop
     # ----------------------------------------------------------------
 
-    def run(self, max_duration_s: float | None = None) -> MissionResult:
+    def run(self, max_duration_s: float | None = None) -> MissionResult | None:
         """
-        Plan -> ignite -> fly -> log telemetry -> save result.
+        Confirm plan -> pathfind -> confirm launch -> ignite -> fly -> log -> save.
 
         Args:
             max_duration_s: optional override of config.max_flight_time_s.
 
         Return:
             the MissionResult (also saved to data/results/; a per-flight CSV is
-            written to data/logs/).
+            written to data/logs/), or None if the operator aborted at a confirm.
         """
         if max_duration_s is not None:
             self.config.max_flight_time_s = max_duration_s
+
         if self.trajectory is None:
+            if not self._confirm_pathfinding():
+                print("Pathfinding aborted.")
+                return None
             self.plan_mission()
+
+        if not self._confirm_launch():
+            print("Launch aborted.")
+            return None
 
         self.state = self._build_initial_state(self.config.start_gps)
         self._pre_ignition_setup()
@@ -406,10 +473,14 @@ class Simulation:
 
         # Per-flight telemetry: one CSV in data/logs/, sampled at 10 Hz.
         self.logger = FlightLogger(interval_s=0.1, missile_id=self.config.missile_id).open()
+        pacer = RealtimePacer(self.config.realtime_factor)
+        pacer.start()
         try:
             # step: guidance / physics and navigation update per tick
             while self._alive():
                 self.step()
+                # Hold until wall clock catches sim_time (no-op if realtime_factor <= 0).
+                pacer.wait_until(self.sim_time)
                 self._log_flight()
             # always capture the final (impact) tick, ignoring the sample interval
             self._log_flight(force=True)
@@ -620,7 +691,7 @@ def setup_mission() -> Simulation:
 
 def main() -> None:
     sim = setup_mission()
-    sim.run(200)
+    sim.run(20)
 
 
 if __name__ == "__main__":

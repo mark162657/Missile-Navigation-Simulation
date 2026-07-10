@@ -11,7 +11,7 @@ Statement:
 import sys
 from pathlib import Path
 
-# parents[2] -> src/  (allows: python src/missile/navigation/tercom.py)
+# parents[2] -> src/ (allows: python src/missile/navigation/tercom.py)
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
@@ -32,8 +32,8 @@ class TERCOM:
     def __init__(self, location: list[float, float], dem_name: str):
         """
         Args:
-            - location: receive the current location of the missile, not a true absolute location
-            - update_freq: time interval for update of position (Hz)
+            location: receive the current location of the missile, not a true absolute location
+            dem_name: the name of the DEM file
         """
         self.location = location
 
@@ -50,8 +50,8 @@ class TERCOM:
         Manual function implementation for normalized cross-correlation.
         Accepts all windows at once.
         Args:
-            a_windows: all the patches segmented by np.sliding_window_view, shape (119, 119, 7, 7)
-            b_sensed_patch: the patch that are sensed by radar altimeter of the cruise missile
+            a_window: all the patches segmented by np.sliding_window_view, shape (119, 119, 7, 7)
+            b_sensed_patch: the patch that is sensed by radar altimeter of the cruise missile
         """
 
         a_mean = a_window.mean(axis=(-2, -1), keepdims=True)
@@ -76,12 +76,11 @@ class TERCOM:
         """
         We already obtained the normalized sensed patch 7 * 7 grid underneath 
         our missile, now we will search for the certain grid size from our tif 
-        for pattern and determine where we might have been.
+        for the pattern and determine where we might have been.
         Args:
             sensed_patch: the smaller patched sensed; default: 7 * 7
-            est_lat:
-            est_lon
-
+            est_lat, est_lon: the estimated latitude and longitude of the missile
+            search_size: the size of the search area in the database; default: 125
         """
         # Initialisation
         found_match = False
@@ -124,6 +123,9 @@ class TERCOM:
         """
         Calculates the noise covariance matrix.
         The noises are represented as a diagonal in the 3D matrix
+
+        Return:
+            The noise covariance matrix in the 3D numpy array.
         """
         return np.diag([
             self.lateral_accuracy ** 2,
@@ -134,6 +136,7 @@ class TERCOM:
 if __name__ == "__main__":
     """
     Test code by Claude to simply conduct mass test for verifying compile time.
+    Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
     """
     import time
 
