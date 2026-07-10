@@ -77,6 +77,12 @@ if TYPE_CHECKING:
 
 _EPS_SPEED = 1e-3  # m/s, below which aero/airflow direction is ill-defined
 
+# Maneuver-acceleration lag: the airframe/autopilot cannot change the lateral
+# (turn/climb) acceleration instantly, so the ACHIEVED acceleration trails the
+# commanded value as a first-order lag with this time constant (s). Representative
+# of a tactical airframe's short-period / autopilot response (rule 7).
+_ACCEL_LAG_TAU = 0.30
+
 
 @dataclass
 class IMUMeasurement:
@@ -141,6 +147,12 @@ class MissileDynamics:
         if self.dry_mass_kg <= 0.0:
             # Defensive: never let total mass go non-positive.
             self.dry_mass_kg = float(profile.detailed.mass_kg)
+
+        # Achieved maneuver-acceleration state for the first-order lag (see
+        # _ACCEL_LAG_TAU). The applied turn/climb acceleration trails the command;
+        # advanced once per cruise step, then held across the RK4 sub-stages.
+        self._accel_turn_actual = 0.0
+        self._accel_climb_actual = 0.0
 
     # ------------------------------------------------------------------
     @property
@@ -209,6 +221,21 @@ class MissileDynamics:
         else:
             # CRUISE: point-mass "whole airframe". The autopilot commands a
             # maneuver acceleration (perp to velocity); no control surfaces.
+            #
+            # First-order lag: the ACHIEVED turn/climb acceleration trails the
+            # command (finite airframe/autopilot response). Advance the lag once
+            # per step (like fuel), then hold it across the RK4 sub-stages. The
+            # aero/structural g-clamp still applies downstream in _force_enu, so
+            # the applied maneuver is min(what the airframe can build up to now,
+            # what the air can deliver).
+            lag = math.exp(-dt / _ACCEL_LAG_TAU)
+            self._accel_turn_actual = (float(control.accel_turn)
+                                       + (self._accel_turn_actual - float(control.accel_turn)) * lag)
+            self._accel_climb_actual = (float(control.accel_climb)
+                                        + (self._accel_climb_actual - float(control.accel_climb)) * lag)
+            control = replace(control, accel_turn=self._accel_turn_actual,
+                              accel_climb=self._accel_climb_actual)
+
             fallback_hat = _heading_pitch_to_unit(state.yaw, state.pitch)
 
             def deriv(y: np.ndarray) -> np.ndarray:
