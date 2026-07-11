@@ -44,19 +44,34 @@ class TerminalGuidance:
             state: MissileState,
             target: TargetGeometry,
             impact_angle_deg: float,
+            terminal_dist_size_factor: float = 3.0
 
     ):
         self.profile = profile
         self.state = state
         self.target = target
         self.theta_mf = math.radians(impact_angle_deg)
+        self.r_size_factor = terminal_dist_size_factor
+        self.init_range = self.terminal_init_range()
 
-
-    def _min_init_range(self):
+    def terminal_init_range(self) -> float:
         """
         Eq. 41
         """
-        
+        v_cruise = self.profile.basic.cruise_speed_ms
+        a_max = self.profile.get_max_lateral_acceleration()
+        r_min = 2 * v_cruise ** 2 * abs(math.sin.self.theta_mf) / a_max
+
+        return self.r_size_factor * r_min
+
+    def engage_decision(self, state: MissileState) -> bool:
+        """
+
+        """
+        return self.target.direct_ground_distance(state) <= self.init_range
+
+    def update(self):
+        pass
 
     def _los_angle(self, state: MissileState) -> float:
         """
@@ -70,12 +85,12 @@ class TerminalGuidance:
         d_up = self.target.target_alt - state.est_alt
         return math.atan2(d_up, ground)
 
-    def _time_to_go(self, state: MissileState, speed: float, theta_mf: float):
+    def _time_to_go(self, state: MissileState, v_inst: float, theta_mf: float):
         """
 
         """
         theta_m = state.get_flight_path_angle()
-        v_m = speed * (
+        v_mean = v_inst * (
                 1.0
                 - theta_m ** 2 + theta_mf ** 2 / 15.0
                 + theta_m * theta_mf / 30.0
