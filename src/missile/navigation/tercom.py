@@ -45,6 +45,13 @@ class TERCOM:
         self.lateral_accuracy = 12.0  # meters
         self.vertical_accuracy = 2.5  # meters
 
+        # Last-run telemetry (for UI / debugging). Populated by process_update().
+        self.last_correlation = 0.0
+        self.last_match = False
+        self.last_matched_latlon = None  # (lat, lon) of the last accepted fix
+        self.last_offset = (0, 0)        # (row, col) offset within the search box
+        self.last_search_size = 0
+
     def cross_correlation(self, a_window: np.ndarray, b_sensed_patch: np.ndarray) -> float:
         """
         Manual function implementation for normalized cross-correlation.
@@ -109,12 +116,19 @@ class TERCOM:
 
         # Shift from top-left corner -> centre pixel of matched window
         best_offset = (best_r + snsr_patch_height // 2, best_c + snsr_patch_width // 2)
-        
+
+        # Record last-run telemetry for the UI / debugging.
+        self.last_correlation = float(best_correlation)
+        self.last_match = bool(found_match)
+        self.last_offset = (int(best_offset[0]), int(best_offset[1]))
+        self.last_search_size = int(search_size)
+
         # If matched found, returned the matching lat/lon coordinate and noise covariance
         if found_match:
             matched_row = row_start + best_offset[0]
             matched_col = col_start + best_offset[1]
             matched_lat, matched_lon = self.dem_loader.pixel_to_lat_lon(matched_row, matched_col)
+            self.last_matched_latlon = (float(matched_lat), float(matched_lon))
             return matched_lat, matched_lon, self.get_noise_covariance()
 
         return None, None, None

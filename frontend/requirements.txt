@@ -1,0 +1,5 @@
+# Web control terminal — backend dependencies.
+# The simulation stack itself (numpy, rasterio, scipy) is a separate requirement
+# of the parent project; these are only what the web server adds on top.
+fastapi>=0.110
+uvicorn[standard]>=0.29

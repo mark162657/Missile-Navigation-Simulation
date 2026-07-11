@@ -27,6 +27,13 @@ class PIDController:
         self.integral = 0.0 # I: integral controllers accumulate error over time (error * dt), unlike D and P
         self.prev_mea = None
 
+        # Last-tick telemetry (for UI / debugging). Populated by update().
+        self.last_error = 0.0
+        self.last_p = 0.0
+        self.last_i = 0.0
+        self.last_d = 0.0
+        self.last_output = 0.0
+
     def update(self, error: float, measurement: float, dt: float) -> float:
         """
         The main part of PID controller, updating each P I and D value throughout the tick with new measurement
@@ -73,6 +80,14 @@ class PIDController:
         # freeze / rollback the integrator
         if over_max or under_min:
             self.integral -= error * dt # revert back
+            i = self.Ki * self.integral
+
+        # record last-tick components for telemetry / UI
+        self.last_error = float(error)
+        self.last_p = float(p)
+        self.last_i = float(i)
+        self.last_d = float(d)
+        self.last_output = float(output)
 
         return output
 
