@@ -92,6 +92,10 @@ class MissileState:
         """Return attitude [roll, pitch, yaw] in radians."""
         return np.array([self.roll, self.pitch, self.yaw])
 
+    def get_flight_path_angle(self) -> float:
+        """Return flight path angle in radians."""
+        math.atan2(self.vel_up, math.hypot(self.vel_north, self.vel_east))
+
     def apply_ins_estimate(self, ins: INS) -> None:
         """Copy INS dead-reckoned / corrected state into the nav estimate fields."""
         pos, vel, att = ins.get_state()
