@@ -109,7 +109,7 @@ class TerminalGuidance:
         True once within the geometric terminal-initiation range. The FlightComputer
         owns the one-way latch (set stage = TERMINAL once, never revert).
         """
-        return self.target.direct_ground_distance(state) <= self.d_init
+        return self.target.direct_3d_distance(state) <= self.d_init
 
     def terminal_init_range(self) -> float:
         """

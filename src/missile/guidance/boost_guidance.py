@@ -176,7 +176,7 @@ class BoostGuidance:
         self._theta_prev = theta_cmd
         return theta_cmd
 
-    def _progress(self, h: float) -> float:
+    def _progress(self, h: float, h_pitch:float=BoostGuidanceSpecs.H_pitch) -> float:
         """sigma = clip((h - h_launch) / H_pitch, 0, 1)."""
         span = self.specs.H_pitch
         if span <= 0.0:
