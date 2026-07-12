@@ -1,4 +1,10 @@
 """
+While:
+    - v_mean = mean velocity
+    - t_go = time to go
+    - theta = LOS
+    - theta_m = flight path angle
+    - theta_mf = impact angle
 Source:
     Ryoo, C., Cho, H., & Tahk, M. (2005). Optimal Guidance Laws with Terminal Impact Angle
         Constraint. Journal of Guidance Control and Dynamics, 28(4),
@@ -75,11 +81,27 @@ class TerminalGuidance:
         return self.target.direct_ground_distance(state) <= self.init_range
 
     def update(self, state: MissileState,):
-        self.theta = self._los_angles(state)
-        self.theta_m = state.get_flight_path_angle()
-        cruise_speed = max(state.get_ground_speed(), 1e-3)
+        LOS = self._los_angle(state)
+        theta_m = state.get_flight_path_angle()
+        speed = max(state.get_ground_speed(), 1e-3)
 
-        self._accel_climb()
+        # vertical acceleration command
+        t_go = self._time_to_go(
+            state=state,
+            v_inst=speed,
+            LOS=LOS,
+            theta_mf=self.theta_mf
+        )
+
+        accel_climb = self._accel_climb(
+            v_inst=speed,
+            t_go=t_go,
+            LOS=LOS,
+            theta_m=theta_m
+        )
+
+        # horizontal acceleration command
+
 
     def _los_angle(self, state: MissileState) -> float:
         """
@@ -118,19 +140,19 @@ class TerminalGuidance:
         return max(r/v_mean, self.t_go_min)
 
 
-    def _accel_climb(self, v_mean: float, t_go: float, LOS: float, theta_m: float):
+    def _accel_climb(self, v_inst: float, t_go: float, LOS: float, theta_m: float):
         """
         The main formula for acceleration command for terminal guidance.
         Eq.26: Accel_cmd = Vm/t_go[-6theta(t) + 4theta_m(t) + 2theta_mf].
 
         Args:
-            v_mean: mean velocity
+            v_inst: instantaneous ground speed (from state)
             t_go: time to go (from _time_to_go)
             LOS: line-of-sight angle to target (theta)
             theta_m: flight path angle (from state)
         """
         theta = LOS
-        accel_cmd = (v_mean / t_go) * (-6 * theta + 4 * theta_m + 2 * self.theta_mf)
+        accel_cmd = (v_inst / t_go) * (-6 * theta + 4 * theta_m + 2 * self.theta_mf)
         accel_max = self.profile.get_max_lateral_acceleration()
         return float(np.clip(accel_cmd, -accel_max, accel_max))
 
