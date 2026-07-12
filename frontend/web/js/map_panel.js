@@ -29,10 +29,39 @@ function loadLeaflet() {
   return _leafletPromise;
 }
 
+// Detailed slippy basemaps (labels off by default; toggle a reference-label
+// overlay on top). Satellite imagery is the default because it carries the most
+// real-world terrain detail for a strike-planning map.
+const BASEMAPS = {
+  satellite: {
+    label: "Satellite",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    opts: { maxZoom: 19, maxNativeZoom: 18, attribution: "Imagery &copy; Esri, Maxar, Earthstar Geographics" },
+  },
+  topo: {
+    label: "Topographic",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    opts: { maxZoom: 19, maxNativeZoom: 19, attribution: "&copy; Esri, USGS, NOAA" },
+  },
+  terrain: {
+    label: "Terrain",
+    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    opts: { subdomains: "abc", maxZoom: 17, attribution: "&copy; OpenTopoMap (CC-BY-SA), SRTM" },
+  },
+  dark: {
+    label: "Dark",
+    url: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
+    opts: { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" },
+  },
+};
+const LABELS_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+
 export class MapPanel {
   constructor(host, { onClick = null, legend = "mission", extraControls = [] } = {}) {
     this.onClick = onClick;
     this.mode = "dem";
+    this.basemap = "satellite";
+    this.showLabels = false;
     this.data = { grid: null, plan: null, path: [], start: null, target: null, missile: null };
 
     // DOM
@@ -76,7 +105,7 @@ export class MapPanel {
     if (mode === this.mode) return;
     this.mode = mode;
     Array.from(this.modeSeg.children).forEach((b, i) => b.setAttribute("aria-selected", String((mode === "dem") === (i === 0))));
-    this._layerMenuItems && this._layerMenuItems.elev && (this._layerMenuItems.elev.style.display = mode === "dem" ? "" : "none");
+    this._syncMenuMode();
     if (mode === "map") {
       this.canvas.style.display = "none"; this.leafletEl.style.display = "block";
       try { await this._ensureLeaflet(); this._syncLeaflet(); }
@@ -134,28 +163,61 @@ export class MapPanel {
 
   // --- layers ---------------------------------------------------------------
   _layersBtn() {
-    const btn = iconBtn("layers", "Layers", (e) => { e.stopPropagation(); this._toggleMenu(); });
+    const btn = iconBtn("layers", "Layers & basemap", (e) => { e.stopPropagation(); this._toggleMenu(); });
     const menu = el("div", { class: "map-menu", style: { display: "none" } });
+
+    // Basemap picker (Map mode only) — radio group across the detailed providers.
+    this._basemapRows = {};
+    const basemapGroup = el("div", { class: "map-menu__group" }, [
+      el("div", { class: "map-menu__heading", text: "Basemap" }),
+      ...Object.entries(BASEMAPS).map(([key, b]) => {
+        const row = radioRow(b.label, key === this.basemap, () => this.setBasemap(key));
+        this._basemapRows[key] = row;
+        return row;
+      }),
+    ]);
+    this._labelsRow = layerToggle("Place labels", false, (on) => this.setLabels(on));
+    this._basemapGroup = basemapGroup;
+    this._syncBasemapUI = () => {
+      Object.entries(this._basemapRows).forEach(([k, r]) => r.classList.toggle("is-on", k === this.basemap));
+    };
+
     this._layerMenuItems = {
+      elev: layerToggle("DEM elevation colour", false, (on) => this.dem.setElevColor(on)),
       planned: layerToggle("Planned route", true, (on) => { this.dem.setLayer("planned", on); this._syncLeafletVectors(); this._renderLegend(); }),
       flown: layerToggle("Flown path", true, (on) => { this.dem.setLayer("flown", on); this._syncLeafletVectors(); this._renderLegend(); }),
       markers: layerToggle("Markers", true, (on) => { this.dem.setLayer("markers", on); this._syncLeafletMarkers(); this._renderLegend(); }),
-      elev: layerToggle("Elevation colour", false, (on) => this.dem.setElevColor(on)),
     };
-    menu.append(this._layerMenuItems.planned, this._layerMenuItems.flown, this._layerMenuItems.markers, this._layerMenuItems.elev);
+    menu.append(
+      basemapGroup, this._labelsRow,
+      el("div", { class: "map-menu__sep" }),
+      el("div", { class: "map-menu__heading", text: "Overlays" }),
+      this._layerMenuItems.planned, this._layerMenuItems.flown, this._layerMenuItems.markers, this._layerMenuItems.elev,
+    );
     document.body.append(menu);
     this._menu = menu; this._menuBtn = btn;
     document.addEventListener("click", () => (menu.style.display = "none"));
     return btn;
   }
+  // DEM mode: only elevation-colour + overlays apply. Map mode: basemap picker +
+  // place-labels apply, DEM elevation colour does not.
+  _syncMenuMode() {
+    if (!this._basemapGroup) return;
+    const map = this.mode === "map";
+    this._basemapGroup.style.display = map ? "" : "none";
+    this._labelsRow.style.display = map ? "" : "none";
+    this._layerMenuItems.elev.style.display = map ? "none" : "";
+    this._syncBasemapUI?.();
+  }
   _toggleMenu() {
     const m = this._menu, open = m.style.display === "flex";
     if (open) { m.style.display = "none"; return; }
+    this._syncMenuMode();
     const r = this._menuBtn.getBoundingClientRect();
     Object.assign(m.style, {
-      display: "flex", flexDirection: "column", gap: "2px", position: "fixed",
-      top: `${r.bottom + 6}px`, left: `${Math.min(r.left, innerWidth - 190)}px`, zIndex: "var(--z-popover)",
-      background: "var(--surface-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", padding: "6px", minWidth: "180px", boxShadow: "var(--shadow-float)",
+      display: "flex", flexDirection: "column", gap: "1px", position: "fixed",
+      top: `${r.bottom + 6}px`, left: `${Math.min(r.left, innerWidth - 210)}px`, zIndex: "var(--z-popover)",
+      background: "var(--surface-2)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", padding: "6px", minWidth: "200px", boxShadow: "var(--shadow-float)",
     });
   }
 
@@ -193,14 +255,29 @@ export class MapPanel {
   _setTiles() {
     if (!this.map) return;
     const L = this.L;
-    const light = document.documentElement.dataset.theme === "light";
-    const url = light
-      ? "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png";
+    const base = BASEMAPS[this.basemap] || BASEMAPS.satellite;
     if (this._tileLayer) this.map.removeLayer(this._tileLayer);
-    this._tileLayer = L.tileLayer(url, { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(this.map);
+    this._tileLayer = L.tileLayer(base.url, base.opts).addTo(this.map);
     this._tileLayer.bringToBack?.();
+    this._setLabels();
   }
+  _setLabels() {
+    if (!this.map) return;
+    const L = this.L;
+    if (this._labelLayer) { this.map.removeLayer(this._labelLayer); this._labelLayer = null; }
+    // Satellite/terrain carry no place names; overlay a transparent reference-label
+    // layer when the operator wants them (kept above imagery, below vectors).
+    if (this.showLabels && (this.basemap === "satellite" || this.basemap === "terrain")) {
+      this._labelLayer = L.tileLayer(LABELS_URL, { maxZoom: 19, opacity: 0.9, pane: "overlayPane" }).addTo(this.map);
+    }
+  }
+  setBasemap(name) {
+    if (!BASEMAPS[name] || name === this.basemap) return;
+    this.basemap = name;
+    this._setTiles();
+    this._syncBasemapUI?.();
+  }
+  setLabels(on) { this.showLabels = on; this._setLabels(); }
   _syncLeaflet() {
     this._drawFootprint(); this._syncLeafletVectors(); this._syncLeafletMarkers(); this._syncLeafletMissile();
     // Recompute the container size FIRST (it was display:none until now), then fit
@@ -278,5 +355,13 @@ function layerToggle(label, on, cb) {
   cb_.checked = on;
   cb_.addEventListener("change", (e) => { e.stopPropagation(); cb(cb_.checked); });
   const row = el("label", { class: "map-menu__row", onClick: (e) => e.stopPropagation() }, [cb_, el("span", { text: label })]);
+  return row;
+}
+function radioRow(label, on, cb) {
+  const row = el("button", { class: `map-menu__row map-menu__radio ${on ? "is-on" : ""}` }, [
+    el("span", { class: "map-menu__tick mi", text: "check" }),
+    el("span", { text: label }),
+  ]);
+  row.addEventListener("click", (e) => { e.stopPropagation(); cb(); });
   return row;
 }

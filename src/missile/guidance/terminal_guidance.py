@@ -1,8 +1,4 @@
 """
-
-Assuming A. Optimal Guidance Law for Lag-Free Autopilot. As our autopilot is designed to be lag-free in acceleration.
-Main formula: A_cmd = Vm/t_go[-6theta(t) + 4theta_m(t) + 2theta_mf]
-
 Source:
     Ryoo, C., Cho, H., & Tahk, M. (2005). Optimal Guidance Laws with Terminal Impact Angle
         Constraint. Journal of Guidance Control and Dynamics, 28(4),
@@ -44,8 +40,8 @@ class TerminalGuidance:
             state: MissileState,
             target: TargetGeometry,
             impact_angle_deg: float,
-            terminal_dist_size_factor: float = 3.0
-
+            terminal_dist_size_factor: float = 3.0,
+            t_go_min: float=0.30
     ):
         self.profile = profile
         self.state = state
@@ -53,6 +49,7 @@ class TerminalGuidance:
         self.theta_mf = math.radians(impact_angle_deg)
         self.r_size_factor = terminal_dist_size_factor
         self.init_range = self.terminal_init_range()
+        self.t_go_min = t_go_min
 
     def terminal_init_range(self) -> float:
         """
@@ -62,9 +59,10 @@ class TerminalGuidance:
         a_max = self.profile.get_max_lateral_acceleration()
         r_min = 2 * v_cruise ** 2 * abs(math.sin.self.theta_mf) / a_max
 
+        # size factor to allow earlier pull up to prevent entering terminal guidance at last minimum
         return self.r_size_factor * r_min
 
-    def engage_decision(self, state: MissileState) -> bool:
+    def engage_terminal(self, state: MissileState) -> bool:
         """
 
         """
@@ -85,10 +83,12 @@ class TerminalGuidance:
         d_up = self.target.target_alt - state.est_alt
         return math.atan2(d_up, ground)
 
-    def _time_to_go(self, state: MissileState, v_inst: float, theta_mf: float):
+    def _time_to_go(self, state: MissileState, v_inst: float, theta_mf: float) -> float:
         """
-
+        Estimate remaining flight time until impact
+        Table 1, Eq 2.
         """
+        r = self.target.direct_3d_distance(state)
         theta_m = state.get_flight_path_angle()
         v_mean = v_inst * (
                 1.0
@@ -98,11 +98,15 @@ class TerminalGuidance:
                 - theta_m * theta_mf * (theta_m ** 2 + theta_mf ** 2 - theta_m * theta_mf) / 840.0
         )
 
+        v_mean = max(v_mean, 1e-3)
+
+        return max(r/v_mean, self.t_go_min)
 
 
     def _accel_cmd(self, vm: float, t_go, LOS: float, theta_m: float):
         """
-        Eq.26: Accel_cmd = Vm/t_go[-6theta(t) + 4theta_m(t) + 2theta_mf]
+        The main formula for acceleration command for terminal guidance.
+        Eq.26: Accel_cmd = Vm/t_go[-6theta(t) + 4theta_m(t) + 2theta_mf].
 
         While:
             - Vm = mean velocity

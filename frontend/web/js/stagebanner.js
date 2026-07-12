@@ -29,7 +29,6 @@ export class StageBanner {
     this.progressEl = el("div", { class: "stage-banner__progress", style: { width: "0%" } });
 
     this.node = el("div", { class: "stage-banner", dataset: { stage: "PRE_LAUNCHED" } }, [
-      el("div", { class: "stage-banner__accent" }),
       el("div", { class: "stage-banner__stage" }, [this.dotEl,
         el("div", {}, [this.nameEl, el("div", {}, [this.subEl])])]),
       el("div", { class: "stage-banner__timeline" }, this.pips),
