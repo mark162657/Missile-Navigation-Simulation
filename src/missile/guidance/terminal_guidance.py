@@ -119,6 +119,7 @@ class TerminalGuidance:
         """
         Estimate remaining flight time until impact
         Table 1, Eq 2.
+
         """
         r = self.target.direct_3d_distance(state)
         theta_m = state.get_flight_path_angle()
