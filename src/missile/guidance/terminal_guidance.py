@@ -57,7 +57,7 @@ class TerminalGuidance:
         """
         v_cruise = self.profile.basic.cruise_speed_ms
         a_max = self.profile.get_max_lateral_acceleration()
-        r_min = 2 * v_cruise ** 2 * abs(math.sin.self.theta_mf) / a_max
+        r_min = 2 * v_cruise ** 2 * abs(math.sin(self.theta_mf)) / a_max
 
         # size factor to allow earlier pull up to prevent entering terminal guidance at last minimum
         return self.r_size_factor * r_min
@@ -83,27 +83,32 @@ class TerminalGuidance:
         d_up = self.target.target_alt - state.est_alt
         return math.atan2(d_up, ground)
 
-    def _time_to_go(self, state: MissileState, v_inst: float, theta_mf: float) -> float:
+    def _time_to_go(self, state: MissileState, v_inst: float, LOS: float, theta_mf: float) -> float:
         """
         Estimate remaining flight time until impact
         Table 1, Eq 2.
         """
         r = self.target.direct_3d_distance(state)
         theta_m = state.get_flight_path_angle()
+        theta_m_bar = theta_m - LOS
+        theta_mf_bar = self.theta_mf - LOS
+
         v_mean = v_inst * (
                 1.0
-                - theta_m ** 2 + theta_mf ** 2 / 15.0
-                + theta_m * theta_mf / 30.0
-                + theta_m ** 4 + theta_mf ** 4 / 420.0
-                - theta_m * theta_mf * (theta_m ** 2 + theta_mf ** 2 - theta_m * theta_mf) / 840.0
+                - theta_m_bar ** 2 + theta_mf_bar ** 2 / 15.0
+                + theta_m_bar * theta_mf_bar / 30.0
+                + theta_m_bar ** 4 + theta_mf_bar ** 4 / 420.0
+                - theta_m_bar * theta_mf_bar *
+                (theta_m_bar ** 2 + theta_mf_bar ** 2 - theta_m_bar * theta_mf_bar) / 840.0
         )
 
         v_mean = max(v_mean, 1e-3)
 
+        # max t_go is limited by t_go_min, preventing acceleration command to go crazy
         return max(r/v_mean, self.t_go_min)
 
 
-    def _accel_cmd(self, vm: float, t_go, LOS: float, theta_m: float):
+    def _accel_cmd(self, v_mean: float, t_go: float, LOS: float, theta_m: float):
         """
         The main formula for acceleration command for terminal guidance.
         Eq.26: Accel_cmd = Vm/t_go[-6theta(t) + 4theta_m(t) + 2theta_mf].
@@ -115,6 +120,10 @@ class TerminalGuidance:
             - theta_m = flight path angle
             - theta_mf = impact angle
         """
-        accel_cmd = vm / t_go(-6 * LOS + 4 * theta_m + 2 * self.theta_mf)
+        theta = LOS
+        accel_cmd = (v_mean / t_go) * (-6 * theta + 4 * theta_m + 2 * self.theta_mf)
         accel_max = self.profile.get_max_lateral_acceleration()
         return float(np.clip(accel_cmd, -accel_max, accel_max))
+
+    def horizontal_guidance(self):
+        pass
