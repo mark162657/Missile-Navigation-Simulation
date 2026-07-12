@@ -19,6 +19,7 @@ import numpy as np
 from missile.guidance.target_geometry import TargetGeometry
 from missile.state import MissileState
 from missile.profile import MissileProfile
+from terrain.coordinates import CoordinateSystem
 
 _G = 9.80665
 
@@ -46,9 +47,10 @@ class TerminalGuidance:
             state: MissileState,
             target: TargetGeometry,
             impact_angle_deg: float,
+            approach_azimuth_rad: float,
             terminal_dist_size_factor: float = 3.0,
             t_go_min: float=0.30,
-            horizontal_nav_ratio:float=3.0
+            horizontal_nav_ratio:float=2.0
     ):
         self.profile = profile
         self.state = state
@@ -57,7 +59,7 @@ class TerminalGuidance:
         self.r_size_factor = terminal_dist_size_factor
         self.init_range = self.terminal_init_range()
         self.t_go_min = t_go_min
-
+        self.approach_az_rad = approach_azimuth_rad
         """
         in the case of λh > 2 the required turn-ing acceleration of the vehicle is approaching zero near the final point
         """
@@ -76,12 +78,11 @@ class TerminalGuidance:
 
     def engage_terminal(self, state: MissileState) -> bool:
         """
-
         """
-        return self.target.direct_ground_distance(state) <= self.init_range
+        return self.target.direct_3d_distance(state) <= self.init_range
 
     def update(self, state: MissileState,):
-        LOS = self._los_angle(state)
+        los = self._los_angle(state)
         theta_m = state.get_flight_path_angle()
         speed = max(state.get_ground_speed(), 1e-3)
 
@@ -89,14 +90,14 @@ class TerminalGuidance:
         t_go = self._time_to_go(
             state=state,
             v_inst=speed,
-            LOS=LOS,
+            los=los,
             theta_mf=self.theta_mf
         )
 
         accel_climb = self._accel_climb(
             v_inst=speed,
             t_go=t_go,
-            LOS=LOS,
+            los=los,
             theta_m=theta_m
         )
 
@@ -107,15 +108,15 @@ class TerminalGuidance:
         """
         Line-of-sight elevation angle to the target, from horizontal.
 
-            LOS = atan2(target_alt - missile_alt, ground_range)
+            los = atan2(target_alt - missile_alt, ground_range)
 
-        Target below the missile (normal terminal case) => LOS < 0.
+        Target below the missile (normal terminal case) => los < 0.
         """
         ground = self.target.direct_ground_distance(state)
         d_up = self.target.target_alt - state.est_alt
         return math.atan2(d_up, ground)
 
-    def _time_to_go(self, state: MissileState, v_inst: float, LOS: float, theta_mf: float) -> float:
+    def _time_to_go(self, state: MissileState, v_inst: float, los: float, theta_mf: float) -> float:
         """
         Estimate remaining flight time until impact
         Table 1, Eq 2.
@@ -123,14 +124,14 @@ class TerminalGuidance:
         """
         r = self.target.direct_3d_distance(state)
         theta_m = state.get_flight_path_angle()
-        theta_m_bar = theta_m - LOS
-        theta_mf_bar = theta_mf - LOS
+        theta_m_bar = theta_m - los
+        theta_mf_bar = theta_mf - los
 
         v_mean = v_inst * (
                 1.0
-                - theta_m_bar ** 2 + theta_mf_bar ** 2 / 15.0
+                - (theta_m_bar ** 2 + theta_mf_bar ** 2) / 15.0
                 + theta_m_bar * theta_mf_bar / 30.0
-                + theta_m_bar ** 4 + theta_mf_bar ** 4 / 420.0
+                + (theta_m_bar ** 4 + theta_mf_bar ** 4) / 420.0
                 - theta_m_bar * theta_mf_bar *
                 (theta_m_bar ** 2 + theta_mf_bar ** 2 - theta_m_bar * theta_mf_bar) / 840.0
         )
@@ -141,7 +142,7 @@ class TerminalGuidance:
         return max(r/v_mean, self.t_go_min)
 
 
-    def _accel_climb(self, v_inst: float, t_go: float, LOS: float, theta_m: float):
+    def _accel_climb(self, v_inst: float, t_go: float, los: float, theta_m: float):
         """
         The main formula for acceleration command for terminal guidance.
         Eq.26: Accel_cmd = Vm/t_go[-6theta(t) + 4theta_m(t) + 2theta_mf].
@@ -149,22 +150,56 @@ class TerminalGuidance:
         Args:
             v_inst: instantaneous ground speed (from state)
             t_go: time to go (from _time_to_go)
-            LOS: line-of-sight angle to target (theta)
+            los: line-of-sight angle to target (theta)
             theta_m: flight path angle (from state)
         """
-        theta = LOS
-        accel_cmd = (v_inst / t_go) * (-6 * theta + 4 * theta_m + 2 * self.theta_mf)
+        theta = los
+        a_n = (v_inst / t_go) * (-6 * theta + 4 * theta_m + 2 * self.theta_mf)
         accel_max = self.profile.get_max_lateral_acceleration()
-        return float(np.clip(accel_cmd, -accel_max, accel_max))
+        a_n = float(np.clip(a_n, -accel_max, accel_max))
 
-    def proportional_navigation(self):
-        pass
+        # Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+        # a_n is the guidance normal accel; per the paper EOM V*gamma_m_dot = -a_n,
+        # a positive a_n pitches the velocity DOWN. The plant applies accel_climb
+        # along lift_hat (perp to V, +up) and adds full gravity separately, so the
+        # delivered path-bending accel is accel_climb - g*cos(theta_m). Setting that
+        # equal to the guidance target -a_n gives the gravity-hold conversion:
+        return -a_n + _G * math.cos(theta_m)
 
-    def _navigation_ratio(self, init_hdg: float, init_LOS: float) -> float:
-        nav_ratio = np.sign(init_LOS) * math.pi + init_hdg / init_hdg
-        return nav_ratio
+    def proportional_navigation(self, state: MissileState):
+        curr_east, curr_north = CoordinateSystem.latlong_to_enu(state.est_lat, state.est_lon)
+        target_east, target_north = float(self.target.target_enu[0]), float(self.target.target_enu[1])
 
+        # missile -> target bearing
+        missile_target_bearing = CoordinateSystem.enu_bearing(curr_east, curr_north, target_east, target_north)
+
+        # target -> missile bearing
+        target_missile_bearing = CoordinateSystem.enu_bearing(target_east, target_north, curr_east, curr_north)
+
+
+
+
+    def _navigation_ratio(self, heading: float, los: float) -> float:
+        """
+
+        Define:
+            - ox_axis: a reference direction, opposite of final approach heading
+                e.g. E 90 -> W 270
+            - hdg_shift:
+
+        """
+        ox_axis = self._wrap_pi(self.approach_az_rad - math.pi)
+        hdg_shift = self._wrap_pi(heading - ox_axis)
+        los_shift = self._wrap_pi(los - ox_axis)
+
+        if abs(hdg_shift) < 1e-3:
+            return self.h_nav_ratio
+
+        nav_ratio = (math.copysign(los_shift, math.pi) + hdg_shift) / los_shift
+        return max(nav_ratio, self.h_nav_ratio) # clamp nav ratio to at least h_nav_ratio (3 by default)
 
     def _wrap_pi(self, angle_rad: float) -> float | int:
         return (angle_rad + math.pi) % (2.0 * math.pi) - math.pi
+
+
 
