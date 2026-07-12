@@ -41,7 +41,8 @@ class TerminalGuidance:
             target: TargetGeometry,
             impact_angle_deg: float,
             terminal_dist_size_factor: float = 3.0,
-            t_go_min: float=0.30
+            t_go_min: float=0.30,
+            horizontal_nav_ratio:float=3.0
     ):
         self.profile = profile
         self.state = state
@@ -50,6 +51,11 @@ class TerminalGuidance:
         self.r_size_factor = terminal_dist_size_factor
         self.init_range = self.terminal_init_range()
         self.t_go_min = t_go_min
+
+        """
+        in the case of λh > 2 the required turn-ing acceleration of the vehicle is approaching zero near the final point
+        """
+        self.h_nav_ratio = horizontal_nav_ratio
 
     def terminal_init_range(self) -> float:
         """
@@ -68,8 +74,12 @@ class TerminalGuidance:
         """
         return self.target.direct_ground_distance(state) <= self.init_range
 
-    def update(self):
-        pass
+    def update(self, state: MissileState,):
+        self.theta = self._los_angles(state)
+        self.theta_m = state.get_flight_path_angle()
+        cruise_speed = max(state.get_ground_speed(), 1e-3)
+
+        self._accel_climb()
 
     def _los_angle(self, state: MissileState) -> float:
         """
@@ -91,7 +101,7 @@ class TerminalGuidance:
         r = self.target.direct_3d_distance(state)
         theta_m = state.get_flight_path_angle()
         theta_m_bar = theta_m - LOS
-        theta_mf_bar = self.theta_mf - LOS
+        theta_mf_bar = theta_mf - LOS
 
         v_mean = v_inst * (
                 1.0
@@ -108,22 +118,30 @@ class TerminalGuidance:
         return max(r/v_mean, self.t_go_min)
 
 
-    def _accel_cmd(self, v_mean: float, t_go: float, LOS: float, theta_m: float):
+    def _accel_climb(self, v_mean: float, t_go: float, LOS: float, theta_m: float):
         """
         The main formula for acceleration command for terminal guidance.
         Eq.26: Accel_cmd = Vm/t_go[-6theta(t) + 4theta_m(t) + 2theta_mf].
 
-        While:
-            - Vm = mean velocity
-            - t_go = time to go
-            - theta(t) = LOS
-            - theta_m = flight path angle
-            - theta_mf = impact angle
+        Args:
+            v_mean: mean velocity
+            t_go: time to go (from _time_to_go)
+            LOS: line-of-sight angle to target (theta)
+            theta_m: flight path angle (from state)
         """
         theta = LOS
         accel_cmd = (v_mean / t_go) * (-6 * theta + 4 * theta_m + 2 * self.theta_mf)
         accel_max = self.profile.get_max_lateral_acceleration()
         return float(np.clip(accel_cmd, -accel_max, accel_max))
 
-    def horizontal_guidance(self):
+    def proportional_navigation(self):
         pass
+
+    def _navigation_ratio(self, init_hdg: float, init_LOS: float) -> float:
+        nav_ratio = np.sign(init_LOS) * math.pi + init_hdg / init_hdg
+        return nav_ratio
+
+
+    def _wrap_pi(self, angle_rad: float) -> float | int:
+        return (angle_rad + math.pi) % (2.0 * math.pi) - math.pi
+
