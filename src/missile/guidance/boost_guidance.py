@@ -69,7 +69,7 @@ class BoostGuidanceSpecs:
     gamma_launch: float
     gamma_handoff: float
 
-    H_pitch: float = 200.0
+    H_pitch: float = 150.0
     v_min: float = 15.0
     theta_rate_max: float = math.radians(40.0)
     lookahead_dist: float = 500.0
@@ -176,7 +176,7 @@ class BoostGuidance:
         self._theta_prev = theta_cmd
         return theta_cmd
 
-    def _progress(self, h: float) -> float:
+    def _progress(self, h: float, h_pitch:float=BoostGuidanceSpecs.H_pitch) -> float:
         """sigma = clip((h - h_launch) / H_pitch, 0, 1)."""
         span = self.specs.H_pitch
         if span <= 0.0:

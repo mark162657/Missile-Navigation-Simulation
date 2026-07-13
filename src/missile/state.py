@@ -76,6 +76,10 @@ class MissileState:
         """Return speed magnitude from velocity components, m/s."""
         return float(np.linalg.norm([self.vel_east, self.vel_north, self.vel_up]))
 
+    def get_horizontal_speed(self) -> float:
+        """Return horizontal-plane speed (East/North only, excludes vel_up), m/s."""
+        return float(math.hypot(self.vel_east, self.vel_north))
+
     def est_position(self) -> np.ndarray:
         """Return estimated geographic position [lat, lon, alt]."""
         return np.array([self.est_lat, self.est_lon, self.est_alt])
@@ -91,6 +95,10 @@ class MissileState:
     def get_attitude(self) -> np.ndarray:
         """Return attitude [roll, pitch, yaw] in radians."""
         return np.array([self.roll, self.pitch, self.yaw])
+
+    def get_flight_path_angle(self) -> float:
+        """Return flight path angle in radians."""
+        return math.atan2(self.vel_up, math.hypot(self.vel_north, self.vel_east))
 
     def apply_ins_estimate(self, ins: INS) -> None:
         """Copy INS dead-reckoned / corrected state into the nav estimate fields."""

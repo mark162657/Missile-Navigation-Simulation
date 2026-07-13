@@ -59,12 +59,15 @@
 .nav__spacer { flex: 1; }
 .nav__foot { padding: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
 
+/* Collapsed rail: hide the text label, KEEP the .mi icon (icons are spans too, so
+   a bare `.nav__item span` would blank them out). */
 .app.nav-collapsed .nav__title,
-.app.nav-collapsed .nav__item span,
-.app.nav-collapsed .nav__num,
+.app.nav-collapsed .nav__item span:not(.mi),
 .app.nav-collapsed .nav__heading,
 .app.nav-collapsed .theme-toggle__labels { display: none; }
 .app.nav-collapsed .nav__item { justify-content: center; padding: 0; }
+.app.nav-collapsed .nav__item .mi { color: var(--ink-2); }
+.app.nav-collapsed .nav__item[aria-current="page"] .mi { color: var(--primary); }
 .app.nav-collapsed .nav__brand { justify-content: center; padding: 0; }
 
 /* Theme toggle */
@@ -113,6 +116,9 @@
   box-shadow: var(--shadow-widget);
   overflow: hidden;
   position: relative;
+  /* Contain instrument-overlay z-indexes to this widget's own stacking context,
+     so a sibling's HUD / controls can never paint over a fullscreen widget. */
+  isolation: isolate;
 }
 .widget.is-dragging { z-index: var(--z-widget-drag); box-shadow: var(--shadow-float); cursor: grabbing; user-select: none; opacity: 0.94; transform: scale(1.01); }
 .widget-placeholder {
@@ -123,10 +129,19 @@
   transition: none;
 }
 .widget.is-fullscreen {
-  position: fixed !important; inset: 12px !important;
+  position: fixed !important; inset: 16px !important;
   z-index: var(--z-fullscreen);
   box-shadow: var(--shadow-float);
   grid-area: unset !important;
+}
+/* Dim the workspace behind a fullscreen widget so it reads as a focused overlay,
+   not a panel floating over live siblings. */
+.app:has(.widget.is-fullscreen)::after {
+  content: ""; position: fixed; inset: 0;
+  background: color-mix(in oklab, var(--bg) 62%, transparent);
+  backdrop-filter: blur(2px);
+  z-index: calc(var(--z-fullscreen) - 1);
+  pointer-events: none;
 }
 .widget.is-collapsed { min-height: 0 !important; height: auto !important; }
 .widget.is-collapsed .widget__body { display: none; }
@@ -180,14 +195,23 @@
 .instr { position: relative; width: 100%; height: 100%; background: var(--instr-bg); }
 .instr canvas { display: block; width: 100%; height: 100%; }
 .instr__overlay { position: absolute; inset: 0; pointer-events: none; }
-.instr__hud { position: absolute; padding: 8px 10px; font-family: var(--font-mono); font-size: 10.5px; color: var(--instr-ink-dim); pointer-events: none; z-index: 500; }
+/* Overlay stack is local to the widget (which sets isolation:isolate): 1=HUD text,
+   2=legend, 3=controls. Small values, never root-level 500/600. */
+.instr__hud {
+  position: absolute; margin: 8px; padding: 4px 8px;
+  font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5;
+  color: var(--instr-ink-dim); pointer-events: none; z-index: 1;
+  background: color-mix(in oklab, var(--instr-bg) 66%, transparent);
+  border: 1px solid var(--instr-grid); border-radius: var(--r-sm);
+  backdrop-filter: blur(3px);
+}
 .instr__hud--tl { top: 0; left: 0; }
 .instr__hud--tr { top: 0; right: 0; text-align: right; }
 .instr__hud--bl { bottom: 0; left: 0; }
 .instr__hud--br { bottom: 0; right: 0; text-align: right; }
 .instr__hud b { color: var(--instr-ink); font-weight: 600; }
-.instr__controls { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; pointer-events: auto; z-index: 600; }
-.instr__legend { position: absolute; bottom: 8px; left: 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 7px 9px; background: color-mix(in oklab, var(--instr-bg) 82%, transparent); border: 1px solid var(--instr-grid); border-radius: var(--r-sm); pointer-events: none; z-index: 500; }
+.instr__controls { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; pointer-events: auto; z-index: 3; }
+.instr__legend { position: absolute; bottom: 8px; left: 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 7px 9px; background: color-mix(in oklab, var(--instr-bg) 78%, transparent); border: 1px solid var(--instr-grid); border-radius: var(--r-sm); pointer-events: none; z-index: 2; backdrop-filter: blur(3px); }
 .instr__legend span { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--instr-ink-dim); }
 .instr__legend i { width: 14px; height: 0; border-top: 2px solid currentColor; display: inline-block; }
 .instr__btn { width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-xs); background: color-mix(in oklab, var(--instr-bg) 70%, transparent); border: 1px solid var(--instr-grid); color: var(--instr-ink-dim); }
@@ -195,9 +219,14 @@
 .instr__btn .mi { font-size: 16px; }
 
 /* ----------------------------- Map menu / Leaflet ------------------------ */
-.map-menu__row { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: var(--r-xs); font-size: 12.5px; color: var(--ink); cursor: pointer; user-select: none; }
+.map-menu__row { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: var(--r-xs); font-size: 12.5px; color: var(--ink); cursor: pointer; user-select: none; width: 100%; text-align: left; }
 .map-menu__row:hover { background: var(--surface-3); }
 .map-menu__row input { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
+.map-menu__heading { padding: 6px 8px 3px; font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3); }
+.map-menu__sep { height: 1px; background: var(--line); margin: 4px 2px; }
+.map-menu__radio .map-menu__tick { font-size: 15px; color: var(--primary); opacity: 0; transition: opacity var(--dur-fast); }
+.map-menu__radio.is-on { color: var(--ink); background: var(--primary-soft); }
+.map-menu__radio.is-on .map-menu__tick { opacity: 1; }
 
 .leaflet-container { background: var(--instr-bg) !important; font-family: var(--font-mono); font-size: 11px; }
 .leaflet-bar a { background: var(--surface-2) !important; color: var(--ink) !important; border-bottom-color: var(--line-2) !important; }
@@ -231,12 +260,11 @@
 /* -------------------------- Stage banner --------------------------------- */
 .stage-banner {
   display: flex; align-items: center; gap: 16px;
-  padding: 9px 16px;
+  padding: 9px 16px 10px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
   position: relative; overflow: hidden;
 }
-.stage-banner__accent { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--stage-c, var(--ink-3)); }
 .stage-banner__stage { display: flex; align-items: center; gap: 10px; }
 .stage-banner__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--stage-c, var(--ink-3)); box-shadow: 0 0 0 4px color-mix(in oklab, var(--stage-c, var(--ink-3)) 22%, transparent); }
 .stage-banner__name { font-family: var(--font-mono); font-size: 15px; font-weight: 700; letter-spacing: 0.04em; color: var(--stage-c, var(--ink)); }
@@ -288,9 +316,10 @@
 .verdict {
   display: flex; align-items: center; gap: 20px;
   padding: 20px 24px;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   border: 1px solid var(--line-2);
-  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border-top: 2px solid var(--verdict-c, var(--line-strong));
+  background: var(--surface);
 }
 .verdict__badge {
   width: 84px; height: 84px; border-radius: var(--r-md);
@@ -310,11 +339,16 @@
 [data-verdict="CFIT"], [data-verdict="ABORTED"] { --verdict-c: var(--danger); --verdict-soft: var(--danger-soft); }
 [data-verdict="TIMEOUT"] { --verdict-c: var(--ink-3); --verdict-soft: var(--surface-3); }
 
-.report__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--gap); }
-.metric-tile { padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); }
-.metric-tile__k { font-size: 11px; color: var(--ink-3); letter-spacing: 0.04em; text-transform: uppercase; }
-.metric-tile__v { font-family: var(--font-mono); font-size: 24px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
-.metric-tile__u { font-size: 12px; color: var(--ink-3); font-weight: 400; margin-left: 4px; }
+/* One bordered panel with hairline dividers, not a grid of identical cards. */
+.report__grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1px; background: var(--line);
+  border: 1px solid var(--line-2); border-radius: var(--r-md); overflow: hidden;
+}
+.metric-tile { padding: 13px 16px 14px; background: var(--surface); }
+.metric-tile__k { font-size: 10.5px; color: var(--ink-3); letter-spacing: 0.05em; text-transform: uppercase; font-family: var(--font-mono); }
+.metric-tile__v { font-family: var(--font-mono); font-size: 22px; font-weight: 600; margin-top: 7px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.metric-tile__u { font-size: 12px; color: var(--ink-3); font-weight: 400; margin-left: 5px; }
 
 /* --------------------------------- Toast --------------------------------- */
 .toasts { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: var(--z-toast); display: flex; flex-direction: column; gap: 8px; align-items: center; }
@@ -347,6 +381,8 @@
 .mon-details__summary .mi { font-size: 16px; color: var(--ink-3); transition: transform 0.15s ease; }
 .mon-details[open] > .mon-details__summary .mi { transform: rotate(90deg); }
 .mon-details__body { padding: 4px 10px 10px; border-top: 1px solid var(--line); }
+.mon-sublabel { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-faint); margin: 10px 0 3px; }
+.mon-sublabel:first-child { margin-top: 4px; }
 
 /* Horizontal meters used for PID terms / correlation / throttle. */
 .mon-bar { padding: 5px 0; }
@@ -362,7 +398,7 @@
 /* ------------------------------ Responsive ------------------------------- */
 @media (max-width: 1100px) {
   .app { grid-template-columns: var(--nav-collapsed) 1fr; }
-  .app .nav__title, .app .nav__item span, .app .nav__num, .app .nav__heading { display: none; }
+  .app .nav__title, .app .nav__item span:not(.mi), .app .nav__heading { display: none; }
   .app .nav__item { justify-content: center; padding: 0; }
   .app .nav__brand { justify-content: center; padding: 0; }
 }

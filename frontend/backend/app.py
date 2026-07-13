@@ -44,7 +44,7 @@ def get_dems() -> list[dict]:
 @app.get("/api/dems/{name}/grid")
 def get_dem_grid(name: str, max_size: int = 180):
     try:
-        return dem_service.elevation_grid(name, max_size=max(32, min(max_size, 320)))
+        return dem_service.elevation_grid(name, max_size=max(32, min(max_size, 512)))
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
 
@@ -216,5 +216,19 @@ def healthz() -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+class _NoCacheStaticFiles(StaticFiles):
+    """Static files with revalidation forced.
+
+    Without Cache-Control, browsers heuristically cache ES modules and keep
+    serving stale JS after an edit; no-cache makes them revalidate (ETag) on
+    every load while still allowing 304s.
+    """
+
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+
 if WEB_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+    app.mount("/", _NoCacheStaticFiles(directory=str(WEB_DIR), html=True), name="web")

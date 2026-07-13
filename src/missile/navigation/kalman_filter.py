@@ -3,14 +3,21 @@ from missile.navigation.ins import INS
 from terrain.coordinates import CoordinateSystem
 
 class KalmanFilter:
-    def __init__(self, dt: float,
+    def __init__(self,
                  init_position: list[float],
                  init_velocity: list[float],
                  process_noise_std: float,
+                 dt: float,
                  std_mea: float=0.05
                  ) -> None:
         """
         Set up the Kalman filter with the necessary initial and default matrices.
+        Args:
+            init_position
+            init_velocity
+            process_noise_std
+            dt
+            std_mea
         """
         # Sampling time
         self.dt = dt

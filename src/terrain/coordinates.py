@@ -97,6 +97,22 @@ class CoordinateSystem:
         earth_radius_m = 6_371_000.0
         return earth_radius_m * 2.0 * math.asin(math.sqrt(a))
 
+    @staticmethod
+    def enu_bearing(east_from: float, north_from: float,
+                    east_to: float, north_to: float) -> float:
+        """
+        Compass bearing from one ENU point to another, radians clockwise from north.
+
+        Both points must be in the SAME ENU frame (the shared origin cancels in the
+        delta, so any common origin works). Returns a value in (-pi, pi]; add pi and
+        re-wrap for the reverse bearing.
+
+            bearing = atan2(delta_east, delta_north)
+
+        Radians (not degrees) to match state.yaw and the guidance angle conventions.
+        """
+        return math.atan2(east_to - east_from, north_to - north_from)
+
     def get_heading(self, lat1: float, long1: float, lat2: float, long2: float) -> float:
         """Initial bearing from point 1 to point 2, degrees clockwise from north."""
 

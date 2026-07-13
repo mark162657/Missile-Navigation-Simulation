@@ -101,7 +101,7 @@ export class MissionScreen {
           ]),
           el("div", { class: "instr__hud instr__hud--tl", html: "<b>Drag</b> orbit · <b>scroll</b> zoom" }),
           this.viewHud,
-          el("div", { class: "instr__legend" }, [leg("--c-boost", "Boost"), leg("--c-actual", "Cruise"), leg("--c-terminal", "Terminal")]),
+          el("div", { class: "instr__legend" }, [leg("--c-planned", "Planned", true), leg("--c-boost", "Boost"), leg("--c-actual", "Cruise"), leg("--c-terminal", "Terminal")]),
         ]));
         this.viewer = new Viewer3D(canvas);
         this.viewer.label = this.missileLabel;
@@ -318,8 +318,9 @@ export class MissionScreen {
   _monNav(f) {
     const t = f.tercom;   // live-only TERCOM detail block
     const n = f.nav;      // live-only nav timing block
+    const k = f.kalman;   // live-only Kalman filter snapshot
     this.monBody.append(
-      sectionTitle("Kalman filter · fused estimate"),
+      sectionTitle("Fused estimate · EKF"),
       kvs([
         ["Est latitude", fmtLat(f.est.lat)], ["Est longitude", fmtLon(f.est.lon)], ["Est altitude", `${nf(f.est.alt)} m`],
       ]),
@@ -337,6 +338,27 @@ export class MissionScreen {
         ["To target", f.progress.to_target_m != null ? fmtDist(f.progress.to_target_m) : "—"],
       ]),
     );
+
+    // Live-only expandable detail: Kalman filter state + covariance.
+    if (k) {
+      const s = k.state, sg = k.sigma;
+      this.monBody.append(details("Kalman filter · state & covariance", [
+        subLabel("Fused estimate · ENU (m, m/s)"),
+        ...kvRows([
+          ["Position E · N · U", `${nf(s.east_m, 0)} · ${nf(s.north_m, 0)} · ${nf(s.up_m, 0)}`],
+          ["Velocity E · N · U", `${nf(s.vel_east_ms, 1)} · ${nf(s.vel_north_ms, 1)} · ${nf(s.vel_up_ms, 1)}`],
+        ]),
+        subLabel("1σ uncertainty (√diag P)"),
+        ...kvRows([
+          ["Position σ  E · N · U", `${nf(sg.pos_e_m, 2)} · ${nf(sg.pos_n_m, 2)} · ${nf(sg.pos_u_m, 2)} m`],
+          ["Velocity σ  E · N · U", `${nf(sg.vel_e_ms, 3)} · ${nf(sg.vel_n_ms, 3)} · ${nf(sg.vel_u_ms, 3)} m/s`],
+          ["Horizontal position σ", `${nf(k.pos_sigma_h_m, 2)} m`, k.pos_sigma_h_m > 30 ? "warn" : "ok"],
+          ["3-D position σ", `${nf(k.pos_sigma_3d_m, 2)} m`],
+          ["3-D velocity σ", `${nf(k.vel_sigma_3d_ms, 3)} m/s`],
+          ["Process noise σ", `${nf(k.process_noise_std, 3)}`],
+        ]),
+      ], true));
+    }
 
     // Live-only expandable detail: TERCOM contour-matching internals.
     if (t) {
@@ -360,11 +382,12 @@ export class MissionScreen {
     if (n) {
       this.monBody.append(details("GPS · INS timing", kvRows([
         ["GPS update rate", `${nf(1 / n.gps_period_s, 0)} Hz`],
-        ["GPS fixes", `${nf(n.gps_fixes)}`],
-        ["INS integration", `${nf(1 / n.ins_period_s, 0)} Hz`],
+        ["GPS fixes accepted", `${nf(n.gps_fixes)}`],
+        ["INS integration rate", `${nf(1 / n.ins_period_s, 0)} Hz`],
+        ["INS distance integrated", n.ins_distance_m != null ? fmtDist(n.ins_distance_m) : "—"],
       ])));
     }
-    if (!t && !n) this.monBody.append(note("Live TERCOM / GPS internals stream from the simulation; recorded flights log fused state only."));
+    if (!t && !n && !k) this.monBody.append(note("Live EKF / TERCOM / GPS internals stream from the simulation; recorded flights log fused state only."));
   }
 
   _monControls(f) {
@@ -372,7 +395,9 @@ export class MissionScreen {
     this.monBody.append(
       sectionTitle("Guidance state"),
       kvs([
-        ["Mode", c ? (c.terminal ? "TERMINAL" : "CRUISE") : f.stage, c && c.terminal ? "warn" : ""],
+        ["Flight stage", f.stage],
+        ["Guidance mode", c ? (c.terminal ? "TERMINAL" : "CRUISE") : "—", c && c.terminal ? "warn" : ""],
+        ["Terminal latched", c ? (c.terminal ? "YES" : "no") : "—", c && c.terminal ? "warn" : ""],
         ["Heading (yaw)", `${nf(f.att.yaw, 1)}°`],
         ["Flight-path angle", `${nf(f.att.fpa, 2)}°`],
         ["Pitch", `${nf(f.att.pitch, 2)}°`],
@@ -383,13 +408,15 @@ export class MissionScreen {
     if (c) {
       this.monBody.append(
         sectionTitle("Command outputs"),
-        el("div", {}, [bar("Throttle", c.throttle ?? 0, 0, 1, "", 2)]),
+        el("div", {}, [
+          bar("Throttle", c.throttle ?? 0, 0, 1, "", 2),
+          bar("Turn accel", c.accel_turn ?? 0, -50, 50, "", 2),
+          bar("Climb accel", c.accel_climb ?? 0, -50, 50, "", 2),
+        ]),
         kvs([
-          ["Turn accel", `${nf(c.accel_turn, 2)} m/s²`],
-          ["Climb accel", `${nf(c.accel_climb, 2)} m/s²`],
           ["Target altitude", c.target_alt != null ? `${nf(c.target_alt)} m` : "—"],
           ["Target speed", c.target_spd != null ? `${nf(c.target_spd)} m/s` : "—"],
-          ["V/S command", c.vs_cmd != null ? `${nf(c.vs_cmd, 1)} m/s` : "—"],
+          ["Vertical-speed command", c.vs_cmd != null ? `${nf(c.vs_cmd, 1)} m/s` : "—"],
         ]),
       );
     }
@@ -428,8 +455,9 @@ export class MissionScreen {
 
 // --- helpers ----------------------------------------------------------------
 function icon(name, title, onClick) { return el("button", { class: "instr__btn", title, "aria-label": title, onClick }, [el("span", { class: "mi", text: name })]); }
-function leg(colorVar, label) { return el("span", {}, [el("i", { style: { color: `var(${colorVar})` } }), el("span", { text: label })]); }
+function leg(colorVar, label, dashed) { return el("span", {}, [el("i", { style: { color: `var(${colorVar})`, borderTopStyle: dashed ? "dashed" : "solid" } }), el("span", { text: label })]); }
 function sectionTitle(t) { return el("div", { class: "label", style: { margin: "14px 0 8px" }, text: t }); }
+function subLabel(t) { return el("div", { class: "mon-sublabel", text: t }); }
 function note(t) { return el("p", { class: "hint", style: { marginTop: "10px", lineHeight: "1.5" }, text: t }); }
 function state(icon, title, msg) { return el("div", { class: "state" }, [el("span", { class: "mi", text: icon }), el("span", { class: "state__title", text: title }), el("span", { class: "state__msg", text: msg })]); }
 function kvs(rows) {

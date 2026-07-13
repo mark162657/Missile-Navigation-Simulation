@@ -86,7 +86,42 @@ def _live_telemetry(sim, state) -> dict:
             "gps_fixes": int(nav.gps_fix_count),
         }
 
+        ins = getattr(nav, "ins", None)
+        if ins is not None:
+            out["nav"]["ins_distance_m"] = float(ins.distance_traveled)
+
+        kf = getattr(nav, "KF", None)
+        if kf is not None:
+            out["kalman"] = _kalman_dict(kf)
+
     return out
+
+
+def _kalman_dict(kf) -> dict:
+    """Snapshot the Kalman filter's fused estimate and its 1-sigma uncertainty.
+
+    The filter state is ENU position + velocity; the covariance diagonal gives
+    the per-axis variance, whose sqrt is the 1-sigma uncertainty the UI shows.
+    """
+    import numpy as np
+
+    x = np.asarray(kf.x, dtype=float).reshape(-1)
+    sigma = np.sqrt(np.clip(np.diag(np.asarray(kf.P, dtype=float)), 0.0, None))
+    return {
+        "state": {
+            "east_m": float(x[0]), "north_m": float(x[1]), "up_m": float(x[2]),
+            "vel_east_ms": float(x[3]), "vel_north_ms": float(x[4]), "vel_up_ms": float(x[5]),
+        },
+        "sigma": {
+            "pos_e_m": float(sigma[0]), "pos_n_m": float(sigma[1]), "pos_u_m": float(sigma[2]),
+            "vel_e_ms": float(sigma[3]), "vel_n_ms": float(sigma[4]), "vel_u_ms": float(sigma[5]),
+        },
+        # Combined horizontal + 3-D position uncertainty (1-sigma).
+        "pos_sigma_h_m": float(np.hypot(sigma[0], sigma[1])),
+        "pos_sigma_3d_m": float(np.sqrt(sigma[0] ** 2 + sigma[1] ** 2 + sigma[2] ** 2)),
+        "vel_sigma_3d_ms": float(np.sqrt(sigma[3] ** 2 + sigma[4] ** 2 + sigma[5] ** 2)),
+        "process_noise_std": float(getattr(kf, "_process_noise_std", 0.0)),
+    }
 
 
 def _opt_float(value, default: float | None = None) -> float | None:
