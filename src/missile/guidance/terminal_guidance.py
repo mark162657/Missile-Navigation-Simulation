@@ -70,7 +70,7 @@ class TerminalGuidance:
         Eq. 41
         """
         v_cruise = self.profile.basic.cruise_speed_ms
-        a_max = self.profile.get_max_lateral_acceleration()
+        accel_max = self.profile.get_max_lateral_acceleration()
         r_min = 2 * v_cruise ** 2 * abs(math.sin(self.theta_mf)) / a_max
 
         # size factor to allow earlier pull up to prevent entering terminal guidance at last minimum
@@ -102,6 +102,13 @@ class TerminalGuidance:
         )
 
         # horizontal acceleration command
+        accel_turn = self.proportional_navigation(state)
+
+        return TerminalCommand(
+            accel_turn=accel_turn,
+            accel_climb=accel_climb,
+            target_spd=speed
+        )
 
 
     def _los_angle(self, state: MissileState) -> float:
@@ -179,12 +186,20 @@ class TerminalGuidance:
         target_missile_los = CoordinateSystem.enu_bearing(target_east, target_north, curr_east, curr_north)
 
         hdg_error = missile_target_los - state.yaw # eq 1b
-        rh = max(self.target.get_ground_distance(state), 1e-3) # replaced eq 1a
+        r_h = max(self.target.get_ground_distance(state), 1e-3) # replaced eq 1a
+        v_h = state.get_horizontal_speed()
         nav_ratio = self._navigation_ratio(state.yaw, target_missile_los)
 
+        los_rate = (v_h / r_h) * math.sin(hdg_error)
 
+        # substitute eq 1b to 2
+        hdg_rate = nav_ratio * los_rate
 
-        a_max = self.profile.get_max_lateral_acceleration()
+        # acceleration = rate * speed
+        a_turn = hdg_rate * v_h
+        accel_max = self.profile.get_max_lateral_acceleration()
+
+        return float(np.clip(a_turn, -accel_max, accel_max))
 
 
 
