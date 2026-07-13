@@ -1,135 +1,136 @@
 # Missile Guidance
 
-Cruise-missile guidance, navigation, and mission-planning simulator over real-world DEM terrain (SRTM / merged GeoTIFF). Models 3-DoF flight physics, INS dead reckoning, GPS / TERCOM / radar-altimeter sensors, Kalman fusion, and C++ A* pathfinding with B-spline trajectory smoothing.
+A Python simulation and mission-planning project that models cruise-missile guidance, navigation, and control over real digital elevation model (DEM) terrain. It combines terrain-aware route planning with a 3-DoF flight model, noisy sensors, navigation estimation, guidance, control, telemetry, and a browser-based mission-control terminal.
 
-> **Work in progress.** This repository is under active development. APIs, file layout, and wiring between subsystems will change. The end-to-end simulation loop is **not** runnable yet — the guidance/control layer and the main scheduler are still being built. Use this for experimentation and learning, not production.
+> **Status: working, under active development.** The current simulation, planning pipeline, web terminal, and recorded-flight replay are usable. Performance improvements, bug fixes, validation, and future enhancements are still needed. This is an experimentation and learning project, not production or hardware-fidelity software.
 
-This is an **algorithm / navigation / guidance / pathfinding showcase**, not a hardware-fidelity simulator. The airframe is a 3-DoF point mass (no control surfaces, no attitude dynamics); maneuvers are commanded as accelerations and the plant enforces the g-envelope.
+## Highlights
 
----
+- Terrain loading, elevation queries, and coordinate conversion for GeoTIFF DEM data.
+- C++ A* terrain pathfinding with B-spline trajectory smoothing.
+- 3-DoF point-mass flight physics with RK4 integration, atmosphere, aerodynamics, engine/booster stages, wind, and turbulence.
+- Navigation stack with INS, GPS, IMU, radar/barometric altitude, TERCOM, and Kalman-based estimation.
+- Guidance and control layers including path following, terminal guidance, PID autopilot, and flight-phase management.
+- Interactive CLI mission flow that plans, flies, logs telemetry, and writes a mission result.
+- Browser-based planning, live monitoring, replay, and final-report experience.
 
-## What works today
+## Scope and limitations
 
-- **Terrain** — load DEM tiles, query elevation, elevation patches (TERCOM / radar)
-- **Planning** — C++ A* pathfinding over DEM pixels, B-spline path smoothing (`TrajectoryGenerator`)
-- **Physics** — 3-DoF point-mass dynamics (RK4), ISA atmosphere, drag-polar aerodynamics, turbofan thrust, solid booster + `FlightSequencer` boost staging, wind/turbulence
-- **Missile profiles** — per-missile JSON specs in `data/missiles/` (Tomahawk Block V, Kh-101)
-- **Navigation modules** — INS, Kalman filter, GPS / TERCOM / IMU / timer (implemented, not fully wired)
-- **Controls** — PID controller and the `ControlInput` plant boundary (built); autopilot wiring in progress
-- **Visualization** — matplotlib mission plotter; optional Fastplotlib DEM viewers in `tests/`
+The simulator is an algorithm, navigation, guidance, and pathfinding showcase. The vehicle model is a 3-DoF point mass: it does not model airframe control surfaces or full attitude dynamics. Maneuvers are represented by commanded accelerations constrained by the flight model.
 
-## Not implemented / incomplete
+Some modules and integrations remain incomplete or need hardening, including the datalink area, broader validation, and performance work for large DEMs and pathfinding. The project should be treated as a work in progress.
 
-- Main simulation runner (single loop: dynamics → sensors → nav → guidance → control)
-- Autopilot `update()` — PID setup exists, the per-tick control law is unfinished (`missile/controls/autopilot.py`)
-- Guidance path follower — L1 / pure-pursuit law (`missile/guidance/path_following.py` is a stub)
-- Flight computer — BOOST → CRUISE → TERMINAL mode machine (`missile/controls/flight_computer.py` is a stub)
-- End-to-end `NavigationComputer` fusion loop (currently driven by a toy constant-accel plant, not `dynamics.step()`)
-- `datalink/` and `terminal/` packages (scaffolded as packages, no modules yet)
-- Automated test suite (manual scripts in `tests/` only)
+## Quick start
 
----
+### Prerequisites
+
+- Python 3
+- CMake and a C++14-compatible compiler for live terrain pathfinding
+- Python packages: `numpy`, `rasterio`, `scipy`, `pybind11`, and `pytest`
+
+Install the web-terminal dependencies:
+
+```bash
+pip install -r frontend/requirements.txt
+```
+
+Build the C++ pathfinding extension for live planning and simulation:
+
+```bash
+cmake -S src/missile/planning/cpp -B src/missile/planning/cpp/build
+cmake --build src/missile/planning/cpp/build
+```
+
+### Run an interactive simulation
+
+From the project root:
+
+```bash
+PYTHONPATH=src python3 src/main.py
+```
+
+The CLI collects mission parameters, runs the simulation, and writes telemetry to `data/logs/` and results to `data/results/`.
+
+### Run the web control terminal
+
+```bash
+python3 frontend/run.py
+```
+
+Open `http://127.0.0.1:8000`. For development with automatic reload:
+
+```bash
+python3 frontend/run.py --reload
+```
+
+The frontend has its own detailed documentation in [frontend/README.md](frontend/README.md).
 
 ## Project layout
 
-```
+```text
 src/
-├── terrain/              DEM loading, coordinates, tile merge
+├── main.py                 Interactive mission setup and simulation runner
+├── terrain/                DEM loading, terrain queries, coordinates, tile merging
 ├── missile/
-│   ├── state.py          MissileState (truth vs estimate)
-│   ├── profile.py        MissileProfile (basic + detailed + booster specs)
-│   ├── config_store.py   Load/save JSON profiles
-│   ├── navigation/       INS, KF, GPS, TERCOM, IMU, nav computer, timer
-│   ├── planning/         C++ pathfinder wrapper, trajectory smoothing, cpp/
-│   ├── guidance/         Path follower / L1 guidance (stub)
-│   ├── controls/         PID, ControlInput, autopilot, flight computer, guidance law
-│   └── datalink/         (planned)
+│   ├── navigation/         INS, GPS, IMU, TERCOM, Kalman filtering, navigation
+│   ├── planning/           C++ pathfinder wrapper, trajectory generation, C++ source
+│   ├── guidance/           Path following and terminal guidance
+│   ├── controls/           PID control, autopilot, flight computer
+│   └── datalink/           Datalink scaffolding
 ├── simulation/
-│   ├── physics/          dynamics (3-DoF, RK4), atmosphere, aerodynamics,
-│   │                     engine, booster, sequencer, weather
-│   └── sensors/          IMU, GPS receiver, radar + baro altimeter
-├── terrain/              DEM loading, coordinates, tile merge
-└── terminal/             (planned)
+│   ├── physics/            Dynamics, atmosphere, aerodynamics, propulsion, weather
+│   └── sensors/            IMU, GPS, radar, and barometric-altimeter models
+└── launcher/               Supporting launcher utilities
 
+frontend/                   FastAPI backend and browser mission-control application
 data/
-├── dem/                  GeoTIFF elevation tiles (Siberia, Iran, SRTM)
-└── missiles/             One JSON file per missile type
-
-tests/                    Manual pathfinding / physics / nav / DEM scripts
+├── dem/                    GeoTIFF elevation data
+├── missiles/               Missile-profile JSON files
+├── logs/                   Flight telemetry CSV output
+└── results/                Mission-result JSON output
+tests/                      Automated tests, benchmarks, visualizers, and scripts
 ```
 
-Every directory under `src/` is an explicit Python package (each has an `__init__.py`). Imports are absolute and rooted at `src/` (e.g. `from missile.navigation.ins import INS`), so set `PYTHONPATH=src` when running Python from the project root.
+Imports are rooted at `src/`, so use `PYTHONPATH=src` when running code from the repository root.
 
-**Dependency rule:** the arrow points one way — `simulation → missile`, never the reverse. The plant (`simulation.physics`) consumes types owned by the missile side (e.g. `ControlInput`); the missile avionics never import from `simulation`.
+## How it works
 
----
+The simulation keeps a separation between ground truth and the vehicle's estimated state:
 
-## Missile configurations
+- The physics model advances the true position and velocity.
+- Simulated sensors observe that truth with realistic uncertainty.
+- The navigation stack estimates position from those measurements.
+- Guidance uses the estimate to convert the planned route into flight setpoints.
+- Control converts setpoints into plant inputs for the physics model.
 
-Each missile is a JSON file in `data/missiles/`:
+The main coordinate systems are geographic latitude/longitude/altitude, DEM pixel coordinates for route planning, and ENU meters for local dynamics. Positive ENU `up` is vertical.
 
-- `tomahawk_block_v.json`
-- `kh_101.json`
+## Testing
 
-**Section 1 (basic)** — speeds, altitude envelope, g-limits (incl. boost-phase axial g), turn rates, range, cruise AGL band (user-facing specs).
-
-**Section 2 (detailed)** — mass, fuel, IMU error model, sensor update rates (defaults provided; feeds INS via `MissileProfile.create_ins()`).
-
-**Section 3 (booster)** — solid-rocket boost motor: thrust, burn time, propellant/casing mass, launch mode (defaults provided; consumed by the physics layer).
-
-Load in Python:
-
-```python
-from missile.config_store import get_profile, load_profiles
-
-profile = get_profile("Tomahawk Block V")
-```
-
----
-
-## Coordinate conventions
-
-| Frame          | Fields                    | Use                                                     |
-| -------------- | ------------------------- | ------------------------------------------------------- |
-| **Geographic** | `lat`, `lon`, `alt` (MSL) | `MissileState`, INS, GPS, TERCOM                        |
-| **Pixel**      | `row`, `col`              | DEM grid, C++ pathfinder                                |
-| **ENU meters** | `east_m`, `north_m`, `up` | `CoordinateSystem`, dynamics, plotter (vs. launch origin) |
-
-`MissileState` stores **geographic** position and **ENU** velocity — not pixels. The whole flight stack (physics, INS, guidance) works in **ENU / geographic**, z positive up. Convert at boundaries via `DEMLoader` or `CoordinateSystem`.
-
-Truth vs estimate (the information barrier):
-
-- `true_lat`, `true_lon`, `true_alt` — simulation ground truth (only sensors read this)
-- `est_lat`, `est_lon`, `est_alt` — navigation estimate (INS + fusion); guidance and control read **only** these
-
----
-
-## Pathfinding (C++ backend)
-
-Build the C++ extension first (CMake project under `src/missile/planning/cpp/`), then run a benchmark with a DEM present in `data/dem/`:
+Run the primary automated checks with:
 
 ```bash
-PYTHONPATH=src python3 tests/test_pathfollower_load.py
+PYTHONPATH=src pytest tests/navigation/ tests/test_controls_guidance.py -v
 ```
 
-This runs a ~600 km A* path over the Siberia DEM, smooths it into a 3D trajectory, and sizes the per-tick cost of the (not-yet-built) path follower.
+The `tests/` directory also includes manual integration, performance, weather, and visualization scripts. Some require local DEM files, optional visualization dependencies, or the compiled C++ pathfinder.
 
-> Note: `tests/test_get_path.py` is stale — `Pathfinding` now requires a `DEM_NAME` argument and the old `get_surfcae_distance` helper was removed.
+## Frontend
 
----
+The web control terminal provides:
 
-## Design direction
+- **Planning** for selecting DEM and profile data, defining a route, and running pathfinding.
+- **Mission Control** for live telemetry or recorded-flight replay.
+- **Final Report** for timeline review, flight statistics, and mission-result export.
 
-**Two-lane simulation:** the universe maintains true position (advanced by `dynamics.step()`, the single truth integrator); the missile brain only sees noisy sensor measurements and maintains its own estimate (INS + Kalman filter). GPS provides horizontal fixes; radar altimeter provides AGL; TERCOM corrects horizontal position over rough terrain.
+See [frontend/README.md](frontend/README.md) for its architecture, API, and UI-specific notes.
 
-**GNC layering:**
+## Credits
 
-- **Navigation** — *where am I?* INS dead-reckons; KF fuses GPS/TERCOM corrections into `est_*`.
-- **Guidance** — *where should I go?* The path follower turns the planned trajectory into setpoints (lateral accel, target altitude, target speed) via L1 / pure-pursuit.
-- **Control** — *how do I make the plant do it?* The autopilot turns setpoints into `ControlInput` (throttle, turn accel, climb accel) via PIDs + gravity feedforward.
+The frontend was created entirely with **Fable 5** and **Claude Opus 4.8 High**.
 
-During **boost**, guidance and control are dormant: the `FlightSequencer` inside the physics flies open-loop (programmed pitch-over) until turbofan handoff at cruise.
+The project also uses open-source Python and web dependencies, CMake, pybind11, GeoTIFF/SRTM-style terrain data, and—in map mode—Leaflet with OpenStreetMap and CARTO attribution as rendered by the frontend.
 
----
+## License
 
-## Project work in progress...
+No license has been specified for this repository yet.
