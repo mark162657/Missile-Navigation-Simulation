@@ -167,15 +167,24 @@ class TerminalGuidance:
         return -a_n + _G * math.cos(theta_m)
 
     def proportional_navigation(self, state: MissileState):
+        """
+
+        """
         curr_east, curr_north = CoordinateSystem.latlong_to_enu(state.est_lat, state.est_lon)
         target_east, target_north = float(self.target.target_enu[0]), float(self.target.target_enu[1])
 
         # missile -> target bearing
-        missile_target_bearing = CoordinateSystem.enu_bearing(curr_east, curr_north, target_east, target_north)
-
+        missile_target_los = CoordinateSystem.enu_bearing(curr_east, curr_north, target_east, target_north)
         # target -> missile bearing
-        target_missile_bearing = CoordinateSystem.enu_bearing(target_east, target_north, curr_east, curr_north)
+        target_missile_los = CoordinateSystem.enu_bearing(target_east, target_north, curr_east, curr_north)
 
+        hdg_error = missile_target_los - state.yaw # eq 1b
+        rh = max(self.target.get_ground_distance(state), 1e-3) # replaced eq 1a
+        nav_ratio = self._navigation_ratio(state.yaw, target_missile_los)
+
+
+
+        a_max = self.profile.get_max_lateral_acceleration()
 
 
 
@@ -183,9 +192,11 @@ class TerminalGuidance:
         """
 
         Define:
-            - ox_axis: a reference direction, opposite of final approach heading
+            - ox_axis: a reference direction, opposite of the final approach heading
                 e.g. E 90 -> W 270
-            - hdg_shift:
+
+        Args:
+            heading: the heading of the missile
 
         """
         ox_axis = self._wrap_pi(self.approach_az_rad - math.pi)
@@ -195,6 +206,7 @@ class TerminalGuidance:
         if abs(hdg_shift) < 1e-3:
             return self.h_nav_ratio
 
+        # main formula for navigation ratio (lambda_h), eq5
         nav_ratio = (math.copysign(los_shift, math.pi) + hdg_shift) / los_shift
         return max(nav_ratio, self.h_nav_ratio) # clamp nav ratio to at least h_nav_ratio (3 by default)
 
