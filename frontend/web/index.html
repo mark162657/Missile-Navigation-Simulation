@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Missile Guidance — Web Control Terminal</title>
+  <meta name="color-scheme" content="dark light" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300,0,0&display=block" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/app.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L20 12 L20 24 L16 30 L12 24 L12 12 Z' fill='%235b93ff'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- Left navigation -->
+    <nav class="nav" id="nav" aria-label="Primary">
+      <div class="nav__brand">
+        <svg class="nav__logo" viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M16 2 L20.5 12 L20.5 23 L16 30 L11.5 23 L11.5 12 Z" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M11.5 20 L7 25 M20.5 20 L25 25" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+          <circle cx="16" cy="14" r="2" fill="currentColor"/>
+        </svg>
+        <div class="nav__title">
+          <b>GNC Terminal</b>
+          <span>Cruise&nbsp;Guidance</span>
+        </div>
+      </div>
+
+      <div class="nav__group" role="tablist" aria-label="Screens">
+        <div class="nav__heading label">Workspaces</div>
+        <button class="nav__item" data-screen="planning" role="tab" title="Planning">
+          <span class="mi" aria-hidden="true">map</span><span>Planning</span>
+        </button>
+        <button class="nav__item" data-screen="mission" role="tab" title="Mission Control">
+          <span class="mi" aria-hidden="true">radar</span><span>Mission Control</span>
+        </button>
+        <button class="nav__item" data-screen="report" role="tab" title="Final Report">
+          <span class="mi" aria-hidden="true">assessment</span><span>Final Report</span>
+        </button>
+      </div>
+
+      <div class="nav__spacer"></div>
+
+      <div class="nav__foot">
+        <div class="theme-toggle" role="group" aria-label="Theme">
+          <button class="theme-toggle__btn" data-theme-set="dark" aria-pressed="true"><span class="mi" aria-hidden="true">dark_mode</span><span class="theme-toggle__labels">Dark</span></button>
+          <button class="theme-toggle__btn" data-theme-set="light" aria-pressed="false"><span class="mi" aria-hidden="true">light_mode</span><span class="theme-toggle__labels">Light</span></button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Workspace -->
+    <div class="work">
+      <header class="topbar">
+        <button class="btn btn--icon btn--ghost topbar__nav-toggle" id="navToggle" title="Toggle navigation" aria-label="Toggle navigation">
+          <span class="mi" aria-hidden="true">menu_open</span>
+        </button>
+        <div class="topbar__screen-name" id="screenName">Planning</div>
+        <div class="topbar__crumb" id="screenCrumb"></div>
+        <div class="topbar__spacer"></div>
+        <div class="topbar__actions" id="topbarActions"></div>
+      </header>
+
+      <!-- Stage banner (mission screen) -->
+      <div id="stageBannerMount"></div>
+
+      <main class="screen" id="screen-planning" role="tabpanel" aria-label="Planning"></main>
+      <main class="screen" id="screen-mission" role="tabpanel" aria-label="Mission Control" hidden></main>
+      <main class="screen" id="screen-report" role="tabpanel" aria-label="Final Report" hidden></main>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

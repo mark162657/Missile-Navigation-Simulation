@@ -71,6 +71,12 @@ class NavigationComputer:
         self.next_gps = self.gps_period # first GPS fix one period in
         self.next_tercom = self.tercom_period # first TERCOM fix one period in
 
+        # Last-run telemetry (for UI / debugging).
+        self.last_tercom_roughness = 0.0   # stdev (m) of the last terrain-suitability patch
+        self.last_tercom_suitable = False  # was the terrain rough enough last check
+        self.tercom_fix_count = 0          # accepted TERCOM position fixes so far
+        self.gps_fix_count = 0             # accepted GPS position fixes so far
+
     def step(self, imu: IMU, state: MissileState, sim_time: float, dt: float) -> None:
         """
         Update the navigation state with IMU measurements and periodic GPS/TERCOM fixes.
@@ -101,6 +107,7 @@ class NavigationComputer:
             if mea is not None:
                 self._apply_gps_fix(mea, state)
                 state.gps_valid = True
+                self.gps_fix_count += 1
             else:
                 state.gps_valid = False
 
@@ -164,6 +171,7 @@ class NavigationComputer:
         state.tercom_active = matched_lat is not None
 
         if matched_lat is not None:
+            self.tercom_fix_count += 1
             self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl(state.true_alt), state) # msl obtain from baro altimeter
         
     def _is_terrain_suitable(
@@ -193,5 +201,11 @@ class NavigationComputer:
         values = values[np.isfinite(values)] # filter inf
 
         if values.size == 0:
+            self.last_tercom_roughness = 0.0
+            self.last_tercom_suitable = False
             return False
-        return float(np.std(values)) >= self.tercom_roughness_threshold_m
+
+        roughness = float(np.std(values))
+        self.last_tercom_roughness = roughness
+        self.last_tercom_suitable = roughness >= self.tercom_roughness_threshold_m
+        return self.last_tercom_suitable

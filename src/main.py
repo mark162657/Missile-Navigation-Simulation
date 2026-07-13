@@ -80,6 +80,7 @@ class Simulation:
         self.sim_time: float = 0.0
         self.wind: WindField | None = None
         self._result: dict | None = None
+        self._last_control: ControlInput | None = None  # most recent guidance command (telemetry)
 
         self._SEA_LEVEL_M = 0.0
 
@@ -323,6 +324,7 @@ class Simulation:
         dt = self.config.dt if dt is None else dt
 
         control = self._step_guidance(dt) # missile control
+        self._last_control = control
         imu = self._step_physics(control, dt) # physics and imu
         self._step_navigation(imu, dt) # navigation modules
         self._update_stage()
@@ -751,7 +753,7 @@ def setup_mission() -> Simulation:
 
 def main() -> None:
     sim = setup_mission()
-    sim.run(20)
+    sim.run(None)
 
 
 if __name__ == "__main__":
