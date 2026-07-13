@@ -44,7 +44,6 @@ class TerminalGuidance:
     def __init__(
             self,
             profile: MissileProfile,
-            state: MissileState,
             target: TargetGeometry,
             impact_angle_deg: float,
             approach_azimuth_rad: float,
@@ -53,7 +52,6 @@ class TerminalGuidance:
             horizontal_nav_ratio:float=2.0
     ):
         self.profile = profile
-        self.state = state
         self.target = target
         self.theta_mf = math.radians(impact_angle_deg)
         self.r_size_factor = terminal_dist_size_factor
@@ -71,7 +69,8 @@ class TerminalGuidance:
         Eq. 41
         """
         v_cruise = self.profile.basic.cruise_speed_ms
-        r_min = 2 * v_cruise ** 2 * abs(math.sin(self.theta_mf)) / self.accel_max
+        accel_max = self.profile.get_max_lateral_acceleration()
+        r_min = 2 * v_cruise ** 2 * abs(math.sin(self.theta_mf)) / accel_max
 
         # size factor to allow earlier pull up to prevent entering terminal guidance at last minimum
         return self.r_size_factor * r_min
@@ -81,7 +80,7 @@ class TerminalGuidance:
         """
         return self.target.direct_3d_distance(state) <= self.init_range
 
-    def update(self, state: MissileState,):
+    def update(self, state: MissileState):
         los = self._los_angle(state)
         theta_m = state.get_flight_path_angle()
         speed = max(state.get_ground_speed(), 1e-3)

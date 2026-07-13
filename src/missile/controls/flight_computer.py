@@ -21,7 +21,7 @@ class FlightComputer:
             lookahead_dist: float=300.0
     ):
         self.path_follower = PathFollower(trajectory, profile, coordinate, lookahead_dist=lookahead_dist)
-        self.terminal = TerminalGuidance(target, profile, impact_angle_deg, approach_azimuth_rad)
+        self.terminal = TerminalGuidance(profile, target, impact_angle_deg, approach_azimuth_rad)
         self.autopilot = AutoPilot(profile)
         self.terminal_latched = False
 
@@ -44,7 +44,7 @@ class FlightComputer:
         """Handle the reset of the autopilot during transition of guidance stage from Cruise -> Terminal"""
         if self.terminal_latched:
             return FlightStage.TERMINAL
-        if state.missile_stage == FlightStage.CRUISE and self.terminal.should_engage(state):
+        if state.missile_stage == FlightStage.CRUISE and self.terminal.engage_terminal(state):
             self.terminal_latched = True
             self._reset()
             return FlightStage.TERMINAL
@@ -57,7 +57,7 @@ class FlightComputer:
 
     def _step_terminal(self, state: MissileState, dt: float) -> ControlInput:
         """Updating the terminal guidance and then returning the control input"""
-        cmd = self.terminal.update(state, dt)
+        cmd = self.terminal.update(state)
         throttle = self._speed_throttle(state, cmd.target_spd, dt)
         return ControlInput(throttle=throttle, accel_turn=cmd.accel_turn, accel_climb=cmd.accel_climb)
 
