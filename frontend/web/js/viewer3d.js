@@ -256,6 +256,8 @@ class MeshBuilder {
 const R = 0.26;                              // fuselage radius (0.52 m diameter)
 const NOSE = 2.90, TAIL = -2.66;             // 5.56 m airframe
 const BOOST_TAIL = -3.74, NOZZLE_X = -3.96;  // Mk-111 booster aft of the airframe
+const BOOST_CENTER = (TAIL + NOZZLE_X) / 2;  // booster mid-point in body coords
+const DRAG_TAU = 2.2;                        // spent-casing horizontal drag time constant (s)
 const BODY_COL = [0.78, 0.80, 0.84];
 const DARK_COL = [0.30, 0.31, 0.34];
 
@@ -326,6 +328,10 @@ export class Viewer3D {
 
     this.cam = { az: -0.7, el: 0.42, dist: 2600, target: [0, 0, 0] };
     this.vExag = 3;
+    // Fixed world-space model exaggeration (drawn length = 5.56 m × this). Static,
+    // so the model behaves like a real object: bigger when you zoom in, smaller
+    // when you zoom out — it no longer rescales itself with camera distance.
+    this.modelScale = 45;
     this.follow = true;
     this.showTerrain = true;
     this.detach = null;    // booster separation: { t, pos, f, r, u }
@@ -423,17 +429,28 @@ export class Viewer3D {
   setPlan(traj) { this.plan = traj && traj.length ? traj.map((p) => this._world(p[0], p[1], p[2])) : null; this._dirty = true; }
   resetPath() { this.path = []; this.detach = null; this.boom = null; this.smoke = []; this._dirty = true; }
 
+  // A trail point stores the true position (p) AND the terrain-clamped position
+  // the model is actually drawn at (pd) — the trail is rendered with pd so it
+  // always emanates from the model instead of running below it wherever the
+  // oversized model had to be lifted clear of the terrain mesh.
+  _pathEntry(frame) {
+    const t = frame.true;
+    const w = this._world(t.lat, t.lon, t.alt);
+    const { f } = this._attitudeBasis(frame);
+    const aft = frame.stage === "BOOST" ? -NOZZLE_X : -TAIL;
+    const pd = this._drawnPos(w, f, this._modelScale(), aft);
+    const ground = t.ground_alt != null ? this._world(t.lat, t.lon, t.ground_alt) : [w[0], w[1], 0];
+    return { p: w, pd, ground, stage: frame.stage };
+  }
   pushFrame(frame) {
     const prev = this.frame;
     this.frame = frame;
-    const t = frame.true;
-    const w = this._world(t.lat, t.lon, t.alt);
-    const ground = t.ground_alt != null ? this._world(t.lat, t.lon, t.ground_alt) : [w[0], w[1], 0];
-    this.path.push({ p: w, ground, stage: frame.stage });
+    const entry = this._pathEntry(frame);
+    this.path.push(entry);
     if (frame.stage === "BOOST") this._emitSmoke(prev, frame);
     if (prev && prev.stage === "BOOST" && frame.stage !== "BOOST") this._markDetach(frame);
     if (prev && prev.stage !== "IMPACT" && frame.stage === "IMPACT") this._markBoom(frame);
-    if (this.follow) this.cam.target = w;
+    if (this.follow) this.cam.target = entry.p;
     this._dirty = true;
   }
   setPathFrames(frames) {
@@ -441,9 +458,8 @@ export class Viewer3D {
     this.detach = null; this.boom = null; this.smoke = [];
     let prev = null;
     for (const f of frames) {
-      const t = f.true;
-      this.path.push({ p: this._world(t.lat, t.lon, t.alt), ground: t.ground_alt != null ? this._world(t.lat, t.lon, t.ground_alt) : null, stage: f.stage });
       this.frame = f;
+      this.path.push(this._pathEntry(f));
       if (f.stage === "BOOST") this._emitSmoke(prev, f);
       if (prev && prev.stage === "BOOST" && f.stage !== "BOOST") this._markDetach(f);
       if (prev && prev.stage !== "IMPACT" && f.stage === "IMPACT") this._markBoom(f);
@@ -455,8 +471,13 @@ export class Viewer3D {
   _markDetach(frame) {
     const t = frame.true;
     const { f, r, u } = this._attitudeBasis(frame);
-    const pos = this._drawnPos(this._world(t.lat, t.lon, t.alt), f, this._modelScale(), -NOZZLE_X);
-    this.detach = { t: frame.t, pos, f, r, u };
+    const k = this._modelScale();
+    // The casing separates from the booster's own centre (aft of the airframe),
+    // carrying the missile's velocity at that instant.
+    const cg = this._drawnPos(this._world(t.lat, t.lon, t.alt), f, k, -NOZZLE_X);
+    const pos = add(cg, scale(f, BOOST_CENTER * k));
+    const vel = [frame.vel.east || 0, frame.vel.north || 0, frame.vel.up || 0];
+    this.detach = { t: frame.t, pos, f, r, u, vel };
   }
   _markBoom(frame) {
     const t = frame.true;
@@ -583,14 +604,14 @@ export class Viewer3D {
     return { f, r, u };
   }
 
-  _modelScale() { return clamp(this.cam.dist * 0.035, 10, 500); }
+  _modelScale() { return this.modelScale; }
 
   // Continuous redraws only while something is visibly animating.
   _animating() {
     const f = this.frame;
     if (!f) return false;
     if (f.stage === "BOOST") return true;
-    if (this.detach && f.t - this.detach.t < 6.5) return true;
+    if (this.detach && f.t - this.detach.t < 10.5) return true;
     if (this.boom && f.t - this.boom.t < 4) return true;
     if (this.smoke.length && f.t - this.smoke[this.smoke.length - 1].t0 < SMOKE_LIFE + 1) return true;
     return false;
@@ -780,26 +801,40 @@ export class Viewer3D {
       }
     }
 
-    // separated booster: recede aft, ballistic drop, tumble, land, fade
+    // Separated booster: a spent casing on a ballistic arc. It keeps the
+    // missile's velocity at separation, bleeds horizontal speed to drag
+    // (v ∝ e^{-t/τ}), falls under gravity, pitches over about its own centre,
+    // and stays where it lands.
     if (this.detach && stage !== "BOOST") {
       const dt = frame.t - this.detach.t;
-      if (dt >= 0 && dt < 6) {
+      if (dt >= 0 && dt < 10) {
         const d = this.detach;
-        // freeze the fall (and tumble) once the drop reaches the ground
-        let dtEff = dt;
+        const [ve, vn, vu] = d.vel;
+        // time until the casing reaches the ground (real metres; world z is ×vExag)
         const gzB = this._groundZAt(d.pos[0], d.pos[1]);
+        let tLand = Infinity;
         if (gzB != null) {
-          const maxDrop = Math.max(0, d.pos[2] - (gzB + 0.45 * k));
-          dtEff = Math.min(dt, Math.sqrt((2 * maxDrop) / (G * this.vExag)));
+          const h = Math.max(0, d.pos[2] - (gzB + 0.45 * k)) / this.vExag;
+          tLand = (vu + Math.sqrt(vu * vu + 2 * G * h)) / G;
         }
-        const drop = 0.5 * G * dtEff * dtEff * this.vExag;
-        const bpos = add(d.pos, add(scale(d.f, -Math.max(25, 0.30 * k) * dtEff), [0, 0, -drop]));
-        const a = dtEff * 2.3, ca = Math.cos(a), sa = Math.sin(a);
+        const te = Math.min(dt, tLand);
+        const hf = DRAG_TAU * (1 - Math.exp(-te / DRAG_TAU)); // ∫₀ᵗ e^{-s/τ} ds
+        const bpos = [
+          d.pos[0] + ve * hf,
+          d.pos[1] + vn * hf,
+          d.pos[2] + (vu * te - 0.5 * G * te * te) * this.vExag,
+        ];
+        // pitch-over about the casing's own centre (mesh is modelled aft of the
+        // body origin, so rotate about BOOST_CENTER, not the distant origin)
+        const a = 1.5 * te, ca = Math.cos(a), sa = Math.sin(a);
         const f2 = add(scale(d.f, ca), scale(d.u, sa));
         const u2 = sub(scale(d.u, ca), scale(d.f, sa));
+        const recenter = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -BOOST_CENTER, 0, 0, 1]);
+        const M = m4mul(m4basis(bpos, f2, d.r, u2, k), recenter);
+        const alpha = dt < 6 ? 1 : clamp(1 - (dt - 6) / 4, 0, 1);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        this._setMesh(gl, mu, m4basis(bpos, f2, d.r, u2, k), { alpha: clamp(1 - dt / 6, 0, 1), spec: 0.4 });
+        this._setMesh(gl, mu, M, { alpha, spec: 0.4 });
         draw(this.meshBooster);
         gl.disable(gl.BLEND);
       }
@@ -993,16 +1028,17 @@ export class Viewer3D {
 
     if (this.path.length >= 2) {
       const colFor = (s) => s === "BOOST" ? (cssVar("--c-boost") || "#b48cff") : (s === "TERMINAL" || s === "IMPACT") ? (cssVar("--c-terminal") || "#ff5a52") : (cssVar("--c-actual") || "#39d98a");
+      const at = (e) => e.pd || e.p;   // model-aligned point (pd baked at push time)
       const last = this.path[this.path.length - 1];
-      if (last.ground) this._poly(ctx, [last.p, last.ground], cssVar("--instr-ink-dim") || "#7f8ba6", 0.8);
+      if (last.ground) this._poly(ctx, [at(last), last.ground], cssVar("--instr-ink-dim") || "#7f8ba6", 0.8);
       // Draw segment-by-segment, carrying the boundary point into the next stage's
       // segment so the coloured path has no gaps at stage transitions.
-      let seg = [this.path[0].p], cur = this.path[0].stage;
+      let seg = [at(this.path[0])], cur = this.path[0].stage;
       for (let i = 1; i < this.path.length; i++) {
-        seg.push(this.path[i].p);
+        seg.push(at(this.path[i]));
         if (this.path[i].stage !== cur || i === this.path.length - 1) {
           this._poly(ctx, seg, colFor(cur), 2.4, true);
-          seg = [this.path[i].p]; cur = this.path[i].stage;
+          seg = [at(this.path[i])]; cur = this.path[i].stage;
         }
       }
     }
