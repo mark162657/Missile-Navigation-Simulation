@@ -64,14 +64,14 @@ class TerminalGuidance:
         in the case of λh > 2 the required turn-ing acceleration of the vehicle is approaching zero near the final point
         """
         self.h_nav_ratio = horizontal_nav_ratio
+        self.accel_max = self.profile.get_max_lateral_acceleration()
 
     def terminal_init_range(self) -> float:
         """
         Eq. 41
         """
         v_cruise = self.profile.basic.cruise_speed_ms
-        accel_max = self.profile.get_max_lateral_acceleration()
-        r_min = 2 * v_cruise ** 2 * abs(math.sin(self.theta_mf)) / a_max
+        r_min = 2 * v_cruise ** 2 * abs(math.sin(self.theta_mf)) / self.accel_max
 
         # size factor to allow earlier pull up to prevent entering terminal guidance at last minimum
         return self.r_size_factor * r_min
@@ -162,8 +162,7 @@ class TerminalGuidance:
         """
         theta = los
         a_n = (v_inst / t_go) * (-6 * theta + 4 * theta_m + 2 * self.theta_mf)
-        accel_max = self.profile.get_max_lateral_acceleration()
-        a_n = float(np.clip(a_n, -accel_max, accel_max))
+        a_n = float(np.clip(a_n, -self.accel_max, self.accel_max))
 
         # Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
         # a_n is the guidance normal accel; per the paper EOM V*gamma_m_dot = -a_n,
@@ -177,7 +176,7 @@ class TerminalGuidance:
         """
 
         """
-        curr_east, curr_north = CoordinateSystem.latlong_to_enu(state.est_lat, state.est_lon)
+        curr_east, curr_north = self.target.coord.latlong_to_enu(state.est_lat, state.est_lon)
         target_east, target_north = float(self.target.target_enu[0]), float(self.target.target_enu[1])
 
         # missile -> target bearing
@@ -185,8 +184,8 @@ class TerminalGuidance:
         # target -> missile bearing
         target_missile_los = CoordinateSystem.enu_bearing(target_east, target_north, curr_east, curr_north)
 
-        hdg_error = missile_target_los - state.yaw # eq 1b
-        r_h = max(self.target.get_ground_distance(state), 1e-3) # replaced eq 1a
+        hdg_error = self._wrap_pi(missile_target_los - state.yaw) # eq 1b
+        r_h = max(self.target.direct_ground_distance(state), 1e-3) # replaced eq 1a
         v_h = state.get_horizontal_speed()
         nav_ratio = self._navigation_ratio(state.yaw, target_missile_los)
 
@@ -197,9 +196,8 @@ class TerminalGuidance:
 
         # acceleration = rate * speed
         a_turn = hdg_rate * v_h
-        accel_max = self.profile.get_max_lateral_acceleration()
 
-        return float(np.clip(a_turn, -accel_max, accel_max))
+        return float(np.clip(a_turn, -self.accel_max, self.accel_max))
 
 
 
@@ -218,12 +216,12 @@ class TerminalGuidance:
         hdg_shift = self._wrap_pi(heading - ox_axis)
         los_shift = self._wrap_pi(los - ox_axis)
 
-        if abs(hdg_shift) < 1e-3:
+        if abs(los_shift) < 1e-3:
             return self.h_nav_ratio
 
         # main formula for navigation ratio (lambda_h), eq5
-        nav_ratio = (math.copysign(los_shift, math.pi) + hdg_shift) / los_shift
-        return max(nav_ratio, self.h_nav_ratio) # clamp nav ratio to at least h_nav_ratio (3 by default)
+        nav_ratio = (math.copysign(math.pi, los_shift) + hdg_shift) / los_shift
+        return max(nav_ratio, self.h_nav_ratio) # clamp nav ratio to at least h_nav_ratio (2.0 by default)
 
     def _wrap_pi(self, angle_rad: float) -> float | int:
         return (angle_rad + math.pi) % (2.0 * math.pi) - math.pi
