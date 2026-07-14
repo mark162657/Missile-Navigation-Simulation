@@ -31,7 +31,7 @@ class MissileState:
     Attitude (radians, matches INS):
         roll, pitch, yaw
 
-    The INS never reads true_lat/true_lon/true_alt. The simulation feeds truth
+    The ㄊINS never reads true_lat/true_lon/true_alt. The simulation feeds truth
     to sensor models (GPS, radar altimeter, TERCOM), which return noisy
     measurements to the nav computer.
 
