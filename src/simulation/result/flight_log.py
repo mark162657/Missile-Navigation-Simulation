@@ -173,7 +173,9 @@ class FlightLogger:
         pos_error_m = math.hypot(north_err, east_err)
 
         ground_speed = math.hypot(s.vel_east, s.vel_north)
-        flight_path_angle = math.degrees(math.atan2(s.vel_up, ground_speed)) if ground_speed else 0.0
+        # Keep vertical launch telemetry vertical: atan2(up, 0) is ±90°, while
+        # the old fallback incorrectly labelled it as level flight.
+        flight_path_angle = math.degrees(math.atan2(s.vel_up, ground_speed))
 
         # Terrain under the missile + height above ground (blank if no DEM reading).
         if ground_alt is None or not math.isfinite(ground_alt):

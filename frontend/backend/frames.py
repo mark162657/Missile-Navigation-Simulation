@@ -81,7 +81,10 @@ def frame_from_state(state, sim_time: float, ground_alt: float | None,
                      to_target_m: float | None) -> dict:
     """Build a telemetry frame from a live MissileState (live_runner path)."""
     ground_speed = math.hypot(state.vel_east, state.vel_north)
-    fpa = math.degrees(math.atan2(state.vel_up, ground_speed)) if ground_speed else 0.0
+    # atan2 handles a vertical velocity vector correctly (±90 degrees). The
+    # previous zero-ground-speed fallback incorrectly reported vertical boost
+    # as level flight.
+    fpa = math.degrees(math.atan2(state.vel_up, ground_speed))
 
     m_lat = 111_320.0
     m_lon = 111_320.0 * math.cos(math.radians(state.true_lat))

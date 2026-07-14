@@ -429,18 +429,14 @@ export class Viewer3D {
   setPlan(traj) { this.plan = traj && traj.length ? traj.map((p) => this._world(p[0], p[1], p[2])) : null; this._dirty = true; }
   resetPath() { this.path = []; this.detach = null; this.boom = null; this.smoke = []; this._dirty = true; }
 
-  // A trail point stores the true position (p) AND the terrain-clamped position
-  // the model is actually drawn at (pd) — the trail is rendered with pd so it
-  // always emanates from the model instead of running below it wherever the
-  // oversized model had to be lifted clear of the terrain mesh.
+  // Keep the flown trail on the missile's true trajectory. The oversized model
+  // is lifted separately to avoid terrain clipping; baking that visual offset
+  // into the trail makes low-altitude attitude changes look like real motion.
   _pathEntry(frame) {
     const t = frame.true;
-    const w = this._world(t.lat, t.lon, t.alt);
-    const { f } = this._attitudeBasis(frame);
-    const aft = frame.stage === "BOOST" ? -NOZZLE_X : -TAIL;
-    const pd = this._drawnPos(w, f, this._modelScale(), aft);
-    const ground = t.ground_alt != null ? this._world(t.lat, t.lon, t.ground_alt) : [w[0], w[1], 0];
-    return { p: w, pd, ground, stage: frame.stage };
+    const p = this._world(t.lat, t.lon, t.alt);
+    const ground = t.ground_alt != null ? this._world(t.lat, t.lon, t.ground_alt) : [p[0], p[1], 0];
+    return { p, ground, stage: frame.stage };
   }
   pushFrame(frame) {
     const prev = this.frame;
@@ -592,7 +588,9 @@ export class Viewer3D {
   }
 
   _attitudeBasis(frame) {
-    const yaw = (frame.att.yaw || 0) * DEG, pitch = (frame.att.fpa || 0) * DEG, roll = (frame.att.roll || 0) * DEG;
+    // Body attitude controls model orientation. Flight-path angle describes the
+    // velocity vector and can differ sharply from pitch during vertical launch.
+    const yaw = (frame.att.yaw || 0) * DEG, pitch = (frame.att.pitch || 0) * DEG, roll = (frame.att.roll || 0) * DEG;
     const f = norm([Math.cos(pitch) * Math.sin(yaw), Math.cos(pitch) * Math.cos(yaw), Math.sin(pitch)]);
     let r = norm(cross(f, [0, 0, 1]));
     let u = cross(r, f);
@@ -1028,7 +1026,7 @@ export class Viewer3D {
 
     if (this.path.length >= 2) {
       const colFor = (s) => s === "BOOST" ? (cssVar("--c-boost") || "#b48cff") : (s === "TERMINAL" || s === "IMPACT") ? (cssVar("--c-terminal") || "#ff5a52") : (cssVar("--c-actual") || "#39d98a");
-      const at = (e) => e.pd || e.p;   // model-aligned point (pd baked at push time)
+      const at = (e) => e.p;
       const last = this.path[this.path.length - 1];
       if (last.ground) this._poly(ctx, [at(last), last.ground], cssVar("--instr-ink-dim") || "#7f8ba6", 0.8);
       // Draw segment-by-segment, carrying the boundary point into the next stage's

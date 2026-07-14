@@ -14,7 +14,7 @@ from simulation.physics import atmosphere
 
 _G = 9.80665 # gravity m/s
 _K_H = 0.5 # 1/s, scaling factor of converting altitude error to V/S command
-_VS_MAX = 15 # maximum vertical speed cap m/s
+_VS_MAX = 25 # maximum vertical speed cap m/s
 
 class AutoPilot:
     def __init__(self, profile: MissileProfile):
