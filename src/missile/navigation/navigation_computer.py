@@ -7,7 +7,6 @@ from missile.navigation.gps import GPS
 from missile.navigation.ins import INS
 from missile.state import MissileState
 from simulation.sensors.baro_altimeter import BaroAltimeter
-from simulation.sensors.radar_altimeter import RadarAltimeter
 from simulation.sensors.imu import IMU
 from terrain.dem_loader import DEMLoader
 
@@ -41,7 +40,6 @@ class NavigationComputer:
 
         # Initialise baro altimeter for msl height
         self.baro_alt = BaroAltimeter()
-        self.radar_alt = RadarAltimeter()
 
         # Set the update freq
         self.gps_period = 1.0 / gps_freq_hz
@@ -138,12 +136,11 @@ class NavigationComputer:
             self,
             matched_lat: float,
             matched_lon: float,
-            radar_alt_agl: float,
-            state: MissileState,
-            baro_alt_msl: float=None
+            baro_alt_msl: float,
+            state: MissileState
     ) -> None:
         """Fuse TERCOM's lat/lon coordinate with altitude (MSL) from BarAltimeter. Turn 2D -> 3D (with alt)"""
-        self.KF.update([float(matched_lat), float(matched_lon), float(radar_alt_agl)], sensor_type="TERCOM")
+        self.KF.update([float(matched_lat), float(matched_lon), float(baro_alt_msl)], sensor_type="TERCOM")
         self._sync_kf_to_ins_and_state(state)
 
     # --- TERCOM RELATED ---
@@ -173,14 +170,9 @@ class NavigationComputer:
 
         state.tercom_active = matched_lat is not None
 
-        true_dem_elev = self.dem_loader.get_elevation(true_lat, true_lon)
         if matched_lat is not None:
             self.tercom_fix_count += 1
-            self._apply_tercom_fix(matched_lat, matched_lon,
-                                   self.radar_alt.get_altimeter_agl(
-                                       state.true_alt,
-                                       true_dem_elev),
-                                   state) # msl obtain from baro altimeter
+            self._apply_tercom_fix(matched_lat, matched_lon, self.baro_alt.get_baro_msl(state.true_alt), state) # msl obtain from baro altimeter
         
     def _is_terrain_suitable(
             self,
