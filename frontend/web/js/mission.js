@@ -119,6 +119,13 @@ export class MissionScreen {
             onClick: (e) => { this.monTab = t; Array.from(tabbar.children).forEach((b) => b.setAttribute("aria-selected", String(b === e.currentTarget))); this._renderMonitor(); } })));
         this.monTab = "Navigation";
         body.append(tabbar, this.monBody);
+        // Live telemetry rebuilds this panel ~10×/s; a full rebuild mid-click
+        // destroys the <details> summary before the toggle fires, so diagnostics
+        // won't expand during flight. Pause the per-frame rebuild while the pointer
+        // is over the panel (so clicks / scrolls land), then refresh on leave.
+        this._monHover = false;
+        this.monBody.addEventListener("pointerenter", () => { this._monHover = true; });
+        this.monBody.addEventListener("pointerleave", () => { this._monHover = false; this._renderMonitor(); });
         this._renderMonitor();
       } });
   }
@@ -303,7 +310,9 @@ export class MissionScreen {
     this.map.setInfo(`ALT <b>${nf(frame.true.alt)}</b> m · SPD <b>${nf(frame.vel.ground_speed)}</b> m/s`);
     this.viewHud.innerHTML = `HDG <b>${nf(frame.att.yaw)}</b>° · FPA <b>${nf(frame.att.fpa, 1)}</b>°<br>AGL <b>${frame.true.agl != null ? nf(frame.true.agl) : "—"}</b> m`;
 
-    this._renderMonitor(frame);
+    // Skip the rebuild while the operator is reading / expanding the monitor
+    // (see _buildMonitor); it refreshes to the latest frame on pointer-leave.
+    if (!this._monHover) this._renderMonitor(frame);
   }
 
   // --- monitor tabs ---------------------------------------------------------
