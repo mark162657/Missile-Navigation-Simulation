@@ -133,17 +133,86 @@ class FlightSequencer:
         self._launch_pitch = _LAUNCH_PITCH[launch_mode]
         self._elapsed = 0.0  # time since boost ignition, s
 
+        # The pitch-over target is limited by what the booster can actually hold
+        # up (see _thrust_limited_pitchover): commanding a shallower attitude
+        # than thrust/weight can support makes the missile sink while still
+        # boosting. Floor the handoff pitch and widen the pitch-over altitude
+        # band accordingly so boost hands off to cruise climbing, never sinking.
+        eff_handoff, eff_h_pitch = self._thrust_limited_pitchover(profile)
+
         # Closed-loop boost guidance (missile.guidance): vertical pitch-over +
         # lateral trajectory intercept. Replaces the old open-loop smoothstep.
         self.boost_guidance = BoostGuidance(
             specs=BoostGuidanceSpecs(
                 gamma_launch=self._launch_pitch,
-                gamma_handoff=self.handoff_pitch,
+                gamma_handoff=eff_handoff,
+                H_pitch=eff_h_pitch,
             ),
             coordinate=coordinate,
             trajectory=trajectory,
             cruise_heading_rad=self.cruise_heading,
         )
+
+    # ------------------------------------------------------------------
+    # Thrust-limited pitch-over sizing
+    # ------------------------------------------------------------------
+    def _thrust_limited_pitchover(
+        self, profile: "MissileProfile | None"
+    ) -> tuple[float, float]:
+        """
+        Size the boost pitch-over to the booster's actual thrust/weight.
+
+        Steady climb needs the vertical thrust component to at least carry the
+        weight, i.e. pitch >= asin(1 / (T/W)). A solid booster in this class runs
+        a fairly low T/W (~1.7-1.9), so a near-level handoff (a few degrees) is
+        physically unsupportable: as soon as the schedule pitches below the
+        weight-support angle the vertical thrust drops under gravity, climb rate
+        bleeds off, and the missile can sink into the ground before burnout.
+
+        Returns (gamma_handoff, H_pitch):
+            gamma_handoff : the requested handoff pitch, floored at the
+                            weight-support angle plus a small climb margin so
+                            boost hands off to cruise still climbing.
+            H_pitch       : the altitude band over which the pitch-over
+                            completes, modestly widened so the (steeper)
+                            pitch-over eases out rather than snapping to the
+                            handoff angle.
+
+        With no profile (booster mass known, airframe mass unknown) the requested
+        handoff and the default band are returned unchanged.
+        """
+        requested = self.handoff_pitch
+        default_band = BoostGuidanceSpecs.H_pitch
+        if profile is None:
+            return requested, default_band
+
+        g0 = 9.80665
+        spec = self.booster.spec
+        # Mean vehicle mass over the burn: airframe (+ cruise fuel, unburned
+        # during boost) plus the booster casing and, on average, half its
+        # propellant (propellant burns roughly linearly to zero).
+        airframe = float(profile.detailed.mass_kg)
+        mean_mass = airframe + spec.casing_mass_kg + 0.5 * spec.propellant_mass_kg
+        weight = mean_mass * g0
+        thrust = float(spec.booster_thrust_N)
+
+        if thrust <= weight:
+            # T/W <= 1: the booster cannot even hold weight at any pitch. Keep the
+            # schedule near-vertical (best effort) and let the widened band apply.
+            support_pitch = math.radians(80.0)
+        else:
+            support_pitch = math.asin(weight / thrust)
+
+        # Small positive reserve so the handoff climbs gently rather than sitting
+        # exactly neutral.
+        floor = support_pitch + math.radians(3.0)
+        gamma_handoff = max(requested, floor)
+
+        # Modestly widen the band so the (now steeper) pitch-over eases out
+        # toward the handoff instead of snapping to it; capped so the missile
+        # still pitches over well within the burn rather than climbing vertically.
+        band = default_band * 1.5
+        return gamma_handoff, band
 
     # ------------------------------------------------------------------
     # Queries (read-only; called by dynamics at the start of a step)

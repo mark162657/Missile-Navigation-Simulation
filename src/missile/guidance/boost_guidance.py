@@ -69,7 +69,7 @@ class BoostGuidanceSpecs:
     gamma_launch: float
     gamma_handoff: float
 
-    H_pitch: float = 150.0
+    H_pitch: float = 250.0
     v_min: float = 15.0
     theta_rate_max: float = math.radians(40.0)
     lookahead_dist: float = 500.0

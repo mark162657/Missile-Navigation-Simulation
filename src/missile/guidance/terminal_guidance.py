@@ -205,12 +205,12 @@ class TerminalGuidance:
         """
 
         Define:
-            - ox_axis: a reference direction, opposite of the final approach heading
+            ox_axis: a reference direction, opposite of the final approach heading
                 e.g. E 90 -> W 270
 
         Args:
             heading: the heading of the missile
-
+            los: the line-of-sight angle from target to missile
         """
         ox_axis = self._wrap_pi(self.approach_az_rad - math.pi)
         hdg_shift = self._wrap_pi(heading - ox_axis)
@@ -224,6 +224,12 @@ class TerminalGuidance:
         return max(nav_ratio, self.h_nav_ratio) # clamp nav ratio to at least h_nav_ratio (2.0 by default)
 
     def _wrap_pi(self, angle_rad: float) -> float | int:
+        """
+        Wrap an angle difference to [-pi, pi].
+
+        Args:
+            angle_rad: angle in radians
+        """
         return (angle_rad + math.pi) % (2.0 * math.pi) - math.pi
 
 
