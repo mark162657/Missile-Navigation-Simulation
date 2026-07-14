@@ -173,9 +173,14 @@ class NavigationComputer:
 
         state.tercom_active = matched_lat is not None
 
+        true_dem_elev = self.dem_loader.get_elevation(true_lat, true_lon)
         if matched_lat is not None:
             self.tercom_fix_count += 1
-            self._apply_tercom_fix(matched_lat, matched_lon, self.radar_alt.get_altimeter_agl(state.true_alt), state) # msl obtain from baro altimeter
+            self._apply_tercom_fix(matched_lat, matched_lon,
+                                   self.radar_alt.get_altimeter_agl(
+                                       state.true_alt,
+                                       true_dem_elev),
+                                   state) # msl obtain from baro altimeter
         
     def _is_terrain_suitable(
             self,

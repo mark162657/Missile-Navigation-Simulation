@@ -26,7 +26,6 @@ class RadarAltimeter:
         Return:
             The altitude above ground in meters, with noise.
         """
-
         agl = true_curr_agl - true_dem_elev
 
         # Add Gaussian noise
