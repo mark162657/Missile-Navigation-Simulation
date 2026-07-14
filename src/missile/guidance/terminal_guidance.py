@@ -183,10 +183,12 @@ class TerminalGuidance:
         # target -> missile bearing
         target_missile_los = CoordinateSystem.enu_bearing(target_east, target_north, curr_east, curr_north)
 
-        hdg_error = self._wrap_pi(missile_target_los - state.yaw) # eq 1b
+        ground_track = math.atan2(state.vel_east, state.vel_north)
+        hdg_error = self._wrap_pi(missile_target_los - ground_track) # eq1b
+
         r_h = max(self.target.direct_ground_distance(state), 1e-3) # replaced eq 1a
         v_h = state.get_horizontal_speed()
-        nav_ratio = self._navigation_ratio(state.yaw, target_missile_los)
+        nav_ratio = self._navigation_ratio(ground_track, target_missile_los)
 
         los_rate = (v_h / r_h) * math.sin(hdg_error)
 
@@ -197,7 +199,6 @@ class TerminalGuidance:
         a_turn = hdg_rate * v_h
 
         return float(np.clip(a_turn, -self.accel_max, self.accel_max))
-
 
 
     def _navigation_ratio(self, heading: float, los: float) -> float:
