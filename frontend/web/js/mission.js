@@ -27,6 +27,7 @@ export class MissionScreen {
     this.wind = null;
     this.missileLabel = "TLAM-01";
     this.viewFactor = 1;     // sim-seconds per real-second for the live view (1 = real time)
+    this.monDetailOpen = new Map();
   }
 
   activate() {
@@ -308,6 +309,11 @@ export class MissionScreen {
   // --- monitor tabs ---------------------------------------------------------
   _renderMonitor(frame = this.player?.current) {
     if (!this.monBody) return;
+    // Live telemetry rebuilds this panel every frame. Capture native <details>
+    // state before clearing it so operator-expanded diagnostics stay usable.
+    for (const node of this.monBody.querySelectorAll(".mon-details[data-detail-key]")) {
+      this.monDetailOpen.set(node.dataset.detailKey, node.open);
+    }
     clear(this.monBody);
     if (!frame) { this.monBody.append(state("monitoring", "No telemetry", this.app.store.plan ? "Press Launch to fly the armed route." : "Plan a route, then launch.")); return; }
     if (this.monTab === "Navigation") this._monNav(frame);
@@ -357,7 +363,7 @@ export class MissionScreen {
           ["3-D velocity σ", `${nf(k.vel_sigma_3d_ms, 3)} m/s`],
           ["Process noise σ", `${nf(k.process_noise_std, 3)}`],
         ]),
-      ], true));
+      ], true, this.monDetailOpen));
     }
 
     // Live-only expandable detail: TERCOM contour-matching internals.
@@ -377,7 +383,7 @@ export class MissionScreen {
           ["Update rate", t.period_s ? `${nf(1 / t.period_s, 1)} Hz` : "—"],
           ["Matched position", matched],
         ]),
-      ]));
+      ], false, this.monDetailOpen));
     }
     if (n) {
       this.monBody.append(details("GPS · INS timing", kvRows([
@@ -385,7 +391,7 @@ export class MissionScreen {
         ["GPS fixes accepted", `${nf(n.gps_fixes)}`],
         ["INS integration rate", `${nf(1 / n.ins_period_s, 0)} Hz`],
         ["INS distance integrated", n.ins_distance_m != null ? fmtDist(n.ins_distance_m) : "—"],
-      ])));
+      ]), false, this.monDetailOpen));
     }
     if (!t && !n && !k) this.monBody.append(note("Live EKF / TERCOM / GPS internals stream from the simulation; recorded flights log fused state only."));
   }
@@ -429,8 +435,8 @@ export class MissionScreen {
       ]),
     );
 
-    if (c && c.alt_pid) this.monBody.append(pidDetails("Altitude PID · vertical-speed hold", c.alt_pid, "m/s²"));
-    if (c && c.spd_pid) this.monBody.append(pidDetails("Speed PID · throttle", c.spd_pid, ""));
+    if (c && c.alt_pid) this.monBody.append(pidDetails("Altitude PID · vertical-speed hold", c.alt_pid, "m/s²", this.monDetailOpen));
+    if (c && c.spd_pid) this.monBody.append(pidDetails("Speed PID · throttle", c.spd_pid, "", this.monDetailOpen));
     if (!c) this.monBody.append(note("Autopilot / PID output is available on the live simulation stream; recorded telemetry logs kinematic state only."));
   }
 
@@ -470,9 +476,11 @@ function kvRows(rows) {
 }
 
 // A collapsible <details> section with a monospace summary and arbitrary body nodes.
-function details(summaryText, body, open = false) {
-  const d = el("details", { class: "mon-details" });
+function details(summaryText, body, defaultOpen = false, openState = null) {
+  const open = openState?.has(summaryText) ? openState.get(summaryText) : defaultOpen;
+  const d = el("details", { class: "mon-details", dataset: { detailKey: summaryText } });
   if (open) d.setAttribute("open", "");
+  if (openState) d.addEventListener("toggle", () => openState.set(summaryText, d.open));
   d.append(
     el("summary", { class: "mon-details__summary" }, [
       el("span", { class: "mi", text: "chevron_right" }),
@@ -508,7 +516,7 @@ function bar(label, value, min, max, cls = "", digits = 2) {
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 
 // A PID controller detail block: gains, live P/I/D split with bars, and output.
-function pidDetails(title, p, unit) {
+function pidDetails(title, p, unit, openState = null) {
   const u = unit ? ` ${unit}` : "";
   const lo = p.out_min, hi = p.out_max;
   const body = [
@@ -526,5 +534,5 @@ function pidDetails(title, p, unit) {
       ["Output limits", `${nf(p.out_min, 2)} … ${nf(p.out_max, 2)}${u}`],
     ]),
   ];
-  return details(title, body);
+  return details(title, body, false, openState);
 }

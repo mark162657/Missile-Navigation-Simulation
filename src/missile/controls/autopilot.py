@@ -3,6 +3,8 @@ Autopilot serves as an outer layer that calls the PID controller at the bottom o
 It handles mainly altitude and speed, while turn is the job for guidance.
 """
 
+import math
+
 import numpy as np
 import numpy.typing as npt
 
@@ -15,6 +17,9 @@ from simulation.physics import atmosphere
 _G = 9.80665 # gravity m/s
 _K_H = 0.5 # 1/s, scaling factor of converting altitude error to V/S command
 _VS_MAX = 25 # maximum vertical speed cap m/s
+
+# prevents the missile from slamming into the ground (dive angles too sharp) when transition to CRUISE from BOOST
+_MAX_DIVE_ANGLE = math.radians(8.0)
 
 class AutoPilot:
     def __init__(self, profile: MissileProfile):
@@ -68,7 +73,10 @@ class AutoPilot:
 
         # V/S command
         # h_cmd = K_h * Delta_h (altitude error)
-        vs_cmd = max(-_VS_MAX, min(_VS_MAX, _K_H * alt_error)) # outer max() cap the dive, inner min() cap the climb
+
+        # cap the sink, by the smallest of max dive angle's vertical speed or the max vs speed
+        sink_cap = min(_VS_MAX, max(curr_spd, 1.0) * math.tan(_MAX_DIVE_ANGLE)) # tan is used as we use ground speed
+        vs_cmd = max(-sink_cap, min(_VS_MAX, _K_H * alt_error)) # outer max() cap the dive, inner min() cap the climb
 
         # altitude command
         vs_error = vs_cmd - curr_vs

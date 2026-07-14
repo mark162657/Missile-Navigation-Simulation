@@ -122,46 +122,46 @@ class MissileState:
         self.est_lon = float(pos[1])
         self.est_alt = float(pos[2])
 
-    def update_physics(
-        self,
-        dt: float,
-        acceleration: np.ndarray | list[float],
-        yaw_rate: float,
-        *,
-        reference_lat: float | None = None,
-    ) -> None:
-        """
-        Advance simulation ground truth (true_lat, true_lon, true_alt) and kinematics.
-
-        Does **not** modify the navigation estimate (est_lat, est_lon, est_alt).
-        That is owned by INS + Kalman filter. Only the simulation layer calls this.
-                
-        Args:
-            dt: timestep in seconds
-            acceleration: [ax east, ay north, az up] in m/s^2
-            yaw_rate: yaw rate in rad/s
-            reference_lat: latitude for lon scaling; defaults to current true_lat
-        """
-        # We use m/s to get meters moved, then using meter_per_deg_lat/lon_at to get lat/lon change in degrees.
-        acc = np.asarray(acceleration, dtype=float)
-        lat_ref = float(self.true_lat if reference_lat is None else reference_lat)
-        m_lon = coordinates.meter_per_deg_lon_at(lat_ref)
-        m_lat = coordinates.meter_per_deg_lat(lat_ref)
-
-        prev_east = self.vel_east
-        prev_north = self.vel_north
-        prev_up = self.vel_up
-
-        # Integrate truth position in geographic frame.
-        self.true_lat += (prev_north * dt + 0.5 * float(acc[1]) * dt ** 2) / m_lat
-        self.true_lon += (prev_east * dt + 0.5 * float(acc[0]) * dt ** 2) / m_lon
-        self.true_alt += prev_up * dt + 0.5 * float(acc[2]) * dt ** 2
-
-        self.vel_east += float(acc[0]) * dt
-        self.vel_north += float(acc[1]) * dt
-        self.vel_up += float(acc[2]) * dt
-
-        self.yaw = (self.yaw + yaw_rate * dt) % (2 * math.pi)
-
-        self.time += dt
-        self.distance_traveled += self.get_ground_speed() * dt
+    # def update_physics(
+    #     self,
+    #     dt: float,
+    #     acceleration: np.ndarray | list[float],
+    #     yaw_rate: float,
+    #     *,
+    #     reference_lat: float | None = None,
+    # ) -> None:
+    #     """
+    #     Advance simulation ground truth (true_lat, true_lon, true_alt) and kinematics.
+    #
+    #     Does **not** modify the navigation estimate (est_lat, est_lon, est_alt).
+    #     That is owned by INS + Kalman filter. Only the simulation layer calls this.
+    #
+    #     Args:
+    #         dt: timestep in seconds
+    #         acceleration: [ax east, ay north, az up] in m/s^2
+    #         yaw_rate: yaw rate in rad/s
+    #         reference_lat: latitude for lon scaling; defaults to current true_lat
+    #     """
+    #     # We use m/s to get meters moved, then using meter_per_deg_lat/lon_at to get lat/lon change in degrees.
+    #     acc = np.asarray(acceleration, dtype=float)
+    #     lat_ref = float(self.true_lat if reference_lat is None else reference_lat)
+    #     m_lon = coordinates.meter_per_deg_lon_at(lat_ref)
+    #     m_lat = coordinates.meter_per_deg_lat(lat_ref)
+    #
+    #     prev_east = self.vel_east
+    #     prev_north = self.vel_north
+    #     prev_up = self.vel_up
+    #
+    #     # Integrate truth position in geographic frame.
+    #     self.true_lat += (prev_north * dt + 0.5 * float(acc[1]) * dt ** 2) / m_lat
+    #     self.true_lon += (prev_east * dt + 0.5 * float(acc[0]) * dt ** 2) / m_lon
+    #     self.true_alt += prev_up * dt + 0.5 * float(acc[2]) * dt ** 2
+    #
+    #     self.vel_east += float(acc[0]) * dt
+    #     self.vel_north += float(acc[1]) * dt
+    #     self.vel_up += float(acc[2]) * dt
+    #
+    #     self.yaw = (self.yaw + yaw_rate * dt) % (2 * math.pi)
+    #
+    #     self.time += dt
+    #     self.distance_traveled += self.get_ground_speed() * dt
