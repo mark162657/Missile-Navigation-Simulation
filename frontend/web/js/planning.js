@@ -6,6 +6,7 @@ import { el, $, clear, toast, fmtDist, nf, fmtLat, fmtLon } from "./util.js";
 import { api } from "./api.js";
 import { Workspace } from "./widgets.js";
 import { MapPanel } from "./map_panel.js";
+import { terminalPullupGps, MAX_IMPACT_DEG, MIN_IMPACT_DEG, RECOMMENDED_IMPACT_DEG } from "./guidance.js";
 
 const MAX_FLIGHT_TIME_S = 7200; // 2 hr hard ceiling (matches SimulationConfig)
 const DEFAULTS = {
@@ -81,7 +82,7 @@ export class PlanningScreen {
         this.startFields.wire(() => this._readFields("start"));
         this.targetFields.wire(() => this._readFields("target"));
 
-        this.cfgImpact = numInput(DEFAULTS.impact_angle_deg, (v) => (this.state.config.impact_angle_deg = v));
+        this.cfgImpact = numInput(DEFAULTS.impact_angle_deg, (v) => this._onImpactChange(v), { min: -MAX_IMPACT_DEG, max: -MIN_IMPACT_DEG });
         this.cfgDeton = numInput(DEFAULTS.detonation_radius_m, (v) => (this.state.config.detonation_radius_m = v));
         this.cfgWind = numInput(DEFAULTS.wind_speed_ref_ms, (v) => (this.state.config.wind_speed_ref_ms = v));
         this.cfgWindDir = textInput("auto", (v) => (this.state.config.wind_from_deg = v === "" ? null : Number(v)));
@@ -103,8 +104,10 @@ export class PlanningScreen {
             field("Wind from °", this.cfgWindDir),
             field("Max duration (s)", this.cfgMaxDur),
           ]),
+          (this.impactHint = el("p", { class: "hint", style: { marginTop: "2px" } })),
           el("p", { class: "hint", style: { marginTop: "2px" }, text: `Flight is aborted after this many seconds (max ${MAX_FLIGHT_TIME_S}). Defaults to the maximum.` }),
         );
+        this._updateImpactStyle();
       } });
   }
 
@@ -183,6 +186,46 @@ export class PlanningScreen {
     this.state.profile = this.app.store.profiles.find((p) => p.name === name) || null;
     this.profileSelect.value = name;
     this._renderMissile();
+    this._refreshPullup(); // engage range depends on cruise speed + max-g
+  }
+
+  // --- impact angle / terminal pull-up --------------------------------------
+  _onImpactChange(v) {
+    this.state.config.impact_angle_deg = v;
+    this._updateImpactStyle();
+    this._refreshPullup();
+  }
+
+  // Colour the input + hint amber past the recommended angle (still allowed up to
+  // the hard cap the numInput clamps to). Steep dives are energy-marginal.
+  _updateImpactStyle() {
+    if (!this.cfgImpact) return;
+    const v = this.state.config.impact_angle_deg;
+    const mag = v == null ? null : Math.abs(v);
+    const tooSteep = mag != null && mag > RECOMMENDED_IMPACT_DEG;
+    const tooShallow = mag != null && mag < MIN_IMPACT_DEG;
+    const flag = tooSteep || tooShallow;
+    this.cfgImpact.classList.toggle("is-warn", flag);
+    if (this.impactHint) {
+      this.impactHint.classList.toggle("is-warn", flag);
+      this.impactHint.textContent = tooSteep
+        ? `Steeper than the recommended ${RECOMMENDED_IMPACT_DEG}° — energy-marginal dive (hard cap ${MAX_IMPACT_DEG}°).`
+        : tooShallow
+          ? `Shallower than ${MIN_IMPACT_DEG}° skims the target — clamped to ${MIN_IMPACT_DEG}° on launch.`
+          : `Dive angle at impact (negative = nose-down). Usable ${MIN_IMPACT_DEG}–${MAX_IMPACT_DEG}°, recommended ≤ ${RECOMMENDED_IMPACT_DEG}°.`;
+    }
+  }
+
+  // Recompute where terminal guidance engages and mark it on the map. Cleared
+  // (null) until a route, profile, and target are all available.
+  _refreshPullup() {
+    if (!this.map) return;
+    const b = this.state.profile?.basic;
+    const traj = this.state.plan?.trajectory;
+    this._pullupGps = (b && traj && this.state.target)
+      ? terminalPullupGps(b.cruise_speed, b.max_g_force, this.state.config.impact_angle_deg, traj, this.state.target)
+      : null;
+    this.map.setPullup(this._pullupGps);
   }
 
   // --- endpoints ------------------------------------------------------------
@@ -201,13 +244,14 @@ export class PlanningScreen {
     this.state[which] = [lat, lon, alt];
     (which === "start" ? this.startFields : this.targetFields).set(lat, lon, alt);
     if (which === "start") this.map.setStart(this.state.start); else this.map.setTarget(this.state.target);
+    if (which === "target") this._refreshPullup();
     this._refreshActions();
   }
 
   _readFields(which) {
     const f = which === "start" ? this.startFields : this.targetFields;
     const v = f.get();
-    if (v) { this.state[which] = v; if (which === "start") this.map.setStart(v); else this.map.setTarget(v); }
+    if (v) { this.state[which] = v; if (which === "start") this.map.setStart(v); else { this.map.setTarget(v); this._refreshPullup(); } }
   }
 
   // --- rendering panels -----------------------------------------------------
@@ -327,6 +371,7 @@ export class PlanningScreen {
       this.state.plan = res;
       this.map.setPlan(res.trajectory);
       this.map.fitPoints(res.trajectory);
+      this._refreshPullup();
       this.planWpts.textContent = nf(res.waypoints);
       this.planLen.textContent = fmtDist(routeLength(res.trajectory));
       this._refreshActions();
@@ -384,6 +429,7 @@ export class PlanningScreen {
       profile_name: this.state.profile?.name,
       profile: this.state.profile,
       config: { ...this.state.config },
+      pullup_gps: this._pullupGps || null,
     };
     toast("Plan armed — opening Mission Control", "ok");
     this.app.navigateTo("mission");

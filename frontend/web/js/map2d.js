@@ -18,8 +18,9 @@ export class Map2D {
     this.path = [];            // [{lat,lon,stage}]
     this.start = null; this.target = null;
     this.missile = null;       // {lat,lon,yaw,label,stage}
+    this.pullup = null;        // [lat,lon] terminal-guidance engage point
     this.onClick = null;
-    this.layers = { planned: true, flown: true, markers: true };
+    this.layers = { planned: true, flown: true, markers: true, pullup: true };
     this.elevColor = false;
     this._dirty = true;
     this._autoFit = true;      // re-fit on resize until the user pans/zooms
@@ -78,6 +79,7 @@ export class Map2D {
   setPathPoints(pts) { this.path = pts; this._dirty = true; }
   setStart(gps) { this.start = gps; this._dirty = true; }
   setTarget(gps) { this.target = gps; this._dirty = true; }
+  setPullup(gps) { this.pullup = gps; this._dirty = true; }
   setMissile(m) { this.missile = m; this._dirty = true; }
   invalidate() { this._dirty = true; }
 
@@ -157,6 +159,7 @@ export class Map2D {
     const P = (lat, lon) => this._project(lat, lon, d, W, H);
     if (this.layers.planned && this.plan && this.plan.length > 1) this._line(ctx, this.plan.map((p) => P(p[0], p[1])), cssVar("--c-planned"), 2, true, [6, 4]);
     if (this.layers.flown) this._drawPath(ctx, P);
+    if (this.layers.pullup && this.pullup) this._pullup(ctx, P(this.pullup[0], this.pullup[1]));
     if (this.layers.markers && this.start) this._pin(ctx, P(this.start[0], this.start[1]), cssVar("--c-start"), "LAUNCH");
     if (this.layers.markers && this.target) this._pin(ctx, P(this.target[0], this.target[1]), cssVar("--c-target"), "TARGET");
     if (this.missile) this._missile(ctx, P(this.missile.lat, this.missile.lon));
@@ -210,6 +213,21 @@ export class Map2D {
     ctx.beginPath(); ctx.moveTo(x, y - 9); ctx.lineTo(x, y + 9); ctx.moveTo(x - 9, y); ctx.lineTo(x + 9, y); ctx.stroke();
     ctx.font = "9px " + (cssVar("--font-mono") || "monospace");
     ctx.fillText(label, x + 9, y - 7);
+  }
+
+  // Terminal-guidance pull-up point: a dashed ring (distinct from the solid
+  // launch/target crosshairs) so it reads as a computed threshold, not a place.
+  _pullup(ctx, [x, y]) {
+    const color = cssVar("--c-terminal");
+    ctx.save();
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.6;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.font = "9px " + (cssVar("--font-mono") || "monospace");
+    ctx.fillText("PULL-UP", x + 10, y + 3);
+    ctx.restore();
   }
 
   _missile(ctx, [x, y]) {

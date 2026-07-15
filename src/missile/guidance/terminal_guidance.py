@@ -23,6 +23,12 @@ from terrain.coordinates import CoordinateSystem
 
 _G = 9.80665
 
+# steepest impact angle, if over it, the missile will stall during terminal guidance
+# and causing the missile to get deviated from target
+_MAX_IMPACT_ANGLE_DEG = 55.0
+# same deviation will occur if impact angle less than 5 degree
+_MIN_IMPACT_ANGLE_DEG = 5
+
 
 @dataclass
 class TerminalCommand:
@@ -53,7 +59,11 @@ class TerminalGuidance:
     ):
         self.profile = profile
         self.target = target
-        self.theta_mf = math.radians(impact_angle_deg)
+        
+        # clamping impact angle in range of min to max
+        sign = -1.0 if impact_angle_deg <= 0 else 1.0
+        mag = min(_MAX_IMPACT_ANGLE_DEG, max(_MIN_IMPACT_ANGLE_DEG, abs(impact_angle_deg)))
+        self.theta_mf = math.radians(sign * mag)
         self.r_size_factor = terminal_dist_size_factor
         self.init_range = self.terminal_init_range()
         self.t_go_min = t_go_min

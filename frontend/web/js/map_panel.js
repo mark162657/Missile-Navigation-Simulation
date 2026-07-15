@@ -62,7 +62,7 @@ export class MapPanel {
     this.mode = "dem";
     this.basemap = "satellite";
     this.showLabels = false;
-    this.data = { grid: null, plan: null, path: [], start: null, target: null, missile: null };
+    this.data = { grid: null, plan: null, path: [], start: null, target: null, missile: null, pullup: null };
 
     // DOM
     this.canvas = el("canvas");
@@ -145,6 +145,7 @@ export class MapPanel {
   setStart(gps) { this.data.start = gps; this.dem.setStart(gps); this._syncLeafletMarkers(); }
   setTarget(gps) { this.data.target = gps; this.dem.setTarget(gps); this._syncLeafletMarkers(); }
   setMissile(m) { this.data.missile = m; this.dem.setMissile(m); this._syncLeafletMissile(); }
+  setPullup(gps) { this.data.pullup = gps; this.dem.setPullup(gps); this._syncLeafletPullup(); this._renderLegend(); }
   invalidate() { this.dem.invalidate(); }
   setInfo(html) { this.infoHud.innerHTML = html; }
   get grid() { return this.data.grid; }
@@ -187,12 +188,13 @@ export class MapPanel {
       planned: layerToggle("Planned route", true, (on) => { this.dem.setLayer("planned", on); this._syncLeafletVectors(); this._renderLegend(); }),
       flown: layerToggle("Flown path", true, (on) => { this.dem.setLayer("flown", on); this._syncLeafletVectors(); this._renderLegend(); }),
       markers: layerToggle("Markers", true, (on) => { this.dem.setLayer("markers", on); this._syncLeafletMarkers(); this._renderLegend(); }),
+      pullup: layerToggle("Terminal pull-up", true, (on) => { this.dem.setLayer("pullup", on); this._syncLeafletPullup(); this._renderLegend(); }),
     };
     menu.append(
       basemapGroup, this._labelsRow,
       el("div", { class: "map-menu__sep" }),
       el("div", { class: "map-menu__heading", text: "Overlays" }),
-      this._layerMenuItems.planned, this._layerMenuItems.flown, this._layerMenuItems.markers, this._layerMenuItems.elev,
+      this._layerMenuItems.planned, this._layerMenuItems.flown, this._layerMenuItems.markers, this._layerMenuItems.pullup, this._layerMenuItems.elev,
     );
     document.body.append(menu);
     this._menu = menu; this._menuBtn = btn;
@@ -225,6 +227,7 @@ export class MapPanel {
     const items = [];
     const L = this.dem.layers;
     if (L.markers) { items.push(leg("--c-start", "Launch"), leg("--c-target", "Target")); }
+    if (L.pullup && this.data.pullup) items.push(leg("--c-terminal", "Pull-up", true));
     if (L.planned) items.push(leg("--c-planned", "Planned"));
     if (L.flown) items.push(leg("--c-actual", "Flown"));
     if (this.mode === "map") items.push(leg("--c-planned", "DEM area", true));
@@ -279,7 +282,7 @@ export class MapPanel {
   }
   setLabels(on) { this.showLabels = on; this._setLabels(); }
   _syncLeaflet() {
-    this._drawFootprint(); this._syncLeafletVectors(); this._syncLeafletMarkers(); this._syncLeafletMissile();
+    this._drawFootprint(); this._syncLeafletVectors(); this._syncLeafletMarkers(); this._syncLeafletPullup(); this._syncLeafletMissile();
     // Recompute the container size FIRST (it was display:none until now), then fit
     // — otherwise fitBounds runs against a zero-size map and the view/clicks drift.
     requestAnimationFrame(() => { this.map.invalidateSize(); this._leafletFit(); });
@@ -322,6 +325,16 @@ export class MapPanel {
     ["start", "target"].forEach((k) => { if (l[k]) { this.map.removeLayer(l[k]); l[k] = null; } });
     if (show && this.data.start) l.start = pin(L, this.data.start, cssVar("--c-start"), "LAUNCH").addTo(this.map);
     if (show && this.data.target) l.target = pin(L, this.data.target, cssVar("--c-target"), "TARGET").addTo(this.map);
+  }
+  _syncLeafletPullup() {
+    if (!this.map) return;
+    const L = this.L, l = this._layers;
+    if (l.pullup) { this.map.removeLayer(l.pullup); l.pullup = null; }
+    if (this.dem.layers.pullup && this.data.pullup) {
+      const c = cssVar("--c-terminal");
+      l.pullup = L.circleMarker([this.data.pullup[0], this.data.pullup[1]], { radius: 6, color: c, weight: 2, dashArray: "3 3", fill: false })
+        .bindTooltip("PULL-UP", { permanent: true, direction: "right", className: "map-pin-label" }).addTo(this.map);
+    }
   }
   _syncLeafletMissile() {
     if (!this.map) return;

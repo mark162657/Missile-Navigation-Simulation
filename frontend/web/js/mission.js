@@ -12,6 +12,7 @@ import { PFD } from "./pfd.js";
 import { MiniChart } from "./charts.js";
 import { StageBanner } from "./stagebanner.js";
 import { Player } from "./player.js";
+import { terminalPullupGps } from "./guidance.js";
 
 const SPEEDS = [1, 2, 5, 10];
 
@@ -39,6 +40,7 @@ export class MissionScreen {
 
   deactivate() {
     this.player?.pause();
+    if (this._monRaf != null) { cancelAnimationFrame(this._monRaf); this._monRaf = null; }
     // Leaving Mission Control ends any in-flight simulation; the run is marked
     // done so returning shows a Relaunch (not a stuck Abort) button.
     if (this.live) { this.live.stop(); this.live = null; this._planning = false; if (this.runState === "running") this.runState = "done"; }
@@ -53,6 +55,7 @@ export class MissionScreen {
       if (this.live) { this.live.stop(); this.live = null; }
       this._armedPlan = null;
       this.runState = "empty";
+      this.map?.setPullup(null); this.viewer?.setPullup(null);
       this.map?.setInfo("<b>No route armed</b> — plan a mission first");
       this._refreshActions();
       this._renderMonitor(null);
@@ -218,9 +221,22 @@ export class MissionScreen {
     this.viewer.setStart(startGps); this.map.setStart(startGps);
     if (targetGps) { this.viewer.setTarget(targetGps); this.map.setTarget(targetGps); }
     this.map.setPlan(trajectory); this.viewer.setPlan(trajectory);
+    const pullup = this._planPullup(this.app.store.plan, trajectory, targetGps);
+    this.map.setPullup(pullup); this.viewer.setPullup(pullup);
     this.map.resetPath(); this.viewer.resetPath();
     this._lastIdx = -1;
     this.viewer.follow = true; this.viewer.resetView(); this._fitMap();
+  }
+
+  // Terminal pull-up point for the map: prefer the value computed at plan time,
+  // else derive it from the armed plan's profile + impact angle (mirrors the
+  // planner). Static per plan — the engage range depends only on config.
+  _planPullup(plan, trajectory, targetGps) {
+    if (!plan) return null;
+    if (plan.pullup_gps) return plan.pullup_gps;
+    const b = plan.profile?.basic;
+    if (!b || !trajectory || !targetGps) return null;
+    return terminalPullupGps(b.cruise_speed, b.max_g_force, plan.config?.impact_angle_deg, trajectory, targetGps);
   }
 
   _setPlayer(player) {
@@ -312,7 +328,22 @@ export class MissionScreen {
 
     // Skip the rebuild while the operator is reading / expanding the monitor
     // (see _buildMonitor); it refreshes to the latest frame on pointer-leave.
-    if (!this._monHover) this._renderMonitor(frame);
+    if (!this._monHover) this._scheduleMonitor(frame);
+  }
+
+  // Coalesce the monitor rebuild to at most one per animation frame. Live frames
+  // arrive ~10×/s (more at higher view speeds) and each rebuild tears down and
+  // recreates the whole panel; doing that synchronously on every WebSocket
+  // message contends with the 3D viewer's WebGL renders and visibly freezes the
+  // telemetry while the operator orbits the view. Rendering only the latest
+  // frame on rAF keeps the numbers live and lets the browser interleave work.
+  _scheduleMonitor(frame) {
+    this._monFrame = frame;
+    if (this._monRaf != null) return;
+    this._monRaf = requestAnimationFrame(() => {
+      this._monRaf = null;
+      if (!this._monHover && this._monFrame) this._renderMonitor(this._monFrame);
+    });
   }
 
   // --- monitor tabs ---------------------------------------------------------

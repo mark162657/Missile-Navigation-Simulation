@@ -324,6 +324,7 @@ export class Viewer3D {
     this.path = [];
     this.target = null;
     this.start = null;
+    this.pullup = null;   // terminal-guidance engage point, world coords
     this.frame = null;
 
     this.cam = { az: -0.7, el: 0.42, dist: 2600, target: [0, 0, 0] };
@@ -426,6 +427,7 @@ export class Viewer3D {
   }
   setStart(gps) { if (gps) { this._setOrigin(gps[0], gps[1]); this.start = this._world(gps[0], gps[1], gps[2]); this._dirty = true; } }
   setTarget(gps) { if (gps) { this.target = this._world(gps[0], gps[1], gps[2]); this._dirty = true; } }
+  setPullup(gps) { this.pullup = gps ? this._world(gps[0], gps[1], gps[2] || 0) : null; this._dirty = true; }
   setPlan(traj) { this.plan = traj && traj.length ? traj.map((p) => this._world(p[0], p[1], p[2])) : null; this._dirty = true; }
   resetPath() { this.path = []; this.detach = null; this.boom = null; this.smoke = []; this._dirty = true; }
 
@@ -890,6 +892,7 @@ export class Viewer3D {
     };
     beam(this.start, [0.2, 0.95, 0.4]);
     beam(this.target, [1.0, 0.28, 0.22]);
+    beam(this.pullup, [1.0, 0.42, 0.32]);
 
     if (frame) {
       const t = frame.true;
@@ -987,7 +990,7 @@ export class Viewer3D {
     };
     // beams need the beam falloff; split them out of the additive list
     const beamsPer = 2 * 6 * 9;
-    const nBeams = ((this.start ? 1 : 0) + (this.target ? 1 : 0)) * beamsPer;
+    const nBeams = ((this.start ? 1 : 0) + (this.target ? 1 : 0) + (this.pullup ? 1 : 0)) * beamsPer;
     drawList(addQ.slice(0, nBeams), true, 1);
     drawList(addQ.slice(nBeams), true, 0);
     drawList(nrmQ, false, 0);
@@ -1052,6 +1055,24 @@ export class Viewer3D {
     };
     mark(this.start, cssVar("--c-start") || "#32d74b", "LAUNCH");
     mark(this.target, cssVar("--c-target") || "#ff453a", "TARGET");
+
+    // Terminal pull-up: dashed ring (a computed threshold, not a place), matching
+    // the 2D map marker.
+    if (this.pullup) {
+      const p = this._projectPt(this.pullup);
+      if (p && p[0] > -40 && p[0] < W + 40 && p[1] > -40 && p[1] < H + 40) {
+        const color = cssVar("--c-terminal") || "#ff5a52";
+        ctx.save();
+        ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.4;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(p[0], p[1], 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.font = "10px " + (cssVar("--font-mono") || "monospace");
+        ctx.fillText("PULL-UP", p[0] + 10, p[1] - 8);
+        ctx.restore();
+      }
+    }
 
     if (this.frame && this.label) {
       const t = this.frame.true;
