@@ -74,8 +74,8 @@ class NavigationComputer:
         # Last-run telemetry (for UI / debugging).
         self.last_tercom_roughness = 0.0   # stdev (m) of the last terrain-suitability patch
         self.last_tercom_suitable = False  # was the terrain rough enough last check
-        self.tercom_fix_count = 0          # accepted TERCOM position fixes so far
-        self.gps_fix_count = 0             # accepted GPS position fixes so far
+        self.tercom_fix_count = 0           # accepted TERCOM position fixes so far
+        self.gps_fix_count = 0              # accepted GPS position fixes so far
 
     def step(self, imu: IMU, state: MissileState, sim_time: float, dt: float) -> None:
         """
