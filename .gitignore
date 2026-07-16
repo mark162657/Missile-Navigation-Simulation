@@ -1,6 +1,7 @@
 .DS_Store
 .DS_Store?
 .idea/
+.claude/
 
 # Ignore specific DEM files
 data/dem/merged_dem_iran_N31_N41_E44_E54.tif
