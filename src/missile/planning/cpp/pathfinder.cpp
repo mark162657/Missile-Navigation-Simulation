@@ -208,7 +208,7 @@ private:
     // No-data check
     if (current_elev <= -100.0f || neighbor_elev <= -100.0f)
       return std::numeric_limits<float>::infinity();
-偷
+
     // Base distances: recalculate heuristic here to avoid function call cost
     // yes, so extract every penny as possible lol, for handling at least 800
     // million pixels

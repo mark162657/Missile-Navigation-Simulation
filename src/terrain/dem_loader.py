@@ -148,14 +148,15 @@ if __name__ == "__main__":
     # parents[2] -> project root
     project_root = Path(__file__).resolve().parents[2]
     siberia_dem = "merged_dem_sib_N54_N59_E090_E100.tif"
-    dem_path = project_root / "data" / "dem" / siberia_dem
+    iran_dem = "merged_dem_iran_N31_N41_E44_E54_filled.tif"
+    dem_path = project_root / "data" / "dem" / iran_dem
 
     dem = DEMLoader(dem_path)
     print(f"\n  DEM loaded: {dem.path.name}")
     print(f"  Shape: {dem.shape}")
     print(f"  Bounds: {dem.bounds}")
 
-    lat, lon = 55.5, 95.0
+    lat, lon = 38.57670, 50.99988
     elev = dem.get_elevation(lat, lon)
 
     if elev is not None:
@@ -172,4 +173,12 @@ if __name__ == "__main__":
         else:
             print("  Patch is empty or out of bounds.")
     else:
-        print(f"  Coordinate ({lat}, {lon}) outside tile bounds: {dem.bounds}")
+        # Distinguish "outside the tile" from "inside the tile but nodata"
+        # (e.g. an unfilled sea pixel) — these are very different failures.
+        b = dem.bounds
+        in_bounds = (b.left <= lon <= b.right) and (b.bottom <= lat <= b.top)
+        if in_bounds:
+            print(f"  Coordinate ({lat}, {lon}) is IN bounds but has no data "
+                  f"(nodata={dem.nodata}). If this is sea, run fill_nodata.py.")
+        else:
+            print(f"  Coordinate ({lat}, {lon}) outside tile bounds: {dem.bounds}")
