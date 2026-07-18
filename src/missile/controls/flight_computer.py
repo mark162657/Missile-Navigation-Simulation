@@ -10,6 +10,13 @@ from missile.guidance.terminal_guidance import TerminalGuidance
 from terrain.coordinates import CoordinateSystem
 
 class FlightComputer:
+    """
+    The flight computer is an integrated terminal that handles every flight controls-related action,
+    including all controllers and the autopilot.
+    The class combined every action, incremented by steps, and set up separate controllers and guidance
+    methods for each stage besides the boost, including cruise and terminal.
+
+    """
     def __init__(
             self,
             trajectory: npt.NDArray,

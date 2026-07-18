@@ -181,6 +181,8 @@ class TerminalGuidance:
         # equal to the guidance target -a_n gives the gravity-hold conversion:
         return -a_n + _G * math.cos(theta_m)
 
+    # -- Horizontal Guidance ---
+
     def proportional_navigation(self, state: MissileState):
         """
 
@@ -194,7 +196,7 @@ class TerminalGuidance:
         target_missile_los = CoordinateSystem.enu_bearing(target_east, target_north, curr_east, curr_north)
 
         ground_track = math.atan2(state.vel_east, state.vel_north)
-        hdg_error = self._wrap_pi(missile_target_los - ground_track) # eq1b
+        hdg_error = self._wrap_pi(missile_target_los - ground_track) # eq 1b
 
         r_h = max(self.target.direct_ground_distance(state), 1e-3) # replaced eq 1a
         v_h = state.get_horizontal_speed()

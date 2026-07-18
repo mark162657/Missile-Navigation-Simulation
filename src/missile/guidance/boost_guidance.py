@@ -244,3 +244,6 @@ class BoostGuidance:
             dist += float(np.linalg.norm(self._traj_enu[i + 1] - self._traj_enu[i]))
             i += 1
         return i
+
+    def _terrain_ahead(self):
+        pass
