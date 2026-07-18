@@ -68,26 +68,25 @@ class TrajectoryGenerator:
         """
         return [k for k, g in groupby(path)]
 
-    # Removed due to no need for b_spline with path_follower being built
 
-    # def _compute_b_spline(self, clean_path: list[tuple[int, int]], smooth_factor: float, res_multi: int) -> list[tuple[int, int]]:
-    #     """
-    #     Smooth the path by b spline, using splev and splprep
-    #     """
-    #     try:
-    #         # Numpy slicing
-    #         clean_path = np.array(clean_path)
-    #
-    #         row = clean_path[:, 0] # select everything but only keep the 0th index
-    #         col = clean_path[:, 1] # same but 1st
-    #
-    #         # Main smoothing part. splprep for patter analysing, linspace for point generating, splev for drawing
-    #         tck, u = splprep([row, col], s=smooth_factor * len(clean_path), k=3) # default k = 3, cubic
-    #         u_new = np.linspace(0, 1, int(len(clean_path) * res_multi)) # draw original nodes * resolution upsampling to create smoother path
-    #         new_row, new_col = splev(u_new, tck)
-    #
-    #         return new_row.astype(np.float32), new_col.astype(np.float32)
-    #
-    #     except Exception as e:
-    #         print(f"Trajectory Gen Error: {e}")
-    #         return None, None
+    def _compute_b_spline(self, clean_path: list[tuple[int, int]], smooth_factor: float, res_multi: int) -> list[tuple[int, int]]:
+        """
+        Smooth the path by b spline, using splev and splprep
+        """
+        try:
+            # Numpy slicing
+            clean_path = np.array(clean_path)
+
+            row = clean_path[:, 0] # select everything but only keep the 0th index
+            col = clean_path[:, 1] # same but 1st
+
+            # Main smoothing part. splprep for patter analysing, linspace for point generating, splev for drawing
+            tck, u = splprep([row, col], s=smooth_factor * len(clean_path), k=3) # default k = 3, cubic
+            u_new = np.linspace(0, 1, int(len(clean_path) * res_multi)) # draw original nodes * resolution upsampling to create smoother path
+            new_row, new_col = splev(u_new, tck)
+
+            return new_row.astype(np.float32), new_col.astype(np.float32)
+
+        except Exception as e:
+            print(f"Trajectory Gen Error: {e}")
+            return None, None

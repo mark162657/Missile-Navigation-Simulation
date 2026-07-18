@@ -203,7 +203,7 @@ private:
     // of taking lazy shortcut, risking exposure
     float climb = neighbor_elev - current_elev;
     float height_diff = std::abs(climb); // yeah its just like climb but with abs
-    float slope_penalty = height_diff * 5.0f;
+    float slope_penalty = height_diff * 1.5f;
 
     // No-data check
     if (current_elev <= -100.0f || neighbor_elev <= -100.0f)
