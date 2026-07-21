@@ -31,7 +31,7 @@ export class MiniChart {
   }
 
   draw() {
-    const [W, H, , ctx] = fitCanvas(this.canvas);
+    const [W, H, , ctx] = fitCanvas(this.canvas, { maxPixels: 120_000 });
     ctx.clearRect(0, 0, W, H);
     if (this.data.length < 2) return;
     const color = cssVar(this.colorVar) || "#5b93ff";

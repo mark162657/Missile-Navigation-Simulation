@@ -45,7 +45,7 @@ export class PFD {
   }
 
   _tape(canvas, value, spacing, kind) {
-    const [W, H, , ctx] = fitCanvas(canvas);
+    const [W, H, , ctx] = fitCanvas(canvas, { maxPixels: 220_000 });
     const ink = cssVar("--instr-ink"), dim = cssVar("--instr-ink-dim");
     ctx.clearRect(0, 0, W, H);
     const cy = H / 2;
@@ -76,7 +76,7 @@ export class PFD {
   }
 
   _attitude() {
-    const [W, H, , ctx] = fitCanvas(this.centerCanvas);
+    const [W, H, , ctx] = fitCanvas(this.centerCanvas, { maxPixels: 350_000 });
     const f = this.frame;
     const pitch = f.att.pitch || 0;   // deg (mostly ~0 in 3-DoF)
     const roll = (f.att.roll || 0) * Math.PI / 180;

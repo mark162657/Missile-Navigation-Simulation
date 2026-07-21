@@ -618,7 +618,12 @@ export class Viewer3D {
   }
   _loop() {
     const tick = () => {
-      if (this._dirty || this._animating()) { this._dirty = false; this._render(); }
+      // Widget hiding uses display:none.  Keep the state current, but do not
+      // render an invisible WebGL scene or run its boost/effect animation.
+      if (this.canvas.offsetParent !== null && (this._dirty || this._animating())) {
+        this._dirty = false;
+        this._render();
+      }
       this._raf = requestAnimationFrame(tick);
     };
     this._raf = requestAnimationFrame(tick);
@@ -630,10 +635,14 @@ export class Viewer3D {
   _fit() {
     const rect = this.canvas.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.max(1, Math.round(rect.width * dpr)), h = Math.max(1, Math.round(rect.height * dpr));
+    // Keep the WebGL framebuffer inside a fixed pixel budget.  It matters most
+    // on external 4K/HiDPI displays, where this renderer otherwise occupies a
+    // disproportionate share of the GPU while the simulation is also running.
+    const renderScale = Math.min(dpr, Math.sqrt(2_000_000 / Math.max(1, rect.width * rect.height)));
+    const w = Math.max(1, Math.round(rect.width * renderScale)), h = Math.max(1, Math.round(rect.height * renderScale));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     if (this.overlay.width !== w || this.overlay.height !== h) { this.overlay.width = w; this.overlay.height = h; }
-    return [rect.width, rect.height, dpr];
+    return [rect.width, rect.height, renderScale];
   }
 
   _render() {

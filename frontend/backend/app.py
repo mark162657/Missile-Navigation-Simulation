@@ -148,25 +148,50 @@ async def ws_live(ws: WebSocket):
 
     profile_name = spec.get("profile")
     config = spec.get("config") or {}
-    loop = asyncio.get_running_loop()
     q: "queue.Queue[dict | None]" = queue.Queue(maxsize=512)
     stop = threading.Event()
+
+    def enqueue(item: dict | None) -> bool:
+        """Transfer a worker item without flooding the asyncio callback queue.
+
+        queue.Queue is already thread-safe.  Sending each item through
+        call_soon_threadsafe added a second, unbounded callback backlog and made
+        QueueFull exceptions escape on the event-loop thread during a slow UI.
+        Bounded blocking gives the WebSocket consumer normal back-pressure and
+        remains abortable.
+        """
+        while not stop.is_set():
+            try:
+                q.put(item, timeout=0.25)
+                return True
+            except queue.Full:
+                continue
+        return False
 
     def worker() -> None:
         from . import live_runner
 
         def emit_log(msg: str) -> None:
-            loop.call_soon_threadsafe(q.put_nowait, {"type": "log", "line": msg})
+            enqueue({"type": "log", "line": msg})
 
         try:
             for item in live_runner.iter_frames(
                 profile_name, config, on_log=emit_log, should_stop=stop.is_set
             ):
-                loop.call_soon_threadsafe(q.put_nowait, item)
+                if not enqueue(item):
+                    break
         except Exception as exc:  # noqa: BLE001
-            loop.call_soon_threadsafe(q.put_nowait, {"type": "error", "message": str(exc)})
+            enqueue({"type": "error", "message": str(exc)})
         finally:
-            loop.call_soon_threadsafe(q.put_nowait, None)
+            if not stop.is_set():
+                enqueue(None)
+            else:
+                # On disconnect the consumer is also exiting; never strand the
+                # daemon worker merely to append a sentinel to a full queue.
+                try:
+                    q.put_nowait(None)
+                except queue.Full:
+                    pass
 
     thread = threading.Thread(target=worker, name="sim-worker", daemon=True)
     thread.start()
