@@ -310,6 +310,15 @@ function buildFlame(col) {
 const WING_PIVOT = [0.58, 0.10, -0.03];
 const WING_STOWED = 82 * DEG;
 
+// The 3D view is deliberately resolution- and rate-limited. A CSS-sized canvas
+// otherwise inherits the full backing resolution of a 4K/HiDPI display and can
+// consume enough GPU time to stall telemetry rendering and the simulation UI.
+const VIEWER_MAX_FPS = 30;
+const VIEWER_MAX_PIXELS = 1_000_000;
+const OVERLAY_MAX_PIXELS = 700_000;
+const TERRAIN_GRID_MAX = 256;
+const VIEWER_PATH_MAX = 1400;
+
 // =================================================================================
 // Viewer
 // =================================================================================
@@ -340,6 +349,7 @@ export class Viewer3D {
     this.smoke = [];       // booster trail particles: { p, t0, size0, seed }
     this._dirty = true;
     this._raf = null;
+    this._lastRenderAt = -Infinity;
     this._terr = null;     // uploaded terrain mesh { vao, count, origin }
 
     this._initGL();
@@ -351,7 +361,9 @@ export class Viewer3D {
   }
 
   _initGL() {
-    const gl = this.canvas.getContext("webgl2", { antialias: true, alpha: false, powerPreference: "high-performance" });
+    // High-DPI output already softens polygon edges. Disabling the multisampled
+    // framebuffer avoids shading/resolving several samples for every 4K pixel.
+    const gl = this.canvas.getContext("webgl2", { antialias: false, alpha: false, powerPreference: "high-performance" });
     this.gl = gl;
     if (!gl) return; // overlay will show a notice
     this.progMesh = compile(gl, MESH_VS, MESH_FS);
@@ -409,12 +421,13 @@ export class Viewer3D {
     this._dirty = true;
     this._fetchFineGrid(grid);
   }
-  // The shared map grid is capped at 180px; quietly swap in a finer mesh for 3D.
+  // The shared map grid is capped at 180px; quietly swap in a moderately finer
+  // mesh for 3D without creating a half-million-triangle terrain surface.
   async _fetchFineGrid(grid) {
-    if (!grid?.name || Math.max(grid.rows || 0, grid.cols || 0) >= 320) return;
+    if (!grid?.name || Math.max(grid.rows || 0, grid.cols || 0) >= TERRAIN_GRID_MAX) return;
     const want = (this._finePending = grid.name);
     try {
-      const res = await fetch(`/api/dems/${encodeURIComponent(grid.name)}/grid?max_size=512`);
+      const res = await fetch(`/api/dems/${encodeURIComponent(grid.name)}/grid?max_size=${TERRAIN_GRID_MAX}`);
       if (!res.ok) return;
       const fine = await res.json();
       if (this._finePending === want && this.grid?.name === grid.name) { this.grid = fine; this._terr = null; this._dirty = true; }
@@ -431,6 +444,19 @@ export class Viewer3D {
   setPlan(traj) { this.plan = traj && traj.length ? traj.map((p) => this._world(p[0], p[1], p[2])) : null; this._dirty = true; }
   resetPath() { this.path = []; this.detach = null; this.boom = null; this.smoke = []; this._dirty = true; }
 
+  // The full telemetry history lives in the player. This copy exists only to
+  // draw a breadcrumb, so progressively thin it while preserving stage changes.
+  _compactPath() {
+    if (this.path.length <= VIEWER_PATH_MAX) return;
+    const old = this.path, compact = [old[0]];
+    for (let i = 1; i < old.length - 1; i++) {
+      const boundary = old[i].stage !== old[i - 1].stage || old[i].stage !== old[i + 1].stage;
+      if (boundary || i % 2 === 0) compact.push(old[i]);
+    }
+    compact.push(old[old.length - 1]);
+    this.path = compact;
+  }
+
   // Keep the flown trail on the missile's true trajectory. The oversized model
   // is lifted separately to avoid terrain clipping; baking that visual offset
   // into the trail makes low-altitude attitude changes look like real motion.
@@ -445,6 +471,7 @@ export class Viewer3D {
     this.frame = frame;
     const entry = this._pathEntry(frame);
     this.path.push(entry);
+    this._compactPath();
     if (frame.stage === "BOOST") this._emitSmoke(prev, frame);
     if (prev && prev.stage === "BOOST" && frame.stage !== "BOOST") this._markDetach(frame);
     if (prev && prev.stage !== "IMPACT" && frame.stage === "IMPACT") this._markBoom(frame);
@@ -463,6 +490,7 @@ export class Viewer3D {
       if (prev && prev.stage !== "IMPACT" && f.stage === "IMPACT") this._markBoom(f);
       prev = f;
     }
+    this._compactPath();
     if (frames.length && this.follow) this.cam.target = this.path[this.path.length - 1].p;
     this._dirty = true;
   }
@@ -617,8 +645,15 @@ export class Viewer3D {
     return false;
   }
   _loop() {
-    const tick = () => {
-      if (this._dirty || this._animating()) { this._dirty = false; this._render(); }
+    const minFrameMs = 1000 / VIEWER_MAX_FPS;
+    const tick = (now) => {
+      // Widget hiding uses display:none.  Keep the state current, but do not
+      // render an invisible WebGL scene or run its boost/effect animation.
+      if (this.canvas.offsetParent !== null && (this._dirty || this._animating()) && now - this._lastRenderAt >= minFrameMs) {
+        this._lastRenderAt = now;
+        this._dirty = false;
+        this._render();
+      }
       this._raf = requestAnimationFrame(tick);
     };
     this._raf = requestAnimationFrame(tick);
@@ -630,10 +665,16 @@ export class Viewer3D {
   _fit() {
     const rect = this.canvas.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.max(1, Math.round(rect.width * dpr)), h = Math.max(1, Math.round(rect.height * dpr));
+    const area = Math.max(1, rect.width * rect.height);
+    const renderScale = Math.min(dpr, Math.sqrt(VIEWER_MAX_PIXELS / area));
+    const overlayScale = Math.min(dpr, Math.sqrt(OVERLAY_MAX_PIXELS / area));
+    // Floor both axes so rounding can never push either backing store over its
+    // advertised pixel budget.
+    const w = Math.max(1, Math.floor(rect.width * renderScale)), h = Math.max(1, Math.floor(rect.height * renderScale));
+    const ow = Math.max(1, Math.floor(rect.width * overlayScale)), oh = Math.max(1, Math.floor(rect.height * overlayScale));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
-    if (this.overlay.width !== w || this.overlay.height !== h) { this.overlay.width = w; this.overlay.height = h; }
-    return [rect.width, rect.height, dpr];
+    if (this.overlay.width !== ow || this.overlay.height !== oh) { this.overlay.width = ow; this.overlay.height = oh; }
+    return [rect.width, rect.height, overlayScale];
   }
 
   _render() {

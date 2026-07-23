@@ -28,12 +28,17 @@ export class Player {
   _emit() { const f = this.current; if (f) this._subs.forEach((s) => s(f, this.index)); }
 
   // --- live -----------------------------------------------------------------
-  append(frame) {
+  append(frame, emit = true) {
     this.frames.push(frame);
     this.index = this.frames.length - 1;
     this.simTime = frame.t;
-    this._emit();
+    if (emit) this._emit();
   }
+
+  // Live transport may receive several frames before the browser can paint.
+  // Keep every frame for replay/reporting, but let the screen render only the
+  // newest one instead of performing expensive work for stale queued frames.
+  emitCurrent() { this._emit(); }
 
   // --- replay ---------------------------------------------------------------
   play() {

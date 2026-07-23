@@ -70,16 +70,24 @@ export function onResize(node, cb) {
 }
 
 // Size a canvas to its display box at devicePixelRatio; returns [w,h,dpr] in CSS px.
-export function fitCanvas(canvas) {
+//
+// `maxPixels` puts a ceiling on the backing-store cost.  On a scaled 4K display
+// a modest dashboard panel can otherwise become a multi-megapixel texture and
+// compete with the live simulation for CPU/GPU time.  The CSS box remains the
+// same size; only the raster resolution is reduced when it exceeds the budget.
+export function fitCanvas(canvas, { maxPixels = Infinity, maxDpr = 2 } = {}) {
   const rect = canvas.getBoundingClientRect();
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const w = Math.max(1, Math.round(rect.width));
   const h = Math.max(1, Math.round(rect.height));
-  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-    canvas.width = w * dpr; canvas.height = h * dpr;
+  const nativeDpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+  const dpr = Math.min(nativeDpr, Math.sqrt(maxPixels / (w * h)));
+  const pixelW = Math.max(1, Math.round(w * dpr));
+  const pixelH = Math.max(1, Math.round(h * dpr));
+  if (canvas.width !== pixelW || canvas.height !== pixelH) {
+    canvas.width = pixelW; canvas.height = pixelH;
   }
   const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.setTransform(canvas.width / w, 0, 0, canvas.height / h, 0, 0);
   return [w, h, dpr, ctx];
 }
 

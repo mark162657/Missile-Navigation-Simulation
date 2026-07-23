@@ -28,8 +28,8 @@ class AutoPilot:
 
         # initiate pid controller for altitude and speed
         # with soft limit (pid saturation)
-        self.vs_pid = PIDController(kp=2.0, ki=0.3, kd=0.3, out_max=accel_max, out_min=-accel_max)
-        self.spd_pid = PIDController(kp=0.02, ki=0.005, kd=0.3, out_max=1.0, out_min=0) # throttle: 0 - 1
+        self.vs_pid = PIDController(kp=2.0, ki=0.3, kd=0.5, out_max=accel_max, out_min=-accel_max)
+        self.spd_pid = PIDController(kp=0.02, ki=0.005, kd=0.5, out_max=1.0, out_min=0) # throttle: 0 - 1
 
         # Last-tick command telemetry (for UI / debugging). Populated by update().
         self.last_target_alt = 0.0

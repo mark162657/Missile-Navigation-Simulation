@@ -29,6 +29,13 @@ export class MissionScreen {
     this.missileLabel = "TLAM-01";
     this.viewFactor = 1;     // sim-seconds per real-second for the live view (1 = real time)
     this.monDetailOpen = new Map();
+    this._lastMonitorRender = -Infinity;
+    this._monitorIntervalMs = 500; // dense diagnostic DOM only needs a 2 Hz refresh
+    this._lastVisualRender = -Infinity;
+    this._visualIntervalMs = 1000 / 8;
+    this._liveRenderRaf = null;
+    this._liveRenderTimer = null;
+    this._pendingLiveRender = false;
   }
 
   activate() {
@@ -41,6 +48,7 @@ export class MissionScreen {
   deactivate() {
     this.player?.pause();
     if (this._monRaf != null) { cancelAnimationFrame(this._monRaf); this._monRaf = null; }
+    this._cancelLiveRender();
     // Leaving Mission Control ends any in-flight simulation; the run is marked
     // done so returning shows a Relaunch (not a stuck Abort) button.
     if (this.live) { this.live.stop(); this.live = null; this._planning = false; if (this.runState === "running") this.runState = "done"; }
@@ -53,6 +61,7 @@ export class MissionScreen {
     const plan = this.app.store.plan;
     if (!plan) {
       if (this.live) { this.live.stop(); this.live = null; }
+      this._cancelLiveRender();
       this._armedPlan = null;
       this.runState = "empty";
       this.map?.setPullup(null); this.viewer?.setPullup(null);
@@ -113,7 +122,7 @@ export class MissionScreen {
   }
 
   _buildMonitor() {
-    this.ws.add({ id: "m-monitor", title: "Flight Monitor", cols: 3, rows: 11, flush: true,
+    this.monWidget = this.ws.add({ id: "m-monitor", title: "Flight Monitor", cols: 3, rows: 11, flush: true,
       build: (body) => {
         const tabs = ["Navigation", "Controls", "Weather"];
         this.monBody = el("div", { style: { padding: "12px 14px", overflow: "auto", height: "100%" } });
@@ -201,6 +210,7 @@ export class MissionScreen {
   // Build the ready-to-launch scene for an armed plan (route drawn, no flight yet).
   _prepareLive(plan) {
     this.live?.stop(); this.live = null; this._planning = false;
+    this._cancelLiveRender();
     this.player?.destroy();
     this.wind = plan.config;
     this._setupScene({
@@ -260,6 +270,7 @@ export class MissionScreen {
     Object.values(this.charts).forEach((c) => c.reset());
     this.banner?.reset();
     this.player?.destroy();
+    this._cancelLiveRender();
     this.player = new Player([], "live");
     this._setPlayer(this.player);
     this.runState = "running";
@@ -280,6 +291,7 @@ export class MissionScreen {
   // new mission can start immediately without reloading.
   _abortRun() {
     this.live?.stop(); this.live = null; this._planning = false;
+    this._cancelLiveRender();
     this.map.resetPath(); this.viewer.resetPath(); this._lastIdx = -1;
     Object.values(this.charts).forEach((c) => c.reset());
     this.banner?.reset();
@@ -294,13 +306,57 @@ export class MissionScreen {
   _onLiveMessage(msg) {
     if (msg.type === "frame") {
       if (this._planning) { this._planning = false; toast("Route ready — flying", "ok"); }
-      this.player.append(msg.frame);
+      // Preserve the complete stream for replay/reporting, but coalesce visual
+      // work.  If the browser briefly falls behind, it renders the newest state
+      // once instead of synchronously replaying a backlog of stale frames.
+      this.player.append(msg.frame, false);
+      this._scheduleLiveRender();
     }
     else if (msg.type === "log") { if (/^\[(plan|launch|abort|done)\]/.test(msg.line || "")) toast(msg.line); }
     else if (msg.type === "result") {
+      this._flushLiveRender();
       this.app.store.mission = { id: "live", frames: this.player.frames, result: msg.result };
       toast(`Simulation complete — ${msg.result.outcome}`, "ok");
     } else if (msg.type === "error") toast(msg.message, "err");
+  }
+
+  _scheduleLiveRender() {
+    this._pendingLiveRender = true;
+    if (this._liveRenderRaf != null || this._liveRenderTimer != null) return;
+
+    const delay = Math.max(0, this._visualIntervalMs - (performance.now() - this._lastVisualRender));
+    if (delay > 1) {
+      this._liveRenderTimer = setTimeout(() => {
+        this._liveRenderTimer = null;
+        this._scheduleLiveRender();
+      }, delay);
+      return;
+    }
+
+    this._liveRenderRaf = requestAnimationFrame(() => {
+      this._liveRenderRaf = null;
+      if (!this._pendingLiveRender || !this.player?.current) return;
+      this._pendingLiveRender = false;
+      this._lastVisualRender = performance.now();
+      this.player.emitCurrent();
+    });
+  }
+
+  _flushLiveRender() {
+    if (!this._pendingLiveRender || !this.player?.current) return;
+    if (this._liveRenderRaf != null) { cancelAnimationFrame(this._liveRenderRaf); this._liveRenderRaf = null; }
+    if (this._liveRenderTimer != null) { clearTimeout(this._liveRenderTimer); this._liveRenderTimer = null; }
+    this._pendingLiveRender = false;
+    this._lastVisualRender = performance.now();
+    this.player.emitCurrent();
+  }
+
+  _cancelLiveRender() {
+    if (this._liveRenderRaf != null) cancelAnimationFrame(this._liveRenderRaf);
+    if (this._liveRenderTimer != null) clearTimeout(this._liveRenderTimer);
+    this._liveRenderRaf = null;
+    this._liveRenderTimer = null;
+    this._pendingLiveRender = false;
   }
 
   // --- per-frame render -----------------------------------------------------
@@ -331,18 +387,22 @@ export class MissionScreen {
     if (!this._monHover) this._scheduleMonitor(frame);
   }
 
-  // Coalesce the monitor rebuild to at most one per animation frame. Live frames
-  // arrive ~10×/s (more at higher view speeds) and each rebuild tears down and
-  // recreates the whole panel; doing that synchronously on every WebSocket
-  // message contends with the 3D viewer's WebGL renders and visibly freezes the
-  // telemetry while the operator orbits the view. Rendering only the latest
-  // frame on rAF keeps the numbers live and lets the browser interleave work.
+  // The diagnostic monitor tears down and recreates a dense DOM tree.  Keep it
+  // at a readable 2 Hz and skip it entirely while hidden/collapsed; the primary
+  // instruments continue at the separate visual refresh rate above.
   _scheduleMonitor(frame) {
     this._monFrame = frame;
-    if (this._monRaf != null) return;
+    // Rebuilding this panel creates a sizeable DOM tree.  Keep it in step with
+    // the map's visual refresh budget rather than forcing layout on every live
+    // telemetry message.
+    if (this.monWidget?.hidden || this.monWidget?.collapsed) return;
+    if (this._monRaf != null || performance.now() - this._lastMonitorRender < this._monitorIntervalMs) return;
     this._monRaf = requestAnimationFrame(() => {
       this._monRaf = null;
-      if (!this._monHover && this._monFrame) this._renderMonitor(this._monFrame);
+      if (!this._monHover && this._monFrame) {
+        this._lastMonitorRender = performance.now();
+        this._renderMonitor(this._monFrame);
+      }
     });
   }
 

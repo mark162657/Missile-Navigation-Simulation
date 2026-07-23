@@ -23,6 +23,12 @@ export class Map2D {
     this.layers = { planned: true, flown: true, markers: true, pullup: true };
     this.elevColor = false;
     this._dirty = true;
+    // The map is the largest live canvas.  Six redraws a second keeps the
+    // marker/path fluid while avoiding a full high-resolution hillshade repaint
+    // for every 10 Hz telemetry message.
+    this._renderIntervalMs = 1000 / 6;
+    this._lastRenderAt = -Infinity;
+    this._maxPathPoints = 1400;
     this._autoFit = true;      // re-fit on resize until the user pans/zooms
     this._fitBounds = null;    // last geographic bounds passed to fit()
     this._wire();
@@ -131,11 +137,24 @@ export class Map2D {
     window.addEventListener("themechange", () => (this._dirty = true));
   }
 
-  _loop() { const tick = () => { if (this._dirty) { this._dirty = false; this._render(); } this._raf = requestAnimationFrame(tick); }; this._raf = requestAnimationFrame(tick); }
+  _loop() {
+    const tick = (now) => {
+      if (this._dirty && now - this._lastRenderAt >= this._renderIntervalMs) {
+        this._dirty = false;
+        this._lastRenderAt = now;
+        this._render();
+      }
+      this._raf = requestAnimationFrame(tick);
+    };
+    this._raf = requestAnimationFrame(tick);
+  }
   destroy() { cancelAnimationFrame(this._raf); this._ro?.disconnect(); }
 
   _render() {
-    const [W, H, , ctx] = fitCanvas(this.canvas);
+    const [W, H, , ctx] = fitCanvas(this.canvas, { maxPixels: 1_500_000 });
+    // A hidden widget has a 0x0 CSS box.  Do not still project and walk the
+    // complete planned/flown route in that state.
+    if (W < 4 || H < 4) return;
     ctx.fillStyle = cssVar("--instr-bg") || "#0a0f1a"; ctx.fillRect(0, 0, W, H);
     if (!this.view) return;
     const d = { ...this._dims(), W, H };
@@ -196,14 +215,27 @@ export class Map2D {
     if (this.path.length < 2) return;
     const colFor = (s) => s === "BOOST" ? cssVar("--c-boost")
       : (s === "TERMINAL" || s === "IMPACT") ? cssVar("--c-terminal") : cssVar("--c-actual");
+    // A multi-hour mission can accumulate tens of thousands of samples.  A map
+    // cannot show sub-pixel detail, so cap the path work rather than redrawing
+    // every historical point on every live refresh.
+    const stride = Math.max(1, Math.ceil((this.path.length - 1) / this._maxPathPoints));
     let seg = [P(this.path[0].lat, this.path[0].lon)]; let cur = this.path[0].stage;
-    for (let i = 1; i < this.path.length; i++) {
+    for (let i = stride; i < this.path.length; i += stride) {
       seg.push(P(this.path[i].lat, this.path[i].lon));
-      if (this.path[i].stage !== cur || i === this.path.length - 1) {
+      if (this.path[i].stage !== cur) {
         this._line(ctx, seg, colFor(cur), 2.2, true);
         seg = [P(this.path[i].lat, this.path[i].lon)]; cur = this.path[i].stage;
       }
     }
+    const last = this.path[this.path.length - 1];
+    const tail = P(last.lat, last.lon);
+    const prev = seg[seg.length - 1];
+    if (last.stage !== cur) {
+      this._line(ctx, seg, colFor(cur), 2.2, true);
+      seg = [prev, tail];
+      cur = last.stage;
+    } else if (prev[0] !== tail[0] || prev[1] !== tail[1]) seg.push(tail);
+    this._line(ctx, seg, colFor(cur), 2.2, true);
   }
 
   _pin(ctx, [x, y], color, label) {

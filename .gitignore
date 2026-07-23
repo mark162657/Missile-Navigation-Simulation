@@ -2,6 +2,8 @@
 .DS_Store?
 .idea/
 .claude/
+.source/
+.plan/
 
 # Ignore specific DEM files
 data/dem/merged_dem_iran_N31_N41_E44_E54.tif
@@ -34,6 +36,7 @@ frontend/web_planner/dist/
 *.dylib
 
 # Ignore docs
+docs/
 .docsdocs/
 
 # Ignore generated outputs (keep folders via .gitkeep)
