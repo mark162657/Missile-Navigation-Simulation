@@ -46,3 +46,6 @@ data/logs/*
 data/results/*
 data/dem/cache
 !data/results/.gitkeep
+tests/results
+tests/navigation
+
