@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Missile Guidance — Web Control Terminal</title>
   <meta name="color-scheme" content="dark light" />
 
@@ -16,14 +16,15 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L20 12 L20 24 L16 30 L12 24 L12 12 Z' fill='%235b93ff'/%3E%3C/svg%3E" />
 </head>
 <body>
+  <a class="skip-link" href="#work">Skip to workspace</a>
   <div class="app" id="app">
     <!-- Left navigation -->
     <nav class="nav" id="nav" aria-label="Primary">
       <div class="nav__brand">
         <svg class="nav__logo" viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M16 2 L20.5 12 L20.5 23 L16 30 L11.5 23 L11.5 12 Z" fill="none" stroke="currentColor" stroke-width="1.6"/>
-          <path d="M11.5 20 L7 25 M20.5 20 L25 25" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-          <circle cx="16" cy="14" r="2" fill="currentColor"/>
+          <rect x="6" y="6" width="8" height="20" rx="2" fill="currentColor"/>
+          <rect x="18" y="6" width="8" height="8" rx="2" fill="currentColor"/>
+          <rect x="18" y="18" width="8" height="8" rx="2" fill="currentColor" opacity=".5"/>
         </svg>
         <div class="nav__title">
           <b>GNC Terminal</b>
@@ -31,16 +32,16 @@
         </div>
       </div>
 
-      <div class="nav__group" role="tablist" aria-label="Screens">
+      <div class="nav__group">
         <div class="nav__heading label">Workspaces</div>
-        <button class="nav__item" data-screen="planning" role="tab" title="Planning">
-          <span class="mi" aria-hidden="true">map</span><span>Planning</span>
+        <button class="nav__item" data-screen="planning" title="Planning" aria-label="Planning">
+          <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 6 3 6-3v14l-6 3-6-3-6 3V8zM9 5v14M15 8v14"/></svg><span>Planning</span>
         </button>
-        <button class="nav__item" data-screen="mission" role="tab" title="Mission Control">
-          <span class="mi" aria-hidden="true">radar</span><span>Mission Control</span>
+        <button class="nav__item" data-screen="mission" title="Mission Control" aria-label="Mission Control">
+          <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M6 11h3l2-4 3 7 2-3h2"/></svg><span>Mission Control</span>
         </button>
-        <button class="nav__item" data-screen="report" role="tab" title="Final Report">
-          <span class="mi" aria-hidden="true">assessment</span><span>Final Report</span>
+        <button class="nav__item" data-screen="report" title="Final Report" aria-label="Final Report">
+          <svg class="nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/></svg><span>Final Report</span>
         </button>
       </div>
 
@@ -48,20 +49,22 @@
 
       <div class="nav__foot">
         <div class="theme-toggle" role="group" aria-label="Theme">
-          <button class="theme-toggle__btn" data-theme-set="dark" aria-pressed="true"><span class="mi" aria-hidden="true">dark_mode</span><span class="theme-toggle__labels">Dark</span></button>
-          <button class="theme-toggle__btn" data-theme-set="light" aria-pressed="false"><span class="mi" aria-hidden="true">light_mode</span><span class="theme-toggle__labels">Light</span></button>
+          <button class="theme-toggle__btn" data-theme-set="dark" aria-pressed="true" aria-label="Dark theme" title="Dark theme"><span class="mi" aria-hidden="true">dark_mode</span><span class="theme-toggle__labels">Dark</span></button>
+          <button class="theme-toggle__btn" data-theme-set="light" aria-pressed="false" aria-label="Light theme" title="Light theme"><span class="mi" aria-hidden="true">light_mode</span><span class="theme-toggle__labels">Light</span></button>
         </div>
       </div>
     </nav>
 
     <!-- Workspace -->
-    <div class="work">
+    <div class="work" id="work" tabindex="-1">
       <header class="topbar">
         <button class="btn btn--icon btn--ghost topbar__nav-toggle" id="navToggle" title="Toggle navigation" aria-label="Toggle navigation">
           <span class="mi" aria-hidden="true">menu_open</span>
         </button>
-        <div class="topbar__screen-name" id="screenName">Planning</div>
-        <div class="topbar__crumb" id="screenCrumb"></div>
+        <div class="topbar__identity">
+          <div class="topbar__screen-name" id="screenName">Planning</div>
+          <div class="topbar__crumb" id="screenCrumb"></div>
+        </div>
         <div class="topbar__spacer"></div>
         <div class="topbar__actions" id="topbarActions"></div>
       </header>
@@ -69,9 +72,9 @@
       <!-- Stage banner (mission screen) -->
       <div id="stageBannerMount"></div>
 
-      <main class="screen" id="screen-planning" role="tabpanel" aria-label="Planning"></main>
-      <main class="screen" id="screen-mission" role="tabpanel" aria-label="Mission Control" hidden></main>
-      <main class="screen" id="screen-report" role="tabpanel" aria-label="Final Report" hidden></main>
+      <main class="screen" id="screen-planning" aria-label="Planning"></main>
+      <main class="screen" id="screen-mission" aria-label="Mission Control" hidden></main>
+      <main class="screen" id="screen-report" aria-label="Final Report" hidden></main>
     </div>
   </div>
 

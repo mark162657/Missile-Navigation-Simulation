@@ -76,7 +76,8 @@ class TerminalGuidance:
 
     def terminal_init_range(self) -> float:
         """
-        Eq. 41
+        Eq. 41: Minimum magnitude of guidance command
+        Obtaining R0: dist of the start of the terminal-guidance (phase) to target.
         """
         v_cruise = self.profile.basic.cruise_speed_ms
         accel_max = self.profile.get_max_lateral_acceleration()
@@ -87,6 +88,7 @@ class TerminalGuidance:
 
     def engage_terminal(self, state: MissileState) -> bool:
         """
+        Switch guidance mode from L1 guidance to terminal guidance when entering the init range
         """
         return self.target.direct_3d_distance(state) <= self.init_range
 

@@ -68,6 +68,17 @@ class FlightComputer:
         throttle = self._speed_throttle(state, cmd.target_spd, dt)
         return ControlInput(throttle=throttle, accel_turn=cmd.accel_turn, accel_climb=cmd.accel_climb)
 
+    # Handling the terminal guidance to the Autopilot, so controls are handled by PID
+    # def _step_terminal(self, state: MissileState, dt: float) -> ControlInput:
+    #     cmd = self.terminal.update(state)
+    #
+    #     lateral_accel = cmd.accel_turn # DONE
+    #     target_climb = cmd.accel_climb # TODO
+    #     target_spd = cmd.target_spd # Modification needed
+    #
+    #     return self.autopilot.update(state, target_climb, target_spd, lateral_accel, dt)
+    
+
     def _speed_throttle(self, state: MissileState, target_spd: float, dt: float) -> float:
         """Return the throttle value from the PID controller based on current and target speed"""
         curr_spd = state.get_ground_speed()

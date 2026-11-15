@@ -44,4 +44,8 @@ frontend/web_planner/dist/
 data/logs/*
 !data/logs/.gitkeep
 data/results/*
+data/dem/cache
 !data/results/.gitkeep
+tests/results
+tests/navigation
+

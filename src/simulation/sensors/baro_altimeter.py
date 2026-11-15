@@ -9,6 +9,6 @@ class BaroAltimeter:
             true_alt: the true altitude of the missile.
 
         Return:
-            The MSL altitude that are added error to.
+            The MSL altitude that are added error to (random normalised error 0-0.5).
         """
         return float(true_alt) + np.random.normal(0, 0.5)

@@ -59,6 +59,7 @@ public:
     }
 
     // Allocating dense memory for our arrays
+    // TODO: Used too much memory space by allocating RAM for all pixels
     std::vector<float> g_score(m_total_pixels,
                                std::numeric_limits<float>::infinity());
     std::vector<int> came_from(

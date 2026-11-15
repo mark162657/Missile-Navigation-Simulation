@@ -74,8 +74,8 @@ export class MapPanel {
     this.legendEl = el("div", { class: "instr__legend" });
 
     this.modeSeg = el("div", { class: "seg", style: { padding: "2px" } }, [
-      segBtn("DEM", true, () => this.setMode("dem")),
-      segBtn("Map", false, () => this.setMode("map")),
+      segBtn("DEM relief", true, () => this.setMode("dem")),
+      segBtn("Basemap", false, () => this.setMode("map")),
     ]);
     this.controls = el("div", { class: "instr__controls" }, [
       this.modeSeg,
@@ -84,7 +84,8 @@ export class MapPanel {
       ...extraControls,
     ]);
 
-    host.append(el("div", { class: "instr" }, [this.canvas, this.leafletEl, this.controls, this.infoHud, this.coordHud, this.legendEl]));
+    this.root = el("div", { class: "instr map-surface" }, [this.canvas, this.leafletEl, this.controls, this.infoHud, this.coordHud, this.legendEl]);
+    host.append(this.root);
 
     this.dem = new Map2D(this.canvas);
     this.dem.onClick = (lat, lon) => this._emitClick(lat, lon);
@@ -184,7 +185,7 @@ export class MapPanel {
     };
 
     this._layerMenuItems = {
-      elev: layerToggle("DEM elevation colour", false, (on) => this.dem.setElevColor(on)),
+      elev: layerToggle("Elevation colour", true, (on) => this.dem.setElevColor(on)),
       planned: layerToggle("Planned route", true, (on) => { this.dem.setLayer("planned", on); this._syncLeafletVectors(); this._renderLegend(); }),
       flown: layerToggle("Flown path", true, (on) => { this.dem.setLayer("flown", on); this._syncLeafletVectors(); this._renderLegend(); }),
       markers: layerToggle("Markers", true, (on) => { this.dem.setLayer("markers", on); this._syncLeafletMarkers(); this._renderLegend(); }),
@@ -228,7 +229,7 @@ export class MapPanel {
     const L = this.dem.layers;
     if (L.markers) { items.push(leg("--c-start", "Launch"), leg("--c-target", "Target")); }
     if (L.pullup && this.data.pullup) items.push(leg("--c-terminal", "Pull-up", true));
-    if (L.planned) items.push(leg("--c-planned", "Planned"));
+    if (L.planned) items.push(leg("--c-planned", "Planned", true));
     if (L.flown) items.push(leg("--c-actual", "Flown"));
     if (this.mode === "map") items.push(leg("--c-planned", "DEM area", true));
     this.legendEl.replaceChildren(...items);
@@ -298,7 +299,7 @@ export class MapPanel {
     const g = this.data.grid.bounds, L = this.L;
     this._layers.footprint && this.map.removeLayer(this._layers.footprint);
     this._layers.footprint = L.rectangle([[g.south, g.west], [g.north, g.east]], {
-      color: cssVar("--c-planned") || "#4d8dff", weight: 1.5, fill: true, fillOpacity: 0.05, dashArray: "6 4",
+      color: cssVar("--c-planned") || "#4d8dff", weight: 1, fill: true, fillOpacity: 0.035, dashArray: "3 6",
       interactive: false,
     }).addTo(this.map);
   }
@@ -307,12 +308,12 @@ export class MapPanel {
     const L = this.L, l = this._layers;
     ["planned", "flown"].forEach((k) => { if (l[k]) { l[k].forEach ? l[k].forEach((x) => this.map.removeLayer(x)) : this.map.removeLayer(l[k]); l[k] = null; } });
     if (this.dem.layers.planned && this.data.plan?.length > 1) {
-      l.planned = L.polyline(this.data.plan.map((p) => [p[0], p[1]]), { color: cssVar("--c-planned"), weight: 2, dashArray: "6 5", opacity: 0.9 }).addTo(this.map);
+      l.planned = routeLayer(L, this.data.plan.map((p) => [p[0], p[1]]), cssVar("--c-planned"), 2, "9 7").addTo(this.map);
     }
     if (this.dem.layers.flown && this.data.path.length > 1) {
       l.flown = [];
       let seg = [[this.data.path[0].lat, this.data.path[0].lon]]; let cur = this.data.path[0].stage;
-      const push = (st) => { if (seg.length > 1) l.flown.push(L.polyline(seg, { color: stageColor(cur), weight: 3, opacity: 0.95 }).addTo(this.map)); };
+      const push = (st) => { if (seg.length > 1) l.flown.push(routeLayer(L, seg, stageColor(cur), 2.8).addTo(this.map)); };
       for (let i = 1; i < this.data.path.length; i++) {
         seg.push([this.data.path[i].lat, this.data.path[i].lon]);
         if (this.data.path[i].stage !== cur || i === this.data.path.length - 1) { push(); seg = [[this.data.path[i].lat, this.data.path[i].lon]]; cur = this.data.path[i].stage; }
@@ -323,8 +324,8 @@ export class MapPanel {
     if (!this.map) return;
     const L = this.L, l = this._layers, show = this.dem.layers.markers;
     ["start", "target"].forEach((k) => { if (l[k]) { this.map.removeLayer(l[k]); l[k] = null; } });
-    if (show && this.data.start) l.start = pin(L, this.data.start, cssVar("--c-start"), "LAUNCH").addTo(this.map);
-    if (show && this.data.target) l.target = pin(L, this.data.target, cssVar("--c-target"), "TARGET").addTo(this.map);
+    if (show && this.data.start) l.start = pin(L, this.data.start, cssVar("--c-start"), "Launch").addTo(this.map);
+    if (show && this.data.target) l.target = pin(L, this.data.target, cssVar("--c-target"), "Target").addTo(this.map);
   }
   _syncLeafletPullup() {
     if (!this.map) return;
@@ -333,7 +334,7 @@ export class MapPanel {
     if (this.dem.layers.pullup && this.data.pullup) {
       const c = cssVar("--c-terminal");
       l.pullup = L.circleMarker([this.data.pullup[0], this.data.pullup[1]], { radius: 6, color: c, weight: 2, dashArray: "3 3", fill: false })
-        .bindTooltip("PULL-UP", { permanent: true, direction: "right", className: "map-pin-label" }).addTo(this.map);
+        .bindTooltip("Pull-up", { permanent: true, direction: "right", className: "map-pin-label" }).addTo(this.map);
     }
   }
   _syncLeafletMissile() {
@@ -342,7 +343,8 @@ export class MapPanel {
     if (l.missile) { this.map.removeLayer(l.missile); l.missile = null; }
     if (!m) return;
     const color = m.stage === "TERMINAL" || m.stage === "IMPACT" ? cssVar("--c-terminal") : cssVar("--c-actual");
-    const icon = L.divIcon({ className: "", html: `<div style="transform:rotate(${m.yaw || 0}deg);color:${color};font-size:16px;line-height:1;filter:drop-shadow(0 0 4px ${color})">▲</div><div style="font:600 10px var(--font-mono);color:var(--instr-ink);white-space:nowrap;margin-top:2px">${m.label || ""}</div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+    const label = String(m.label || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const icon = L.divIcon({ className: 'map-vehicle', html: `<div class="map-vehicle__pointer" style="color:${color};transform:rotate(${Number(m.yaw) || 0}deg)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 20 12 16 5 20Z" fill="currentColor"/></svg></div><div class="map-vehicle__label">${label}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
     l.missile = L.marker([m.lat, m.lon], { icon }).addTo(this.map);
   }
 
@@ -357,12 +359,19 @@ function bounds(pts) {
   return { s: s - dLat, n: n + dLat, w: w - dLon, e: e + dLon };
 }
 function stageColor(s) { return s === "BOOST" ? cssVar("--c-boost") : (s === "TERMINAL" || s === "IMPACT") ? cssVar("--c-terminal") : cssVar("--c-actual"); }
+function routeLayer(L, points, color, weight, dashArray = null) {
+  const style = { weight, color, dashArray, lineCap: 'round', lineJoin: 'round', opacity: 1 };
+  return L.layerGroup([
+    L.polyline(points, { ...style, weight: weight + 2.4, color: '#fbfcf8', opacity: 0.88 }),
+    L.polyline(points, style),
+  ]);
+}
 function pin(L, gps, color, label) {
-  return L.circleMarker([gps[0], gps[1]], { radius: 6, color, weight: 2, fill: true, fillColor: color, fillOpacity: 0.35 }).bindTooltip(label, { permanent: true, direction: "right", className: "map-pin-label" });
+  return L.circleMarker([gps[0], gps[1]], { radius: 6, color: "#fbfcf8", weight: 2.5, fill: true, fillColor: color, fillOpacity: 1 }).bindTooltip(label, { permanent: true, direction: "right", className: "map-pin-label" });
 }
 function segBtn(label, selected, onClick) { const b = el("button", { class: "seg__btn", "aria-selected": String(selected), text: label }); b.addEventListener("click", (e) => { e.stopPropagation(); onClick(); }); return b; }
 function iconBtn(icon, title, onClick) { return el("button", { class: "instr__btn", title, "aria-label": title, onClick }, [el("span", { class: "mi", text: icon })]); }
-function leg(colorVar, label, dashed) { return el("span", {}, [el("i", { style: { color: `var(${colorVar})`, borderTopStyle: dashed ? "dashed" : "solid" } }), el("span", { text: label })]); }
+function leg(colorVar, label, dashed) { const kind = label === "Launch" || label === "Target" ? "legend-dot" : label === "Pull-up" ? "legend-ring" : ""; return el("span", {}, [el("i", { class: kind, style: { color: `var(${colorVar})`, borderTopStyle: dashed ? "dashed" : "solid" } }), el("span", { text: label })]); }
 function layerToggle(label, on, cb) {
   const cb_ = el("input", { type: "checkbox", checked: on ? "checked" : null });
   cb_.checked = on;

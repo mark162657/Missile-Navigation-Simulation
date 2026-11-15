@@ -82,9 +82,9 @@ class Pathfinding:
         Args:
             start: (row, col) tuple pair for pixel
             end: (row, col) tuple pair for pixel
-            heuristic_weight: multiplies the heuristic cost; set to 2.0 for faster, directed searches or 1.0 for
-            the guaranteed shortest path (currently no difference lol).
-            The higher the heuristic_weight, potentially, the compile time increases.
+            heuristic_weight: multiplies the heuristic cost; set to 2.0 for faster, directed searches or 1.0 for the guaranteed shortest path (currently no difference lol).
+                The higher the heuristic_weight, potentially, the compile time increases.
+            
         """
 
         if not self.engine:
