@@ -78,8 +78,9 @@ export class MissionScreen {
   // --- build ----------------------------------------------------------------
   _build() {
     this.ws = new Workspace(this.root);
-    this._buildMap();
+    this.ws.grid.classList.add("mission-workspace");
     this._buildViewer();
+    this._buildMap();
     this._buildMonitor();
     this._buildPFD();
     this._buildStats();
@@ -87,13 +88,14 @@ export class MissionScreen {
   }
 
   _buildMap() {
-    this.ws.add({ id: "m-map", title: "Tactical Map", cols: 5, rows: 7, instrument: true, flush: true,
+    this.ws.add({ id: "m-map", title: "Terrain map", cols: 5, rows: 4, instrument: true, flush: true,
       build: (body) => { this.map = new MapPanel(body, { legend: "mission" }); } });
   }
 
   _buildViewer() {
-    this.ws.add({ id: "m-viewer", title: "3D Attitude · Third-person", cols: 4, rows: 7, instrument: true, flush: true,
+    this.ws.add({ id: "m-viewer", title: "3D scene", cols: 7, rows: 4, instrument: true, flush: true,
       build: (body, widget) => {
+        widget.setMeta(el("span", { class: "scene-mode", text: "Orbit view" }));
         const canvas = el("canvas");
         this.viewHud = el("div", { class: "instr__hud instr__hud--bl mono" });
         const terrainBtn = icon("terrain", "Toggle terrain mesh", () => { this.viewer.showTerrain = !this.viewer.showTerrain; this.viewer.invalidate(); });
@@ -113,12 +115,12 @@ export class MissionScreen {
   }
 
   _buildMonitor() {
-    this.ws.add({ id: "m-monitor", title: "Flight Monitor", cols: 3, rows: 11, flush: true,
+    this.ws.add({ id: "m-monitor", title: "Flight monitor", cols: 4, rows: 4, flush: true,
       build: (body) => {
         const tabs = ["Navigation", "Controls", "Weather"];
-        this.monBody = el("div", { style: { padding: "12px 14px", overflow: "auto", height: "100%" } });
-        const tabbar = el("div", { class: "widget__section-tabs" }, tabs.map((t, i) =>
-          el("button", { class: "seg__btn", role: "tab", "aria-selected": String(i === 0), text: t,
+        this.monBody = el("div", { class: "mission-monitor", id: "mission-monitor", role: "tabpanel", "aria-label": "Flight monitor details" });
+        const tabbar = el("div", { class: "widget__section-tabs", role: "tablist", "aria-label": "Flight monitor sections" }, tabs.map((t, i) =>
+          el("button", { class: "seg__btn", role: "tab", "aria-selected": String(i === 0), "aria-controls": "mission-monitor", text: t,
             onClick: (e) => { this.monTab = t; Array.from(tabbar.children).forEach((b) => b.setAttribute("aria-selected", String(b === e.currentTarget))); this._renderMonitor(); } })));
         this.monTab = "Navigation";
         body.append(tabbar, this.monBody);
@@ -134,14 +136,14 @@ export class MissionScreen {
   }
 
   _buildPFD() {
-    this.ws.add({ id: "m-pfd", title: "Primary Flight Display", cols: 5, rows: 4, instrument: true, flush: true,
+    this.ws.add({ id: "m-pfd", title: "Primary flight display", cols: 4, rows: 4, instrument: true, flush: true,
       build: (body) => { this.pfd = new PFD(body); } });
   }
 
   _buildStats() {
-    this.ws.add({ id: "m-stats", title: "Navigation & Guidance Deviation", cols: 4, rows: 4,
+    this.ws.add({ id: "m-stats", title: "Navigation & guidance deviation", cols: 4, rows: 4,
       build: (body) => {
-        const grid = el("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" } });
+        const grid = el("div", { class: "mission-charts" });
         body.append(grid);
         this.charts = {
           pos: new MiniChart(grid, { title: "Position error", unit: "m", color: "--c-actual", threshold: 50 }),
@@ -171,7 +173,12 @@ export class MissionScreen {
       SPEEDS.map((s) => el("button", { class: "seg__btn", "aria-selected": String(s === this.viewFactor), text: `${s}×`,
         onClick: (e) => { this.viewFactor = s; Array.from(this.speedSeg.children).forEach((b) => b.setAttribute("aria-selected", String(b === e.currentTarget))); } })));
 
-    this.app.setActions([this.app.hiddenWidgetsControl(this.ws), newBtn, this.speedSeg, this.playBtn]);
+    this.playBtn.classList.add("mission-run-btn");
+    const secondary = el("div", { class: "mission-toolbar__secondary" }, [this.app.hiddenWidgetsControl(this.ws), newBtn]);
+    const speed = el("div", { class: "mission-speed" }, [
+      el("span", { class: "mission-speed__label", text: "Simulation speed" }), this.speedSeg,
+    ]);
+    this.app.setActions([secondary, speed, this.playBtn]);
   }
 
   // Reflect runState on the primary button (icon + label + danger styling).

@@ -10,7 +10,7 @@ import { Viewer3D } from "./viewer3d.js";
 import { Player } from "./player.js";
 
 const SPEEDS = [0.5, 1, 2, 5, 10];
-const STAGE_COLORS = { BOOST: "--c-boost", CRUISE: "--c-planned", TERMINAL: "--c-terminal", IMPACT: "--c-terminal", PRE_LAUNCHED: "--ink-3" };
+const STAGE_COLORS = { BOOST: "--c-boost", CRUISE: "--c-actual", TERMINAL: "--c-terminal", IMPACT: "--c-terminal", PRE_LAUNCHED: "--ink-3" };
 
 export class ReportScreen {
   constructor(root, app) { this.root = root; this.app = app; this.built = false; this.player = null; this.data = null; this._lastIdx = -1; }

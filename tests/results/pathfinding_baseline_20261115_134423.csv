@@ -1,0 +1,4 @@
+dem,rows,cols,pixels_million,target_km,status,start_row,start_col,end_row,end_col,straight_km,path_px,path_km,detour_ratio,nodes_explored,load_s,find_path_s,rss_after_load_mb,peak_rss_mb,heuristic_weight,error
+merged_dem_iran_N31_N41_E44_E54_filled.tif,39601,39601,1568.2,5.0,ok,19841,19713,19760,19887,4.998,176,6.164,1.233,115110,0.095,1.731,54.3,1672.8,1.0,
+merged_dem_iran_N31_N41_E44_E54_filled.tif,39601,39601,1568.2,20.0,ok,19962,19452,19639,20149,19.998,709,25.692,1.285,1897065,0.091,1.793,54.4,2122.4,1.0,
+merged_dem_iran_N31_N41_E44_E54_filled.tif,39601,39601,1568.2,80.0,timeout,20447,18407,19153,21194,80.002,,,,,0.088,,54.4,,1.0,over 900s

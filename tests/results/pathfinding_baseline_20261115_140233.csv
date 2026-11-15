@@ -1,0 +1,5 @@
+dem,rows,cols,pixels_million,target_km,status,start_row,start_col,end_row,end_col,straight_km,path_px,path_km,detour_ratio,nodes_explored,load_s,find_path_s,rss_after_load_mb,peak_rss_mb,heuristic_weight,error
+srtm_43_02.tif,6000,6000,36.0,200.0,ok,3539,1467,2461,4534,199.999,3068,235.456,1.177,22281396,0.207,2.999,53.4,409.2,1.0,
+srtm_43_02.tif,6000,6000,36.0,500.0,no_route,,,,,,,,,,0.088,,53.3,,1.0,no valid start/end found inside the DEM
+merged_dem_sib_N54_N59_E090_E100.tif,21601,39601,855.4,200.0,ok,12417,14658,9183,24942,199.994,10763,310.183,1.551,364471622,0.08,75.445,53.6,5318.9,1.0,
+merged_dem_sib_N54_N59_E090_E100.tif,21601,39601,855.4,500.0,ok,14843,6945,6758,32656,500.0,28839,718.152,1.436,771909935,0.12,146.141,53.7,5928.4,1.0,

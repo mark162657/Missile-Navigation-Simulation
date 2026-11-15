@@ -14,6 +14,9 @@
 // setPlan/pushFrame/setPathFrames/resetPath/resetView/frameCamera/invalidate.
 
 import { cssVar, clamp } from "./util.js";
+import { MESH_VS, MESH_FS, SKY_VS, SKY_FS } from "./scene_shaders.js";
+import { strokeRoute, paintMapLabel, MAP_PAINT } from "./map_presentation.js";
+import { buildModelPaint } from "./model_paint.js";
 
 const DEG = Math.PI / 180;
 const G = 9.80665;
@@ -87,67 +90,6 @@ function mulberry(seed) {
 // =================================================================================
 // Shaders
 // =================================================================================
-const MESH_VS = `#version 300 es
-layout(location=0) in vec3 aPos;
-layout(location=1) in vec3 aNrm;
-layout(location=2) in vec3 aCol;
-uniform mat4 uVP, uModel;
-out vec3 vNrm; out vec3 vCol; out vec3 vWorld;
-void main() {
-  vec4 w = uModel * vec4(aPos, 1.0);
-  vWorld = w.xyz;
-  vNrm = mat3(uModel) * aNrm;
-  vCol = aCol;
-  gl_Position = uVP * w;
-}`;
-const MESH_FS = `#version 300 es
-precision highp float;
-uniform vec3 uSun, uCamPos, uFogColor;
-uniform float uFogDensity, uEmissive, uAlpha, uAmbient, uSpec;
-in vec3 vNrm; in vec3 vCol; in vec3 vWorld;
-out vec4 frag;
-void main() {
-  vec3 n = normalize(vNrm);
-  if (!gl_FrontFacing) n = -n;
-  float diff = max(dot(n, uSun), 0.0);
-  vec3 v = normalize(uCamPos - vWorld);
-  float spec = pow(max(dot(n, normalize(v + uSun)), 0.0), 42.0) * uSpec;
-  vec3 lit = vCol * (uAmbient + diff * (1.15 - uAmbient)) + vec3(spec);
-  vec3 col = mix(lit, vCol, uEmissive);
-  float d = length(uCamPos - vWorld);
-  float fog = 1.0 - exp(-pow(d * uFogDensity, 1.5));
-  col = mix(col, uFogColor, clamp(fog, 0.0, 1.0) * (1.0 - uEmissive));
-  frag = vec4(col, uAlpha);
-}`;
-
-const SKY_VS = `#version 300 es
-layout(location=0) in vec2 aXY;
-uniform vec3 uCamF, uCamR, uCamU;
-uniform float uTanF, uAspect;
-out vec3 vDir;
-void main() {
-  vDir = uCamF + uCamR * (aXY.x * uTanF * uAspect) + uCamU * (aXY.y * uTanF);
-  gl_Position = vec4(aXY, 0.99999, 1.0);
-}`;
-const SKY_FS = `#version 300 es
-precision highp float;
-uniform vec3 uSun;
-in vec3 vDir;
-out vec4 frag;
-void main() {
-  vec3 d = normalize(vDir);
-  vec3 zen = vec3(0.030, 0.062, 0.150);
-  vec3 hor = vec3(0.245, 0.335, 0.475);
-  vec3 below = vec3(0.016, 0.024, 0.042);
-  vec3 col = d.z >= 0.0
-    ? mix(hor, zen, pow(d.z, 0.42))
-    : mix(hor, below, clamp(-d.z * 7.0, 0.0, 1.0));
-  float s = max(dot(d, uSun), 0.0);
-  col += vec3(1.0, 0.72, 0.45) * pow(s, 6.0) * 0.16;   // warm haze around the sun
-  col += vec3(1.0, 0.92, 0.78) * pow(s, 900.0) * 2.2;  // sun disc
-  frag = vec4(col, 1.0);
-}`;
-
 const SPRITE_VS = `#version 300 es
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec2 aUV;
@@ -227,16 +169,22 @@ class MeshBuilder {
   // Thin plate from a planar polygon (fan-triangulated) extruded along `dir`.
   plate(poly, dir, th, col) {
     const off = scale(norm(dir), th / 2);
-    const a = poly.map((p) => add(p, off)), b = poly.map((p) => sub(p, off));
+    const center = scale(poly.reduce((sum, p) => add(sum, p), [0,0,0]), 1 / poly.length);
+    const inset = poly.map(p => add(center, scale(sub(p, center), 0.94)));
+    const a = inset.map(p => add(p, off)), b = inset.map(p => sub(p, off));
+    const edgeColor = col.map(c => c * 0.80);
     for (let i = 1; i < poly.length - 1; i++) {
       this.tri(a[0], a[i], a[i + 1], col);
       this.tri(b[0], b[i + 1], b[i], col);
     }
+    // Cosmetic bevels keep the existing plate outline at its mid-plane.
     for (let i = 0; i < poly.length; i++) {
       const j = (i + 1) % poly.length;
-      this.quad(a[i], a[j], b[j], b[i], col);
+      this.quad(a[i], poly[i], poly[j], a[j], edgeColor);
+      this.quad(poly[i], b[i], b[j], poly[j], edgeColor);
     }
   }
+
   upload(gl) {
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -258,18 +206,19 @@ const NOSE = 2.90, TAIL = -2.66;             // 5.56 m airframe
 const BOOST_TAIL = -3.74, NOZZLE_X = -3.96;  // Mk-111 booster aft of the airframe
 const BOOST_CENTER = (TAIL + NOZZLE_X) / 2;  // booster mid-point in body coords
 const DRAG_TAU = 2.2;                        // spent-casing horizontal drag time constant (s)
-const BODY_COL = [0.78, 0.80, 0.84];
-const DARK_COL = [0.30, 0.31, 0.34];
+const BODY_COL = [0.66, 0.70, 0.71];
+const DARK_COL = [0.18, 0.22, 0.23];
 
 function buildAirframe() {
   const mb = new MeshBuilder();
-  const radome = [0.60, 0.62, 0.66];
+  const radome = [0.27, 0.32, 0.34];
   // ogive nose → constant fuselage → boattail; nozzle base ring is dark.
   mb.revolve([
     [NOSE, 0.004, radome], [NOSE - 0.05, 0.085, radome], [NOSE - 0.16, 0.155, radome],
     [NOSE - 0.38, 0.212, radome], [NOSE - 0.75, 0.246, BODY_COL], [NOSE - 1.35, R, BODY_COL],
     [TAIL + 0.32, R, BODY_COL], [TAIL, 0.225, BODY_COL], [TAIL, 0.13, DARK_COL],
-  ], 26);
+    [TAIL + 0.06, 0.13, DARK_COL], [TAIL + 0.06, 0.001, DARK_COL],
+  ], 48);
   // x-cruciform tail fins (clipped delta) at 45/135/225/315.
   for (const ang of [45, 135, 225, 315]) {
     const c = Math.cos(ang * DEG), s = Math.sin(ang * DEG);
@@ -295,7 +244,7 @@ function buildBooster() {
   mb.revolve([
     [TAIL, 0.23, col], [TAIL - 0.10, R, col], [BOOST_TAIL + 0.18, R, col],
     [BOOST_TAIL, 0.20, DARK_COL], [NOZZLE_X, 0.155, DARK_COL],
-  ], 22);
+  ], 32);
   return mb;
 }
 // Unit flame cone: apex at x=0, extends to x=-1, max radius 1 (scaled per draw).
@@ -327,7 +276,13 @@ export class Viewer3D {
     this.pullup = null;   // terminal-guidance engage point, world coords
     this.frame = null;
 
-    this.cam = { az: -0.7, el: 0.42, dist: 2600, target: [0, 0, 0] };
+    this.cam = { az: -0.7, el: 0.42, dist: 900, target: [0, 0, 0] };
+    // Ease manual orbit/zoom only. Telemetry positions and attitudes stay exact.
+    this._orbit = { az: this.cam.az, el: this.cam.el, dist: this.cam.dist };
+    this._cameraTime = null;
+    this._motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    this._motionChange = () => { this._dirty = true; };
+    this._motionQuery.addEventListener("change", this._motionChange);
     this.vExag = 3;
     // Fixed world-space model exaggeration (drawn length = 5.56 m × this). Static,
     // so the model behaves like a real object: bigger when you zoom in, smaller
@@ -358,7 +313,7 @@ export class Viewer3D {
     this.progSky = compile(gl, SKY_VS, SKY_FS);
     this.progSprite = compile(gl, SPRITE_VS, SPRITE_FS);
     this.uni = {
-      mesh: Object.fromEntries(["uVP", "uModel", "uSun", "uCamPos", "uFogColor", "uFogDensity", "uEmissive", "uAlpha", "uAmbient", "uSpec"].map((n) => [n, gl.getUniformLocation(this.progMesh, n)])),
+      mesh: Object.fromEntries(["uVP", "uModel", "uSun", "uCamPos", "uFogColor", "uFogDensity", "uEmissive", "uAlpha", "uAmbient", "uSpec", "uMaterial", "uPaint"].map((n) => [n, gl.getUniformLocation(this.progMesh, n)])),
       sky: Object.fromEntries(["uCamF", "uCamR", "uCamU", "uTanF", "uAspect", "uSun"].map((n) => [n, gl.getUniformLocation(this.progSky, n)])),
       sprite: Object.fromEntries(["uVP", "uMode"].map((n) => [n, gl.getUniformLocation(this.progSprite, n)])),
     };
@@ -381,6 +336,7 @@ export class Viewer3D {
     }
     gl.bindVertexArray(null);
 
+    this.paintTexture = buildModelPaint(gl);
     this.meshAirframe = buildAirframe().upload(gl);
     this.meshWingR = buildWing(1).upload(gl);
     this.meshWingL = buildWing(-1).upload(gl);
@@ -388,8 +344,8 @@ export class Viewer3D {
     this.meshFlameOuter = buildFlame([1.0, 0.52, 0.16]).upload(gl);
     this.meshFlameInner = buildFlame([1.0, 0.95, 0.72]).upload(gl);
 
-    this.sun = norm([-0.45, -0.28, 0.85]);
-    this.fogColor = [0.225, 0.31, 0.44];
+    this.sun = norm([-0.65, 0.45, 0.60]);
+    this.fogColor = [0.60, 0.70, 0.79];
 
     this.canvas.addEventListener("webglcontextlost", (e) => e.preventDefault());
   }
@@ -397,7 +353,7 @@ export class Viewer3D {
   // Text/lines overlay stacked on the GL canvas (parent .instr is relative).
   _initOverlay() {
     this.overlay = document.createElement("canvas");
-    Object.assign(this.overlay.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "none", zIndex: "300" });
+    Object.assign(this.overlay.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "none", zIndex: "1" });
     (this.canvas.parentElement || this.canvas.closest(".instr"))?.appendChild(this.overlay);
   }
 
@@ -510,7 +466,7 @@ export class Viewer3D {
     if (this.smoke.length > 2200) this.smoke.splice(0, this.smoke.length - 2200);
   }
 
-  resetView() { this.cam.az = -0.7; this.cam.el = 0.42; this.cam.dist = 2600; this._dirty = true; }
+  resetView() { this.cam.az = -0.7; this.cam.el = 0.42; this.cam.dist = 900; this._dirty = true; }
   frameCamera() {
     const pts = [];
     if (this.plan) pts.push(...this.plan);
@@ -537,18 +493,20 @@ export class Viewer3D {
       this.cam.el = clamp(this.cam.el + (e.clientY - ly) * 0.006, -1.45, 1.45);
       lx = e.clientX; ly = e.clientY; this._dirty = true;
     });
-    c.addEventListener("pointerup", (e) => { dragging = false; c.releasePointerCapture?.(e.pointerId); });
+    c.addEventListener("pointerup", (e) => { dragging = false; if (c.hasPointerCapture(e.pointerId)) c.releasePointerCapture(e.pointerId); });
+    c.addEventListener("pointercancel", () => { dragging = false; });
+    c.addEventListener("lostpointercapture", () => { dragging = false; });
     c.addEventListener("wheel", (e) => { e.preventDefault(); this.cam.dist = clamp(this.cam.dist * (1 + Math.sign(e.deltaY) * 0.12), 300, 120000); this._dirty = true; }, { passive: false });
     window.addEventListener("themechange", () => { this._dirty = true; });
   }
 
   _basis() {
-    const { az, el } = this.cam;
+    const { az, el } = this._orbit;
     const dir = [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)];
-    const eye = add(this.cam.target, scale(dir, this.cam.dist));
+    const eye = add(this.cam.target, scale(dir, this._orbit.dist));
     // Never let the eye sink under the terrain mesh (no void-side views).
     const gz = this._groundZAt(eye[0], eye[1]);
-    if (gz != null) eye[2] = Math.max(eye[2], gz + Math.max(8, this.cam.dist * 0.03));
+    if (gz != null) eye[2] = Math.max(eye[2], gz + Math.max(8, this._orbit.dist * 0.03));
     const forward = norm(sub(this.cam.target, eye));
     const right = norm(cross(forward, [0, 0, 1]));
     const up = cross(right, forward);
@@ -606,8 +564,33 @@ export class Viewer3D {
 
   _modelScale() { return this.modelScale; }
 
+  // Exponential easing is independent of display refresh rate. It only moves
+  // the presentation camera; the incoming frame is never interpolated.
+  _stepCamera(now) {
+    const elapsed = this._cameraTime == null ? 1 / 60 : clamp((now - this._cameraTime) / 1000, 0, 0.05);
+    this._cameraTime = now;
+    const amount = this._motionQuery.matches ? 1 : 1 - Math.exp(-18 * elapsed);
+    let moving = false;
+    for (const key of ["az", "el", "dist"]) {
+      let delta = this.cam[key] - this._orbit[key];
+      if (key === "az") delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+      const threshold = key === "dist" ? 0.05 : 0.00005;
+      if (Math.abs(delta) > threshold) {
+        this._orbit[key] += delta * amount;
+        moving = true;
+      } else if (delta !== 0) {
+        this._orbit[key] = this.cam[key];
+        moving = true;
+      }
+    }
+    return moving;
+  }
+
+  _effectTime() { return this._motionQuery.matches ? (this.frame?.t || 0) : performance.now() / 1000; }
+
   // Continuous redraws only while something is visibly animating.
   _animating() {
+    if (this._motionQuery.matches) return false;
     const f = this.frame;
     if (!f) return false;
     if (f.stage === "BOOST") return true;
@@ -617,14 +600,15 @@ export class Viewer3D {
     return false;
   }
   _loop() {
-    const tick = () => {
-      if (this._dirty || this._animating()) { this._dirty = false; this._render(); }
+    const tick = (now) => {
+      const cameraMoving = this._stepCamera(now);
+      if (this._dirty || cameraMoving || this._animating()) { this._dirty = false; this._render(); }
       this._raf = requestAnimationFrame(tick);
     };
     this._raf = requestAnimationFrame(tick);
   }
   invalidate() { this._dirty = true; }
-  destroy() { cancelAnimationFrame(this._raf); this._ro?.disconnect(); this.overlay?.remove(); }
+  destroy() { cancelAnimationFrame(this._raf); this._ro?.disconnect(); this._motionQuery.removeEventListener("change", this._motionChange); this.gl?.deleteTexture(this.paintTexture); this.overlay?.remove(); }
 
   // --- render ------------------------------------------------------------------
   _fit() {
@@ -648,12 +632,12 @@ export class Viewer3D {
 
     const view = this._basis();
     const fovY = 50 * DEG;
-    const near = clamp(this.cam.dist * 0.004, 0.5, 400);
+    const near = clamp(this._orbit.dist * 0.004, 0.5, 400);
     const far = 2.6e6;
     const proj = m4persp(fovY, W / H, near, far);
     const vp = m4mul(proj, m4view(view.eye, view.forward, view.right, view.up));
     this._vp = vp; this._view = view; this._W = W; this._H = H;
-    const fogDensity = 1 / clamp(this.cam.dist * 22, 26000, 900000);
+    const fogDensity = 1 / clamp(this._orbit.dist * 22, 26000, 900000);
 
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.disable(gl.CULL_FACE);
@@ -683,6 +667,9 @@ export class Viewer3D {
     gl.uniform3fv(mu.uCamPos, view.eye);
     gl.uniform3fv(mu.uFogColor, this.fogColor);
     gl.uniform1f(mu.uFogDensity, fogDensity);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.paintTexture);
+    gl.uniform1i(mu.uPaint, 0);
 
     if (this.showTerrain) this._drawTerrain(gl, mu);
     this._drawVehicle(gl, mu);
@@ -691,12 +678,13 @@ export class Viewer3D {
     this._drawOverlay(octx, W, H);
   }
 
-  _setMesh(gl, mu, model, { emissive = 0, alpha = 1, ambient = 0.45, spec = 0.35 } = {}) {
+  _setMesh(gl, mu, model, { emissive = 0, alpha = 1, ambient = 0.45, spec = 0.35, material = 0 } = {}) {
     gl.uniformMatrix4fv(mu.uModel, false, model);
     gl.uniform1f(mu.uEmissive, emissive);
     gl.uniform1f(mu.uAlpha, alpha);
     gl.uniform1f(mu.uAmbient, ambient);
     gl.uniform1f(mu.uSpec, spec);
+    gl.uniform1i(mu.uMaterial, material);
   }
   static IDENT = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
@@ -760,7 +748,7 @@ export class Viewer3D {
     if (!this._terr || this._terr.origin[0] !== this.origin[0] || this._terr.origin[1] !== this.origin[1]) this._buildTerrain();
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(1, 1);
-    this._setMesh(gl, mu, Viewer3D.IDENT, { ambient: 0.30, spec: 0.04 });
+    this._setMesh(gl, mu, Viewer3D.IDENT, { ambient: 0.30, spec: 0.04, material: 2 });
     gl.bindVertexArray(this._terr.vao);
     gl.drawElements(gl.TRIANGLES, this._terr.count, gl.UNSIGNED_INT, 0);
     gl.disable(gl.POLYGON_OFFSET_FILL);
@@ -781,7 +769,7 @@ export class Viewer3D {
     const destroyed = this.boom && frame.t - this.boom.t > 0.1 && stage === "IMPACT";
     if (!destroyed) {
       const M = m4basis(pos, f, r, u, k);
-      this._setMesh(gl, mu, M, { spec: 0.5 });
+      this._setMesh(gl, mu, M, { spec: 0.5, material: 3 });
       draw(this.meshAirframe);
 
       // wings: stowed through boost, swing out shortly after separation
@@ -790,9 +778,9 @@ export class Viewer3D {
       const ease = deploy * deploy * (3 - 2 * deploy);
       const ang = (1 - ease) * WING_STOWED;
       const pivR = WING_PIVOT, pivL = [WING_PIVOT[0], -WING_PIVOT[1], WING_PIVOT[2]];
-      this._setMesh(gl, mu, m4mul(M, m4pivotRotZ(pivR, ang)), { spec: 0.5 });
+      this._setMesh(gl, mu, m4mul(M, m4pivotRotZ(pivR, ang)), { spec: 0.5, material: 1 });
       draw(this.meshWingR);
-      this._setMesh(gl, mu, m4mul(M, m4pivotRotZ(pivL, -ang)), { spec: 0.5 });
+      this._setMesh(gl, mu, m4mul(M, m4pivotRotZ(pivL, -ang)), { spec: 0.5, material: 1 });
       draw(this.meshWingL);
 
       if (stage === "BOOST") {
@@ -842,7 +830,7 @@ export class Viewer3D {
 
     // booster plume: flickering nested cones (additive, emissive)
     if (stage === "BOOST" && !destroyed) {
-      const now = performance.now() / 1000;
+      const now = this._effectTime();
       const flick = 0.85 + 0.18 * Math.sin(now * 47) + 0.10 * Math.sin(now * 89 + 1.7) + 0.05 * Math.sin(now * 233);
       const fpos = add(pos, scale(f, NOZZLE_X * k));
       // when climbing off the pad, the plume can only reach down to the ground
@@ -868,7 +856,7 @@ export class Viewer3D {
     const addQ = []; // additive
     const nrmQ = []; // normal alpha blend
     const k = this._modelScale();
-    const now = performance.now() / 1000;
+    const now = this._effectTime();
     const camR = view.right, camU = view.up;
     const quad = (list, c, ex, ey, rgba) => {
       const p00 = add(add(c, scale(ex, -1)), scale(ey, -1)), p10 = add(add(c, ex), scale(ey, -1));
@@ -884,7 +872,7 @@ export class Viewer3D {
       if (!base) return;
       const hgt = clamp(this.cam.dist * 0.45, 600, 16000);
       const wid = clamp(this.cam.dist * 0.012, 14, 320);
-      const pulse = 0.30 + 0.10 * Math.sin(now * 2.2);
+      const pulse = 0.10;
       for (const ex of [[wid, 0, 0], [0, wid, 0]]) {
         const c = add(base, [0, 0, hgt / 2]);
         quad(addQ, c, ex, [0, 0, hgt / 2], [rgb[0], rgb[1], rgb[2], pulse], true);
@@ -1006,55 +994,65 @@ export class Viewer3D {
     const cy = vp[1] * x + vp[5] * y + vp[9] * z + vp[13];
     return [(cx / cw * 0.5 + 0.5) * this._W, (0.5 - cy / cw * 0.5) * this._H];
   }
-  _poly(ctx, pts, color, width, glow = false, dash = null) {
+  _poly(ctx, pts, color, width, _glow = false, dash = null) {
     if (!pts || pts.length < 2) return;
-    ctx.save();
-    if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 7; }
-    if (dash) ctx.setLineDash(dash);
-    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.lineCap = "round";
-    ctx.beginPath();
-    let started = false;
-    for (const w of pts) {
-      const p = this._projectPt(w);
-      if (!p) { started = false; continue; }
-      if (!started) { ctx.moveTo(p[0], p[1]); started = true; } else ctx.lineTo(p[0], p[1]);
-    }
-    ctx.stroke(); ctx.restore();
+    strokeRoute(ctx, pts.map(point => this._projectPt(point)), color, width, dash);
+  }
+  _maskVehicleOverlay(ctx) {
+    // Keep the decorative route overlay off the visible body. The GL model
+    // remains underneath this canvas; no path points or scene data are moved.
+    const frame = this.frame;
+    if (!frame || (this.boom && frame.stage === "IMPACT" && frame.t - this.boom.t > 0.1)) return;
+    const { f, r, u } = this._attitudeBasis(frame), k = this._modelScale();
+    const aft = frame.stage === "BOOST" ? NOZZLE_X : TAIL;
+    const t = frame.true;
+    const pos = this._drawnPos(this._world(t.lat, t.lon, t.alt), f, k, -aft);
+    const center = this._projectPt(pos);
+    const nose = this._projectPt(add(pos, scale(f, NOSE * k)));
+    const tail = this._projectPt(add(pos, scale(f, aft * k)));
+    const side = this._projectPt(add(pos, scale(r, R * k)));
+    const top = this._projectPt(add(pos, scale(u, R * k)));
+    if (!center || !nose || !tail || !side || !top) return;
+    const radius = Math.max(Math.hypot(side[0] - center[0], side[1] - center[1]), Math.hypot(top[0] - center[0], top[1] - center[1]));
+    ctx.save(); ctx.globalCompositeOperation = "destination-out";
+    ctx.lineCap = "round"; ctx.lineWidth = radius * 2 + 2; ctx.strokeStyle = "#000";
+    ctx.beginPath(); ctx.moveTo(tail[0], tail[1]); ctx.lineTo(nose[0], nose[1]); ctx.stroke(); ctx.restore();
   }
   _drawOverlay(ctx, W, H) {
     // Planned route = dashed reference (the A* + spline solution the missile
     // should track). Flown path = solid, segmented by flight stage so boost
     // (purple) and terminal (red) read distinctly against cruise.
-    if (this.plan) this._poly(ctx, this.plan, cssVar("--c-planned") || "#4d8dff", 1.4, false, [7, 6]);
+    if (this.plan) this._poly(ctx, this.plan, cssVar("--c-planned") || "#4d8dff", 2, false, [9, 7]);
 
     if (this.path.length >= 2) {
       const colFor = (s) => s === "BOOST" ? (cssVar("--c-boost") || "#b48cff") : (s === "TERMINAL" || s === "IMPACT") ? (cssVar("--c-terminal") || "#ff5a52") : (cssVar("--c-actual") || "#39d98a");
       const at = (e) => e.p;
       const last = this.path[this.path.length - 1];
-      if (last.ground) this._poly(ctx, [at(last), last.ground], cssVar("--instr-ink-dim") || "#7f8ba6", 0.8);
+      if (last.ground) this._poly(ctx, [at(last), last.ground], cssVar("--instr-ink-dim") || "#7f8ba6", 0.8, false, [2, 5]);
       // Draw segment-by-segment, carrying the boundary point into the next stage's
       // segment so the coloured path has no gaps at stage transitions.
       let seg = [at(this.path[0])], cur = this.path[0].stage;
       for (let i = 1; i < this.path.length; i++) {
         seg.push(at(this.path[i]));
         if (this.path[i].stage !== cur || i === this.path.length - 1) {
-          this._poly(ctx, seg, colFor(cur), 2.4, true);
+          this._poly(ctx, seg, colFor(cur), 2.8, false);
           seg = [at(this.path[i])]; cur = this.path[i].stage;
         }
       }
     }
 
+    this._maskVehicleOverlay(ctx);
+
     const mark = (w, color, label) => {
       if (!w) return;
       const p = this._projectPt(w);
       if (!p || p[0] < -40 || p[0] > W + 40 || p[1] < -40 || p[1] > H + 40) return;
-      ctx.strokeStyle = color; ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(p[0], p[1], 6, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(p[0] - 9, p[1]); ctx.lineTo(p[0] + 9, p[1]); ctx.moveTo(p[0], p[1] - 9); ctx.lineTo(p[0], p[1] + 9); ctx.stroke();
-      if (label) { ctx.fillStyle = color; ctx.font = "10px " + (cssVar("--font-mono") || "monospace"); ctx.fillText(label, p[0] + 10, p[1] - 8); }
+      ctx.save(); ctx.fillStyle = color; ctx.strokeStyle = MAP_PAINT.paper; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(p[0], p[1], 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
+      paintMapLabel(ctx, label, p[0] + 11, p[1] - 31, color);
     };
-    mark(this.start, cssVar("--c-start") || "#32d74b", "LAUNCH");
-    mark(this.target, cssVar("--c-target") || "#ff453a", "TARGET");
+    mark(this.start, cssVar("--c-start") || "#32d74b", "Launch");
+    mark(this.target, cssVar("--c-target") || "#ff453a", "Target");
 
     // Terminal pull-up: dashed ring (a computed threshold, not a place), matching
     // the 2D map marker.
@@ -1069,7 +1067,7 @@ export class Viewer3D {
         ctx.setLineDash([]);
         ctx.beginPath(); ctx.arc(p[0], p[1], 1.8, 0, Math.PI * 2); ctx.fill();
         ctx.font = "10px " + (cssVar("--font-mono") || "monospace");
-        ctx.fillText("PULL-UP", p[0] + 10, p[1] - 8);
+        paintMapLabel(ctx, "Pull-up", p[0] + 11, p[1] + 10, color);
         ctx.restore();
       }
     }
@@ -1084,16 +1082,21 @@ export class Viewer3D {
         const stage = this.frame.stage;
         const color = stage === "TERMINAL" || stage === "IMPACT" ? (cssVar("--c-terminal") || "#ff5a52") : (cssVar("--instr-ink") || "#cdd7ea");
         ctx.fillStyle = color; ctx.font = "11px " + (cssVar("--font-mono") || "monospace");
-        ctx.fillText(this.label, p[0] + this._modelScale() * 0.04 + 16, p[1] - 14);
+        paintMapLabel(ctx, this.label, p[0] + this._modelScale() * 0.04 + 16, p[1] + 32, color);
       }
     }
 
     if (!this.grid) this._overlayNotice(ctx, W, H, "No DEM loaded");
   }
   _overlayNotice(ctx, W, H, text) {
-    ctx.fillStyle = cssVar("--instr-ink-dim") || "#7f8ba6";
+    ctx.save();
     ctx.font = "12px " + (cssVar("--font-mono") || "monospace");
-    ctx.textAlign = "center"; ctx.fillText(text, W / 2, H / 2); ctx.textAlign = "left";
+    const width = ctx.measureText(text).width + 28;
+    ctx.fillStyle = "rgba(15, 23, 34, 0.8)";
+    ctx.beginPath(); ctx.roundRect((W - width) / 2, H / 2 - 18, width, 32, 6); ctx.fill();
+    ctx.fillStyle = "#e1e7f0";
+    ctx.textAlign = "center"; ctx.fillText(text, W / 2, H / 2 + 3);
+    ctx.restore();
   }
 }
 
@@ -1102,13 +1105,13 @@ const SMOKE_LIFE = 11; // seconds of sim time a trail puff lives
 // Hypsometric tint: relative elevation ramp, steep slopes pull toward bare rock,
 // a per-vertex hash breaks up banding.
 const TERRAIN_STOPS = [
-  [0.00, 0.135, 0.215, 0.135],
-  [0.16, 0.235, 0.305, 0.160],
-  [0.36, 0.415, 0.385, 0.225],
-  [0.56, 0.465, 0.375, 0.260],
-  [0.74, 0.430, 0.415, 0.410],
-  [0.88, 0.600, 0.615, 0.645],
-  [1.00, 0.920, 0.940, 0.970],
+  [0.00, 0.160, 0.240, 0.140],
+  [0.16, 0.250, 0.330, 0.180],
+  [0.36, 0.350, 0.400, 0.250],
+  [0.56, 0.420, 0.400, 0.310],
+  [0.74, 0.450, 0.450, 0.400],
+  [0.88, 0.500, 0.520, 0.490],
+  [1.00, 0.600, 0.610, 0.580],
 ];
 function terrainColor(h, slope, seed) {
   let lo = TERRAIN_STOPS[0], hi = TERRAIN_STOPS[TERRAIN_STOPS.length - 1];

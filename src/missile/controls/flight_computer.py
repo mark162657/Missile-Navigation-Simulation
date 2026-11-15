@@ -62,21 +62,21 @@ class FlightComputer:
         lateral_accel, target_alt, target_spd = self.path_follower.update(state)
         return self.autopilot.update(state, target_alt, target_spd, lateral_accel, dt)
 
-    # def _step_terminal(self, state: MissileState, dt: float) -> ControlInput:
-    #     """Updating the terminal guidance and then returning the control input"""
-    #     cmd = self.terminal.update(state)
-    #     throttle = self._speed_throttle(state, cmd.target_spd, dt)
-    #     return ControlInput(throttle=throttle, accel_turn=cmd.accel_turn, accel_climb=cmd.accel_climb)
+    def _step_terminal(self, state: MissileState, dt: float) -> ControlInput:
+        """Updating the terminal guidance and then returning the control input"""
+        cmd = self.terminal.update(state)
+        throttle = self._speed_throttle(state, cmd.target_spd, dt)
+        return ControlInput(throttle=throttle, accel_turn=cmd.accel_turn, accel_climb=cmd.accel_climb)
 
     # Handling the terminal guidance to the Autopilot, so controls are handled by PID
-    def _step_terminal(self, state: MissileState, dt: float) -> ControlInput:
-        cmd = self.terminal.update(state)
-
-        lateral_accel = cmd.accel_turn # DONE
-        target_climb = cmd.accel_climb # TODO
-        target_spd = cmd.target_spd # Modification needed
-
-        return self.autopilot.update(state, target_climb, target_spd, lateral_accel, dt)
+    # def _step_terminal(self, state: MissileState, dt: float) -> ControlInput:
+    #     cmd = self.terminal.update(state)
+    #
+    #     lateral_accel = cmd.accel_turn # DONE
+    #     target_climb = cmd.accel_climb # TODO
+    #     target_spd = cmd.target_spd # Modification needed
+    #
+    #     return self.autopilot.update(state, target_climb, target_spd, lateral_accel, dt)
     
 
     def _speed_throttle(self, state: MissileState, target_spd: float, dt: float) -> float:

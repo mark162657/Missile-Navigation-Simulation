@@ -1,0 +1,32 @@
+A* pathfinding baseline (current code, no optimisation)
+Date:     2026-11-15 13:43:52
+Machine:  macOS-27.2-arm64-arm-64bit-Mach-O, arm64, 8 CPUs, 16.0 GB RAM
+Python:   3.13.2
+Weight:   1.0   Bearing: 30.0 deg   Timeout: 900s per case
+DEMs:     srtm_43_02.tif, merged_dem_sib_N54_N59_E090_E100.tif
+Lengths:  5, 10, 20, 40, 80 km
+
+DEM                              Mpx  Target km  Status  Straight km  Path px  Path km  Detour       Nodes  find_path s  Peak RAM MB
+------------------------------------------------------------------------------------------------------------------------------------
+srtm_43_02.tif                 36.00       5.00      ok         5.02       78     5.75    1.15      13,401         0.06       328.90
+srtm_43_02.tif                 36.00      10.00      ok         9.99      154    11.46    1.15      53,070         0.03       330.20
+srtm_43_02.tif                 36.00      20.00      ok        20.02      308    22.97    1.15     203,860         0.05       333.20
+srtm_43_02.tif                 36.00      40.00      ok        40.00      614    45.87    1.15     887,978         0.13       340.70
+srtm_43_02.tif                 36.00      80.00      ok        80.00    1,228    92.19    1.15   4,020,090         0.53       360.00
+merged_dem_sib_N54_N59_E0...  855.40       5.00      ok         5.00      258     5.85    1.17     205,939         0.89     1,624.30
+merged_dem_sib_N54_N59_E0...  855.40      10.00      ok        10.00      515    11.67    1.17     737,711         0.79     1,782.90
+merged_dem_sib_N54_N59_E0...  855.40      20.00      ok        19.99    1,029    23.35    1.17   2,987,894         1.13     1,965.90
+merged_dem_sib_N54_N59_E0...  855.40      40.00      ok        40.01    2,058    49.25    1.23  12,507,208         2.49     2,031.60
+merged_dem_sib_N54_N59_E0...  855.40      80.00      ok        80.01    4,115    97.50    1.22  43,266,996         7.73     1,966.00
+
+Summary per DEM
+---------------
+srtm_43_02.tif: 36.0 M pixels, g_score+came_from = 0.27 GB per call; peak RAM 329-360 MB; find_path 0.03-0.53 s
+merged_dem_sib_N54_N59_E090_E100.tif: 855.4 M pixels, g_score+came_from = 6.37 GB per call; peak RAM 1,624-2,032 MB; find_path 0.79-7.73 s
+
+Notes
+-----
+- Peak RAM is the peak resident memory of a fresh process doing one load + one search.
+- Nodes = heap pops reported by pathfinder.cpp, including stale entries.
+- Path km sums the step lengths with the same metres-per-pixel table the C++ uses.
+- Detour = path km / straight-line km.

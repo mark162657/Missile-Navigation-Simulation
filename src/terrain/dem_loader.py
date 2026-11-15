@@ -99,7 +99,10 @@ class DEMLoader:
         )
 
     def _cache_path(self) -> Path:
-        return self.path.with_suffix(_CACHE_SUFFIX)
+        project_root = Path(__file__).resolve().parents[2]  # same root _resolve_path uses
+        cache_dir = project_root / "data" / "dem" / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)  # create data/cache on first run
+        return cache_dir / (self.path.stem + _CACHE_SUFFIX)
 
     def _cache_is_fresh(self, cache_path: Path) -> bool:
         """Cache is valid if it exists, is newer than the .tif, and has the right shape."""
@@ -240,7 +243,9 @@ if __name__ == "__main__":
     project_root = Path(__file__).resolve().parents[2]
     siberia_dem = "merged_dem_sib_N54_N59_E090_E100.tif"
     iran_dem = "merged_dem_iran_N31_N41_E44_E54_filled.tif"
-    dem_path = project_root / "data" / "dem" / iran_dem
+    sample_dem = "srtm_43_02.tif"
+
+    dem_path = project_root / "data" / "dem" / sample_dem
 
     dem = DEMLoader(dem_path)
     print(f"\n  DEM loaded: {dem.path.name}")
