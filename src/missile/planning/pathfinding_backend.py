@@ -1,3 +1,6 @@
+from curses.panel import top_panel
+from turtle import right
+
 import numpy as np
 import time
 
@@ -24,6 +27,8 @@ class Pathfinding:
         """
         Args:
             DEM_NAME: the name of the DEM file
+
+        Initialise DEM route -> Initialise lookup table -> C++ engine
         """
         
         # Load dem, requesting dem file name:
@@ -31,21 +36,26 @@ class Pathfinding:
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 
-        # load into ascontiguousarray for C++, flaot32 for dem
+        # load into ascontiguousarray for C++, float32 for dem
         self.dem = np.ascontiguousarray(dem.data, dtype=np.float32)
         
         # initiate the lookup table and column value
         self.rows = self.dem_loader.shape[0] # shape: (rows, columns)
         self.cols = self.dem_loader.shape[1]
 
-        # y-axis (latitude) resolution, meter per pixel. Previously meter_per_z
+        # y-axis (latitude) resolution, meter per pixel.
         self.meter_per_y = abs(self.dem_loader.transform[4] * 111320)
 
-        start_lat = self.dem_loader.transform[5]
+        start_lat = self.dem_loader.transform[5] # top edge latitude (row 0)
         pixel_height = self.dem_loader.transform[4]
 
         # Setup lookup table
-        row_indices = np.arange(self.rows, dtype=np.float64) # double: float64
+            # Row 0: start_lat
+            # Row 1: start_lat + pixel_height
+            # Row 2: start_lat + 2 * pixel_height
+            # And so on
+        row_indices = np.arange(self.rows,
+                                 dtype=np.float64) # double: float64
         self.latitudes = start_lat + (row_indices * pixel_height)
 
         # x-axis (east/west) setup. width in meter with each latitude
@@ -76,27 +86,54 @@ class Pathfinding:
         else:
             self.engine = None
 
+    # def _window_area(self, pix0: tuple[int, int], pix1: tuple[int, int], margin: int):
+    #     """
+    #     The previous g-score array took tremendous amount of space by allocating memory for all pixels, setting unexplored pixels to inf or -1.
+    #     In this function, we defined a 'margin' and 'window' to save unnecessary space.
+        
+    #     We will provide a 30% margin around the start/end coordinate.
+    #     """
+    #     r0, c0 = pix0
+    #     r1, c1 = pix1
+
+    #     # Create bounds
+    #     top = max(0, min(r0, r1) - margin)
+    #     bottom = min(self.rows, max(r0, r1) + margin + 1)
+    #     left = max(0, min(c0, c1) - margin)
+    #     right = min(self.cols, max(c0, c1) + margin + 1)
+
+    #     return top, bottom, left, right
+        
     def find_path(self, start: tuple[int, int], end: tuple[int, int], heuristic_weight: float=2) -> list:
         """
         Main interface to run the A* algorithm, serve as a caller for receiving info and calling the C++ engine.
         Args:
-            start: (row, col) tuple pair for pixel
-            end: (row, col) tuple pair for pixel
+            start: (row, col) tuple pair for pixel of origin
+            end: (row, col) tuple pair for pixel of target
             heuristic_weight: multiplies the heuristic cost; set to 2.0 for faster, directed searches or 1.0 for the guaranteed shortest path (currently no difference lol).
                 The higher the heuristic_weight, potentially, the compile time increases.
             
         """
 
+        # Check for nodata: missing data in dem.
+        nd = self.dem_loader.nodata
+        if nd is not None and (self.dem[start] == nd or self.dem[end] == nd):
+            return None
+
+        # # Limit that if the distance of start and end are less than 128 pixel, we did not shrink the margin by 30%, otherwise pathfinding quality degrades
+        # span = max(abs(end[0] - start[0]), abs(end[1]-start[1]))
+        # margin = max(128, int(0.30 * span))
+
         if not self.engine:
-            raise RuntimeError("C++ Engine is not loaded. Cannot run pathfinding.")
+            raise RuntimeError("C++ Engine is not loaded. Cannot run pathfinder.")
         
-        # Bound check (if out of bound or not); self.rows and cols are the max number for rows and cols
+        # Bound check (if out of bound or not); self.rows and cols are the max number for row and col
         if not (0 <= start[0] < self.rows and 0 <= start[1] < self.cols):
             raise ValueError(f"Start coordinate out of bounds {self.rows} x {self.cols}: {start}")
         if not (0 <= end[0] < self.rows and 0 <= end[1] < self.cols):
             raise ValueError(f"End coordinate out of bounds {self.rows} x {self.cols}: {start}")
         
-        # Convert Tuples to paked index expected by C++ (saving memory compared to tuple)
+        # Convert Tuples to packed index expected by C++ (saving memory compared to tuple)
         start_idx = start[0] * self.cols + start[1]
         end_idx = end[0] * self.cols + end[1]
 
@@ -154,7 +191,7 @@ class Pathfinding:
             # Y = Latitude displacement (row * meters_per_y)
             y_pos = row * self.meter_per_y
             
-            # X = Longitude displaceemnt (col * meter_per_x_lookup)
+            # X = Longitude displacement (col * meter_per_x_lookup)
             x_pos = col * self.meters_per_x_lookup[row]
             
             path_3d.append((x_pos, y_pos, altitude))

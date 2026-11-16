@@ -44,8 +44,8 @@ public:
 
   // --- Main A* Pathfinding Algorithm ---
   // std::pair in std::vector == storing tuple() in py list
-  std::vector<std::pair<int, int>> find_path(int start_idx, int end_idx,
-                                             float heuristic_weight = 1) {
+  std::vector<std::pair<int, int>> find_path(int start_idx, int end_idx, float heuristic_weight = 1) 
+  {
     // Bound check
     if (start_idx < 0 || start_idx >= m_total_pixels || end_idx < 0 ||
         end_idx >= m_total_pixels) {
