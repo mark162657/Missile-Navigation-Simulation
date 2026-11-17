@@ -138,9 +138,7 @@ public:
             float f_score = temp_g_score + (h_score * heuristic_weight);
             open_set.push({f_score, neigh_idx});
           }
-
-
-          }
+        }
       }
     }
     std::cout << "[C++] Queue exhausted, no path found..." << std::endl;
@@ -274,25 +272,48 @@ private:
     return dist_cost + penalty + height_penalty + slope_penalty;
   }
 
-  // --- _reconstruct_path ---
-  std::vector<std::pair<int, int>>
-  reconstruct_path(const std::unordered_map<int64_t, NodeState> &visited, int current_idx = 0) {
+  // --- _reconstruct_path --- by GPT-6.1 sol
+  std::vector<std::pair<int, int>>reconstruct_path(const std::unordered_map<int64_t, NodeState>& visited,
+    int64_t current_idx)
+  {
+    const int direct_r[] = {-1, 1, 0, 0, -1, -1, 1, 1};
+    const int direct_c[] = {0, 0, -1, 1, -1, 1, -1, 1};
+
     std::vector<std::pair<int, int>> path;
 
-    while (current_idx != -1) {
+    // A valid parent chain cannot contain more nodes than visited.
+    for (size_t steps = 0; steps < visited.size(); ++steps) {
+      auto itr = visited.find(current_idx);
+      if (itr == visited.end())
+        return {};
+
       int row = current_idx / m_cols;
       int col = current_idx % m_cols;
-
       path.push_back({row, col});
 
-      current_idx = came_from[current_idx];
+      uint8_t dir = itr->second.dir;
+
+      if (dir == 8) {
+        std::reverse(path.begin(), path.end());
+        return path;
+      }
+
+      if (dir > 7)
+        return {};
+
+      int parent_row = row + direct_r[dir];
+      int parent_col = col + direct_c[dir];
+
+      if (parent_row < 0 || parent_row >= m_rows ||
+          parent_col < 0 || parent_col >= m_cols)
+        return {};
+
+      current_idx =
+          static_cast<int64_t>(parent_row) * m_cols + parent_col;
     }
 
-    // Reverse: end -> start to start -> end nodes
-    std::reverse(path.begin(), path.end());
-    return path;
+    return {};
   }
-};
 
 // Module definition
 PYBIND11_MODULE(missile_backend, m) { // (module name, handle)
