@@ -7,6 +7,8 @@
 #include <queue>
 #include <vector>
 #include <unordered_map>
+#include <cmath>
+#include <functional>
 
 namespace py = pybind11;
 
@@ -30,8 +32,8 @@ struct NodeState {
   // move:         ↑    ↓    ←    →    ↖    ↗    ↙    ↘
 };
 
-class PathfinderCPP {
-
+class PathfinderCPP
+{
 // Constructors and main A* Pathfinding Algorithm
 public:
   // Constructor: accepting numpy array and var from Python
@@ -63,7 +65,7 @@ public:
       std::cerr << "[C++] Error: Start or End index out of bounds!"
                 << std::endl;
       return {};
-    }
+        }
 
     if (heuristic_weight < 0) {
       std::cout << "heuristic_weight cannot be less than 1" << std::endl;
@@ -71,7 +73,7 @@ public:
 
     // Create a new hashmap which: {key: curr_idx, value: {NodeState}}, replacing g_score and came_from
     std::unordered_map<int64_t, NodeState> visited;
-    
+
     // TEMP: old code for reference
     // std::vector<float> g_score(m_total_pixels, std::numeric_limits<float>::infinity());
     // std::vector<int> came_from(m_total_pixels, -1); // fill the array with -1 (None, Null...) first
@@ -95,7 +97,7 @@ public:
       if (curr_idx == end_idx) {
         std::cout << "Target acquired... Total of " << node_explored
                   << " nodes explored." << std::endl;
-        return reconstruct_path(came_from, end_idx);
+        return reconstruct_path(visited, end_idx);
       }
 
       // Getting row, col from index for the thousand time
@@ -138,7 +140,7 @@ public:
             float f_score = temp_g_score + (h_score * heuristic_weight);
             open_set.push({f_score, neigh_idx});
           }
-        }
+            }
       }
     }
     std::cout << "[C++] Queue exhausted, no path found..." << std::endl;
@@ -314,13 +316,14 @@ private:
 
     return {};
   }
+};
 
-// Module definition
-PYBIND11_MODULE(missile_backend, m) { // (module name, handle)
-  py::class_<PathfinderCPP>(m, "PathfinderCPP")
-      .def(py::init<py::array_t<float>, py::array_t<double>, double, int,
-                    int>()) // exposing constructors
-      .def("find_path",
-           &PathfinderCPP::find_path) // exposes the find_path method to python
-      .def("get_terrain_profile", &PathfinderCPP::get_terrain_profile);
-}
+  // Module definition
+  PYBIND11_MODULE(missile_backend, m) { // (module name, handle)
+    py::class_<PathfinderCPP>(m, "PathfinderCPP")
+        .def(py::init<py::array_t<float>, py::array_t<double>, double, int,
+                      int>()) // exposing constructors
+        .def("find_path",
+             &PathfinderCPP::find_path) // exposes the find_path method to python
+        .def("get_terrain_profile", &PathfinderCPP::get_terrain_profile);
+  }
