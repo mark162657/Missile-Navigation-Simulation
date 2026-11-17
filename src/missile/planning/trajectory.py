@@ -16,11 +16,6 @@ class TrajectoryGenerator:
                        min_alt: float=30.0
                        ) -> npt.NDArray[np.float64]:
         """
-        Smooth the path by B Spline (C2 continuity), which is aerodynamic and close to what missile could fly.
-        Balancing continuity and local control.
-        We ignore altitude during 2D smoothing (flight altitude handled by flight computer/autopilot),
-        we focus on x, y (lat/lon).
-
         Args:
             raw_path: the raw path returned from pathfinder
         """
@@ -69,24 +64,24 @@ class TrajectoryGenerator:
         return [k for k, g in groupby(path)]
 
 
-    def _compute_b_spline(self, clean_path: list[tuple[int, int]], smooth_factor: float, res_multi: int) -> list[tuple[int, int]]:
-        """
-        Smooth the path by b spline, using splev and splprep
-        """
-        try:
-            # Numpy slicing
-            clean_path = np.array(clean_path)
+    # def _compute_b_spline(self, clean_path: list[tuple[int, int]], smooth_factor: float, res_multi: int) -> list[tuple[int, int]]:
+    #     """
+    #     Smooth the path by b spline, using splev and splprep
+    #     """
+    #     try:
+    #         # Numpy slicing
+    #         clean_path = np.array(clean_path)
 
-            row = clean_path[:, 0] # select everything but only keep the 0th index
-            col = clean_path[:, 1] # same but 1st
+    #         row = clean_path[:, 0] # select everything but only keep the 0th index
+    #         col = clean_path[:, 1] # same but 1st
 
-            # Main smoothing part. splprep for patter analysing, linspace for point generating, splev for drawing
-            tck, u = splprep([row, col], s=smooth_factor * len(clean_path), k=3) # default k = 3, cubic
-            u_new = np.linspace(0, 1, int(len(clean_path) * res_multi)) # draw original nodes * resolution upsampling to create smoother path
-            new_row, new_col = splev(u_new, tck)
+    #         # Main smoothing part. splprep for patter analysing, linspace for point generating, splev for drawing
+    #         tck, u = splprep([row, col], s=smooth_factor * len(clean_path), k=3) # default k = 3, cubic
+    #         u_new = np.linspace(0, 1, int(len(clean_path) * res_multi)) # draw original nodes * resolution upsampling to create smoother path
+    #         new_row, new_col = splev(u_new, tck)
 
-            return new_row.astype(np.float32), new_col.astype(np.float32)
+    #         return new_row.astype(np.float32), new_col.astype(np.float32)
 
-        except Exception as e:
-            print(f"Trajectory Gen Error: {e}")
-            return None, None
+    #     except Exception as e:
+    #         print(f"Trajectory Gen Error: {e}")
+    #         return None, None

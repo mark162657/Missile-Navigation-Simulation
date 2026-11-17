@@ -43,7 +43,7 @@ public:
   }
 
   // --- Main A* Pathfinding Algorithm ---
-  // std::pair in std::vector == storing tuple() in py list
+  // std::pair in std::vector == storing tuple() in Python list
   std::vector<std::pair<int, int>> find_path(int start_idx, int end_idx, float heuristic_weight = 1) 
   {
     // Bound check
@@ -60,10 +60,11 @@ public:
 
     // Allocating dense memory for our arrays
     // TODO: Used too much memory space by allocating RAM for all pixels
-    std::vector<float> g_score(m_total_pixels,
-                               std::numeric_limits<float>::infinity());
-    std::vector<int> came_from(
-        m_total_pixels, -1); // fill the array with -1 (None, Null...) first
+    std::unordered_map<int64_t, float> g_score;
+    std::unordered_map<int64_t, int64_t> came_from;
+
+    // std::vector<float> g_score(m_total_pixels, std::numeric_limits<float>::infinity());
+    // std::vector<int> came_from(m_total_pixels, -1); // fill the array with -1 (None, Null...) first
 
     // Initiate g_score
     g_score[start_idx] = 0.0f;
