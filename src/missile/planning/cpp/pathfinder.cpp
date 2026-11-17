@@ -6,6 +6,7 @@
 #include <pybind11/stl.h>
 #include <queue>
 #include <vector>
+#include <unordered_map>
 
 namespace py = pybind11;
 
@@ -27,7 +28,7 @@ struct NodeState {
   // direct_r[i]: -1    1    0    0   -1   -1    1    1
   // direct_c[i]:  0    0   -1    1   -1    1   -1    1
   // move:         ↑    ↓    ←    →    ↖    ↗    ↙    ↘
-}
+};
 
 class PathfinderCPP {
 
@@ -68,14 +69,15 @@ public:
       std::cout << "heuristic_weight cannot be less than 1" << std::endl;
     }
 
-    // Create a new hashmap which: {key: curr_pixel, value: {NodeState}}, replacing g_score and came_from
+    // Create a new hashmap which: {key: curr_idx, value: {NodeState}}, replacing g_score and came_from
     std::unordered_map<int64_t, NodeState> visited;
-
+    
+    // TEMP: old code for reference
     // std::vector<float> g_score(m_total_pixels, std::numeric_limits<float>::infinity());
     // std::vector<int> came_from(m_total_pixels, -1); // fill the array with -1 (None, Null...) first
 
-    // Initiate g_score
-    g_score[start_idx] = 0.0f;
+    // Initiate visited
+    visited[start_idx] = {0.0f, 8};
     std::priority_queue<Node, std::vector<Node>, std::greater<Node>> open_set;
     open_set.push({0.0f, start_idx});
 
@@ -119,21 +121,26 @@ public:
           if (move_cost == std::numeric_limits<float>::infinity())
             continue;
 
-          // establish g_score
-          float temp_g_score = g_score[curr_idx] + move_cost;
+          // establish temporary g_score
+          float temp_g_score = visited[curr_idx].g_score + move_cost;
 
-          // Discover better path and update to open_set for each neighbor
-          if (temp_g_score < g_score[neigh_idx]) {
-            came_from[neigh_idx] = curr_idx;
-            g_score[neigh_idx] = temp_g_score;
+          // Part which when we find a lower g_score for the node by visiting from other places, then update
+          const uint8_t reverse_dir[] = {1, 0, 3, 2, 7, 6, 5, 4};
+          auto itr = visited.find(neigh_idx);
 
-            // get f_score (find h_score first)
+          // if this node not been visited yet, or g_score is smaller than g_score currently stored for that node.
+          if (itr == visited.end() || temp_g_score < itr->second.g_score)
+          {
+            visited[neigh_idx] = {temp_g_score, reverse_dir[i]};
+
+            //   // get f_score (find h_score first)
             float h_score = heuristic(neigh_idx, end_idx);
             float f_score = temp_g_score + (h_score * heuristic_weight);
-
             open_set.push({f_score, neigh_idx});
           }
-        }
+
+
+          }
       }
     }
     std::cout << "[C++] Queue exhausted, no path found..." << std::endl;
@@ -210,7 +217,7 @@ private:
     float current_elev = ptr_dem[current_idx];
     float neighbor_elev = ptr_dem[neighbor_idx];
 
-    // New: slope penalty for trying to force missile to stay in valley instead
+    // New: slope penalty for trying to force to stay in valley instead
     // of taking lazy shortcut, risking exposure
     float climb = neighbor_elev - current_elev;
     float height_diff = std::abs(climb); // yeah its just like climb but with abs
@@ -269,7 +276,7 @@ private:
 
   // --- _reconstruct_path ---
   std::vector<std::pair<int, int>>
-  reconstruct_path(const std::vector<int> &came_from, int current_idx = 0) {
+  reconstruct_path(const std::unordered_map<int64_t, NodeState> &visited, int current_idx = 0) {
     std::vector<std::pair<int, int>> path;
 
     while (current_idx != -1) {
