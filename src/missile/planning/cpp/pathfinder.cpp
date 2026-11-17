@@ -19,9 +19,19 @@ struct Node {
   bool operator>(const Node &other) const { return f_score > other.f_score; }
 };
 
+// 
+struct NodeState {
+  float g_score; // g score of that node
+  uint8_t dir; // direction which the previous node are at 
+  // i (= dir):    0    1    2    3    4    5    6    7
+  // direct_r[i]: -1    1    0    0   -1   -1    1    1
+  // direct_c[i]:  0    0   -1    1   -1    1   -1    1
+  // move:         ↑    ↓    ←    →    ↖    ↗    ↙    ↘
+}
+
 class PathfinderCPP {
 
-  // Constructors and main A* Pathfinding Algorithm
+// Constructors and main A* Pathfinding Algorithm
 public:
   // Constructor: accepting numpy array and var from Python
   PathfinderCPP(py::array_t<float> dem_array,         // float: float32
@@ -58,10 +68,8 @@ public:
       std::cout << "heuristic_weight cannot be less than 1" << std::endl;
     }
 
-    // Allocating dense memory for our arrays
-    // TODO: Used too much memory space by allocating RAM for all pixels
-    std::unordered_map<int64_t, float> g_score;
-    std::unordered_map<int64_t, int64_t> came_from;
+    // Create a new hashmap which: {key: curr_pixel, value: {NodeState}}, replacing g_score and came_from
+    std::unordered_map<int64_t, NodeState> visited;
 
     // std::vector<float> g_score(m_total_pixels, std::numeric_limits<float>::infinity());
     // std::vector<int> came_from(m_total_pixels, -1); // fill the array with -1 (None, Null...) first
@@ -100,6 +108,7 @@ public:
         // update row, col pixel value for each direction
         int new_row = row + direct_r[i];
         int new_col = col + direct_c[i];
+
         // Check boundaries
         if (new_row >= 0 && new_row < m_rows && new_col >= 0 &&
             new_col < m_cols) {
