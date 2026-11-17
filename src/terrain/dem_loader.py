@@ -17,6 +17,9 @@
 #   3. load_window() slices the memmap instead of reopening the GeoTIFF and
 #      decompressing it on every call.
 #   4. Unused matplotlib imports removed (they only slowed down import).
+#   5. NEW: downsample(k) builds a coarse block map (RAM only) for coarse-to-fine
+#      search, after Lee & Yu, "A Coarse-to-Fine Approach for Fast Path Finding
+#      for Mobile Robots", IROS 2009.
 #
 # Notes:
 #   - self.data is read-only. Code that writes into dem.data must make a copy.
@@ -28,14 +31,40 @@
 from __future__ import annotations
 
 import os
+import warnings
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import rasterio
-from rasterio.transform import rowcol, xy
+from rasterio.transform import Affine, rowcol, xy
 from rasterio.windows import Window
 
 _CACHE_SUFFIX = ".f32.npy"
+
+
+@dataclass(frozen=True)
+class CoarseDEM:
+    """Block map of a DEM (coarse level of coarse-to-fine search)."""
+    data: np.ndarray        # float32, shape (ceil(rows/k), ceil(cols/k)); NaN = no data
+    k: int                  # block size in fine pixels
+    transform: Affine       # geotransform of the coarse grid
+    fine_shape: tuple       # (rows, cols) of the original DEM
+
+    @property
+    def shape(self) -> tuple:
+        return self.data.shape
+
+    def fine_to_coarse(self, row: int, col: int) -> tuple[int, int]:
+        """Fine pixel -> index of the block containing it."""
+        return row // self.k, col // self.k
+
+    def coarse_to_fine_window(self, brow: int, bcol: int) -> tuple[int, int, int, int]:
+        """Block -> (min_row, max_row, min_col, max_col) in fine pixels, clipped.
+        Feed straight into DEMLoader.load_window() for the fine search."""
+        r0, c0 = brow * self.k, bcol * self.k
+        return (r0, min(self.fine_shape[0], r0 + self.k),
+                c0, min(self.fine_shape[1], c0 + self.k))
 
 
 class DEMLoader:
@@ -176,6 +205,80 @@ class DEMLoader:
         return np.array(self.data[r0:r1, c0:c1], dtype=np.float32, order="C")
 
     # -------------------------------------------------------------------------
+    # Coarse-to-fine downsampling (Lee & Yu, IROS 2009, Sec. II)
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def max_block_size(r: int) -> int:
+        """Largest safe k for a robot radius / safety margin of r pixels
+        (Lee & Yu 2009, Eq. 2: k <= r + 1)."""
+        return r + 1
+
+    def downsample(self, k: int | None = None, reduce: str = "min") -> CoarseDEM | None:
+        """
+        Build a coarse block map by merging each disjoint k x k block of pixels
+        into one cell (ceil(rows/k) x ceil(cols/k)), as in Lee & Yu (2009), Sec. II.
+        Edge blocks may be smaller than k x k.
+
+        The result lives in RAM only (it is ~1/k^2 of the DEM) and is memoised
+        per (k, reduce). The DEM is read in row strips from the memmap, so the
+        full-resolution array is never copied into RAM.
+
+        Args:
+            k: block size in pixels. None (or 1) = no downsampling: returns None,
+               so callers fall back to the full-resolution dem.data. Otherwise
+               k >= 2. Hard limit is min(rows, cols); for the paper's guarantee
+               that obstacle structure is preserved keep k <= max_block_size(r).
+            reduce: how a block's elevation is chosen.
+                "min"  = paper's rule: a block is blocked only if ALL cells are
+                         blocked, i.e. it stays "free" if any cell is low/free.
+                "max"  = conservative for terrain clearance (keeps peaks).
+                "mean" = smooth average.
+            nodata pixels are ignored; a block that is entirely nodata is NaN.
+        """
+        if k is None or k == 1:
+            return None  # downsampling switched off
+        if not isinstance(k, (int, np.integer)) or k < 2:
+            raise ValueError("k must be None (off) or an integer >= 2")
+        if k > min(self.shape):
+            raise ValueError(f"k={k} exceeds the DEM size {self.shape}")
+        fns = {"min": np.nanmin, "max": np.nanmax, "mean": np.nanmean}
+        if reduce not in fns:
+            raise ValueError(f"reduce must be one of {sorted(fns)}")
+        k = int(k)
+
+        cache = self.__dict__.setdefault("_coarse_cache", {})
+        if (k, reduce) in cache:
+            return cache[(k, reduce)]
+
+        rows, cols = self.shape
+        out_r, out_c = -(-rows // k), -(-cols // k)
+        out = np.empty((out_r, out_c), dtype=np.float32)
+        fn = fns[reduce]
+
+        # whole blocks per strip, ~64 MB of fine pixels at a time
+        strip_blocks = max(1, (64 * 1024 * 1024) // (cols * 4 * k))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN blocks
+            for b0 in range(0, out_r, strip_blocks):
+                b1 = min(out_r, b0 + strip_blocks)
+                strip = np.array(self.data[b0 * k:min(rows, b1 * k)], dtype=np.float32)
+                if self._nodata_f32 is not None:
+                    strip[strip == self._nodata_f32] = np.nan
+                # pad edges with NaN so every block is full k x k, then pool
+                h, w = strip.shape
+                ph, pw = (-h) % k, (-w) % k
+                if ph or pw:
+                    strip = np.pad(strip, ((0, ph), (0, pw)),
+                                   constant_values=np.nan)
+                blocks = strip.reshape(strip.shape[0] // k, k,
+                                       strip.shape[1] // k, k)
+                out[b0:b1] = fn(blocks, axis=(1, 3))
+
+        coarse = CoarseDEM(out, k, self.transform * Affine.scale(k), (rows, cols))
+        cache[(k, reduce)] = coarse
+        return coarse
+
+    # -------------------------------------------------------------------------
     # Queries
     # -------------------------------------------------------------------------
     def _to_pixel(self, lat: float, lon: float) -> tuple[int, int]:
@@ -251,6 +354,9 @@ if __name__ == "__main__":
     print(f"\n  DEM loaded: {dem.path.name}")
     print(f"  Shape: {dem.shape}")
     print(f"  Bounds: {dem.bounds}")
+
+    coarse = dem.downsample(4)
+    print(f"  Coarse (k=4) shape: {coarse.shape}")
 
     lat, lon = 38.57670, 50.99988
     elev = dem.get_elevation(lat, lon)
