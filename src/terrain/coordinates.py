@@ -166,7 +166,7 @@ def meter_per_deg_lat(lat: float) -> float:
     # final meter_per_degree
     return m_rho * (math.pi / 180)
 
-def meter_per_deg_lon_at(lat_deg: float) -> float:
+def meter_per_deg_lon_at(lat: float) -> float:
     """
     Meters per degree of longitude at a given latitude. Calculated using the WGS-84 Prime vertical radius of curvature
     
@@ -178,7 +178,7 @@ def meter_per_deg_lon_at(lat_deg: float) -> float:
     b = 6356752.31424518
 
     e2 = (a ** 2 - b ** 2) / (a ** 2)
-    phi = math.radians(lat_deg)
+    phi = math.radians(lat)
 
     # calculate prime vertical radius of curvature (N)
     n = a / math.sqrt(1 - e2 * (math.sin(phi) ** 2))

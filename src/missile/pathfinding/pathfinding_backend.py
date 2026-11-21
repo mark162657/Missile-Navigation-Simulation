@@ -23,13 +23,10 @@ class Pathfinding:
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 
-        # initiate the lookup table and column value
+        self.coordinates = CoordinateSystem()
+
+        # --- Initialise Lookup Table ---
         self.rows, self.cols = self.dem_loader.shape
-
-        start_lat = self.dem_loader.transform[5]
-
-        # y-axis (latitude) resolution, meter per pixel.
-        self.meter_per_y = abs(self.dem_loader.transform[4] * 111320)
 
         start_lat = self.dem_loader.transform[5] # top edge latitude (row 0)
         pixel_height = self.dem_loader.transform[4]
@@ -41,10 +38,16 @@ class Pathfinding:
             # And so on
         row_indices = np.arange(self.rows,
                                  dtype=np.float64) # double: float64
+
         self.latitudes = start_lat + (row_indices * pixel_height)
 
-        # x-axis (east/west) setup. width in meter with each latitude
-        base_width_meters = abs(self.dem_loader.transform[0] * 111320)
+        self.meter_per_y = (np.array([self.coordinates.meter_per_deg_lat(lat) for lat in self.latitudes])
+                            * abs(pixel_height))
 
-        meters_per_x_raw = base_width_meters * np.cos(np.radians(self.latitudes))
+        # x-axis (east/west) setup. width in meter with each latitude
+        meters_per_x_raw = (np.array([self.coordinates.meter_per_deg_lon_at(lat) for lat in self.latitudes])
+                            * abs(self.dem_loader.transform[0]))
+
+        # finally, construct two x and y lookup table
         self.meters_per_x_lookup = np.ascontiguousarray(meters_per_x_raw, dtype=np.float64)
+        self.meter_per_y_lookup = np.ascontiguousarray(self.meter_per_y, dtype=np.float64)
