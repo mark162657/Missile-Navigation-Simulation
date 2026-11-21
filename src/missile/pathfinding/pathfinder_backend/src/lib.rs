@@ -2,6 +2,12 @@ mod astar;
 
 use pyo3::prelude::*;
 
+#[pyfunction]
+fn rs_pathfinder() -> PyResult<f64> {
+    Ok(astar::search())
+}
+
+
 /// A Python module implemented in Rust.
 #[pymodule]
 mod pathfinder {

@@ -6,11 +6,10 @@ use std::fs::File;
 
 use memmap2::Mmap;
 
+pub fn search() -> f64 {
+ get_movement_cost()
 
-#[pyfunction]
-fn rs_pathfinder() {
-    }
-
+}
 
 fn get_movement_cost() -> f64 {
  return 1.0;

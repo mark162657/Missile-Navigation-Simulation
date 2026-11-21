@@ -1,6 +1,3 @@
-from curses.panel import top_panel
-from turtle import right
-
 import numpy as np
 import time
 
@@ -15,7 +12,7 @@ class Pathfinding:
         Args:
             DEM_NAME: the name of the DEM file
 
-        Initialise DEM route -> Initialise lookup table -> C++ engine
+        Initialise DEM route -> Initialise lookup table -> Rust
         """
         
         # Load dem, requesting dem file name:
@@ -76,7 +73,7 @@ class Pathfinding:
         duration = time.time() - start_t
 
         if not path:
-            print(f"Path not found (Rust pathfinder returned empty list). Time: {duration:.4f}s")
+            print(f"Path not found (Rust Pathfinder returned empty list). Time: {duration:.4f}s")
 
         print(f"Path found! Length: {len(path)}. Time: {duration:.4f}s")
         return path
@@ -87,7 +84,7 @@ class Pathfinding:
         For map plotting (2D) and path smoothing.
 
         Arg:
-            pixel_path: the list returned by find_path function from C++
+            pixel_path: the list returned by find_path function from Pathfinder
         """
         if not pixel_path: return []
 

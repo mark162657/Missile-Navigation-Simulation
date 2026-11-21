@@ -1,6 +1,3 @@
-from curses.panel import top_panel
-from turtle import right
-
 import numpy as np
 import time
 
