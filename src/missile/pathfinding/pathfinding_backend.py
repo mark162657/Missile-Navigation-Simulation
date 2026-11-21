@@ -51,3 +51,83 @@ class Pathfinding:
         # finally, construct two x and y lookup table
         self.meters_per_x_lookup = np.ascontiguousarray(meters_per_x_raw, dtype=np.float64)
         self.meter_per_y_lookup = np.ascontiguousarray(self.meter_per_y, dtype=np.float64)
+
+    def find_path(self, start: tuple[int, int], end: tuple[int, int]) -> list:
+
+        # Check for nodata: missing data in dem.
+        nd = self.dem_loader.nodata
+        if nd is not None and (self.dem[start] == nd or self.dem[end] == nd):
+            return None
+
+        # Bound check (if out of bound or not); self.rows and cols are the max number for row and col
+        if not (0 <= start[0] < self.rows and 0 <= start[1] < self.cols):
+            raise ValueError(f"Start coordinate out of bounds {self.rows} x {self.cols}: {start}")
+        if not (0 <= end[0] < self.rows and 0 <= end[1] < self.cols):
+            raise ValueError(f"End coordinate out of bounds {self.rows} x {self.cols}: {start}")
+
+        # --- Convert tuples to packed index to save memory ---
+        # work as: (row, col) -> row + total_cols + col
+        start_idx = start[0] * self.cols + start[1]
+        end_idx = end[0] * self.cols + end[1]
+
+        # TODO
+        start_t = time.time()
+        path = None
+        duration = time.time() - start_t
+
+        if not path:
+            print(f"Path not found (Rust pathfinder returned empty list). Time: {duration:.4f}s")
+
+        print(f"Path found! Length: {len(path)}. Time: {duration:.4f}s")
+        return path
+
+    def convert_path_to_gps(self, pixel_path: list) -> list:
+        """
+        Batch convert path from pixels coordinates to GPS coordinates (lat, lon).
+        For map plotting (2D) and path smoothing.
+
+        Arg:
+            pixel_path: the list returned by find_path function from C++
+        """
+        if not pixel_path: return []
+
+        # Unzip into two lists
+        rows, cols = zip(*pixel_path)
+
+        # Convert using Rasterio transform
+        lats, lons = self.dem_loader.pixel_to_lat_lon(rows, cols)
+
+        # Zip back into (lat, lon) tuples
+        return list(zip(lats, lons))
+
+    def get_3d_path_points(self, pixel_path: list) -> list:
+        """
+        Converts pixel path to 3D World Coordinates (Z-Up Physics Standard).
+        Format: [(x, y, z), ...]
+
+        x = Longitude (Meters relative to top-left)
+        y = Latitude (Meters relative to top-left) - Previously Z
+        z = Altitude (Meters above sea level - from DEM) - Previously Y
+
+        Arg:
+            pixel_path: the list that contains the path (by pixels) found by pathfinding algorithm
+        """
+        if not pixel_path: return []
+
+        path_3d = []
+
+        for row, col in pixel_path:
+            # Z = Altitude
+            altitude = float(self.dem[row, col])  # self.dem[] to obtain the pixel's altitude
+
+            # Y = Latitude displacement (row * meters_per_y)
+            y_pos = row * self.meter_per_y
+
+            # X = Longitude displacement (col * meter_per_x_lookup)
+            x_pos = col * self.meters_per_x_lookup[row]
+
+            path_3d.append((x_pos, y_pos, altitude))
+
+        return path_3d
+
+
