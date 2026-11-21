@@ -1,3 +1,5 @@
+mod astar;
+
 use pyo3::prelude::*;
 
 /// A Python module implemented in Rust.

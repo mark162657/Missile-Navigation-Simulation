@@ -6,6 +6,7 @@ import time
 
 from paths import PROJECT_ROOT
 from terrain.dem_loader import DEMLoader
+from terrain.coordinates import CoordinateSystem
 
 # Main class that main file will call
 class Pathfinding:
@@ -22,12 +23,10 @@ class Pathfinding:
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
 
-        # load into ascontiguousarray for C++, float32 for dem
-        self.dem = np.ascontiguousarray(dem.data, dtype=np.float32)
-        
         # initiate the lookup table and column value
-        self.rows = self.dem_loader.shape[0] # shape: (rows, columns)
-        self.cols = self.dem_loader.shape[1]
+        self.rows, self.cols = self.dem_loader.shape
+
+        start_lat = self.dem_loader.transform[5]
 
         # y-axis (latitude) resolution, meter per pixel.
         self.meter_per_y = abs(self.dem_loader.transform[4] * 111320)
@@ -35,7 +34,7 @@ class Pathfinding:
         start_lat = self.dem_loader.transform[5] # top edge latitude (row 0)
         pixel_height = self.dem_loader.transform[4]
 
-        # Setup lookup table
+        # Setup lookup table (1D NumPy array in float64)
             # Row 0: start_lat
             # Row 1: start_lat + pixel_height
             # Row 2: start_lat + 2 * pixel_height
@@ -47,6 +46,5 @@ class Pathfinding:
         # x-axis (east/west) setup. width in meter with each latitude
         base_width_meters = abs(self.dem_loader.transform[0] * 111320)
 
-        # Lookup table for C++
         meters_per_x_raw = base_width_meters * np.cos(np.radians(self.latitudes))
         self.meters_per_x_lookup = np.ascontiguousarray(meters_per_x_raw, dtype=np.float64)

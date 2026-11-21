@@ -13,7 +13,7 @@ class CoordinateSystem:
     taking absolute values of the scale factors. Example: origin (55°N, 100°E),
     point (54°N, 99°E) -> negative north_m and negative east_m.
 
-    This is **not** MissileState geographic fields (est_lat°, est_lon°) and it is
+    This is **not** MissileState geographic fields (est_lat°, est_lon°).
     **not** the pathfinder pixel frame (row/col on the DEM grid).
 
     For meter_per_deg_lat/lon, test are performed on https://www.cqsrg.org/tools/GCDistance/
@@ -66,7 +66,8 @@ class CoordinateSystem:
 
         return lat, lon
 
-    def get_distance(self, orig_lon: float, orig_lat: float, dest_lon: float, dest_lat: float) -> float:
+    def get_distance(self, orig_lon: float, orig_lat: float,
+                     dest_lon: float, dest_lat: float) -> float:
         """
             Get the distance between two points using Haversine Distance (meters).
             Which takes consider of the Earth radius and scale.
