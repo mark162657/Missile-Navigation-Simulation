@@ -11,3 +11,4 @@ crate-type = ["cdylib"]
 [dependencies]
 pyo3 = "0.29.0"
 memmap2 = "0.9.12"
+numpy = "0.29"
