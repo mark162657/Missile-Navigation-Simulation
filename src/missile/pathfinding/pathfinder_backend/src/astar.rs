@@ -31,6 +31,14 @@ impl PartialOrd for Node { fn partial_cmp(&self, other: &Self) -> Option<Orderin
 impl PartialEq for Node { fn eq(&self, other: &Self) -> bool { self.cmp(other) == Ordering::Equal } }
 impl Eq for Node {}
 
+// (dr, dc): ↑   ↓   ←   →   ↖   ↗   ↙   ↘
+
+const DIRS: [(isize, isize); 8] = [
+    (-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1),
+];
+
+const REVERSE_DIR: [u8; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
+
 // Main algorithm function
 pub fn search(
     dem_slice: &[f32],
@@ -73,6 +81,23 @@ pub fn search(
 
         let row = curr_idx / cols;
         let col = curr_idx % cols;
+
+        for (i, (dr, dc)) in DIRS.iter().enumerate() {
+            let new_row = row as isize + dr;
+            let new_col = col as isize + dc;
+
+            // check boundaries
+            if new_row >= 0
+                && new_row < rows as isize
+                && new_col >= 0
+                && new_col < cols as isize
+            {
+                let neigh_idx = (new_row as usize) * cols + (new_col as usize);
+
+                let move_cost = get_movement_cost();
+            }
+        }
+
     }
     Vec::new()
 }
