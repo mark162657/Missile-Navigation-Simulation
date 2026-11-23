@@ -10,8 +10,8 @@ fn rs_pathfinder(
     meters_per_y: PyReadonlyArray1<'_, f64>,
     start: (usize, usize),
     end: (usize, usize)
-) -> PyResult<f64> {
-    
+) -> PyResult<Vec<(usize, usize)>> {
+
     let view = dem.as_array();
     let (rows, cols) = view.dim();
     if start.0 >= rows || start.1 >= cols {
