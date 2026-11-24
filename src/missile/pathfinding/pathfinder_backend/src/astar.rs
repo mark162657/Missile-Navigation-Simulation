@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use std::io::Read;
 use std::fs::File;
 use std::collections::HashMap;
+use std::thread::current;
 use memmap2::Mmap;
 
 
@@ -114,17 +115,23 @@ fn get_movement_cost(dem_slice: &[f32],
                      mx_slice: &[f64],
                      my_slice: &[f64],
                      cols: usize,
-                     current_idx: usize,
-                     neighbor_idx: usize,
+                     curr_idx: usize,
+                     neigh_idx: usize,
                      w: &CostWeight,
     ) -> f32 {
-    let curr_elev: f32 = dem_slice[current_idx];
-    let neigh_elev: f32 = dem_slice[neighbor_idx];
+    let current_elev: f32 = dem_slice[curr_idx];
+    let neighbor_elev: f32 = dem_slice[neigh_idx];
 
-    if curr_elev <= -100.0 || neigh_elev <= -100.0 {
+    if current_elev <= -100.0 || neighbor_elev <= -100.0 {
         return f32::INFINITY;
     }
 
+    let row1 = curr_idx / cols;
+    let col1 = curr_idx % cols;
+    let row2 = neigh_idx / cols;
+    let col2 = neigh_idx % cols;
+
+    dist_y = abs(row2 - row1)
     return 1.0;
 }
 
