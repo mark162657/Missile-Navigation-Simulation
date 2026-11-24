@@ -25,8 +25,8 @@ struct NodeState {
 pub struct CostWeight {
     pub low_alt: f32,
     pub climb_slope: f32,
-    pub decent_slope: f32,
-    pub max_cost: f32,
+    pub descent_slope: f32,
+    pub max_grade: f32,
     pub turn_45: f32,
     pub turn_90: f32,
     pub too_sharp: f32
@@ -42,11 +42,9 @@ impl PartialEq for Node { fn eq(&self, other: &Self) -> bool { self.cmp(other) =
 impl Eq for Node {}
 
 // (dr, dc): ↑   ↓   ←   →   ↖   ↗   ↙   ↘
-
 const DIRS: [(isize, isize); 8] = [
     (-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1),
 ];
-
 const REVERSE_DIR: [u8; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
 
 // Main algorithm function
@@ -112,11 +110,13 @@ pub fn search(
 }
 
 fn get_movement_cost(dem_slice: &[f32],
+                     dist_m: f32,
                      mx_slice: &[f64],
                      my_slice: &[f64],
                      cols: usize,
                      current_idx: usize,
-                     neighbor_idx: usize
+                     neighbor_idx: usize,
+                     w: &CostWeight,
     ) -> f32 {
     let curr_elev: f32 = dem_slice[current_idx];
     let neigh_elev: f32 = dem_slice[neighbor_idx];
@@ -171,10 +171,8 @@ fn reconstruct_path(
         {
             return Vec::new();
         }
-
         current_idx = (parent_row as usize) * cols + (parent_col as usize);
     }
-
     Vec::new()
 }
 
