@@ -109,7 +109,7 @@ pub fn search(
                     2 | 3 => mx,
                     _ => diag,
                 };
-                let w = CostWeight {
+                let w = &CostWeight {
                     climb_slope: 40.0,
                     descent_slope: 20.0,
                     max_grade: 0.35,
