@@ -131,7 +131,6 @@ fn get_movement_cost(dem_slice: &[f32],
     let row2 = neigh_idx / cols;
     let col2 = neigh_idx % cols;
 
-    dist_y = abs(row2 - row1)
     return 1.0;
 }
 
