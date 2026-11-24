@@ -22,6 +22,16 @@ struct NodeState {
     // move:         ↑    ↓    ←    →    ↖    ↗    ↙    ↘
 }
 
+pub struct CostWeight {
+    pub low_alt: f32,
+    pub climb_slope: f32,
+    pub decent_slope: f32,
+    pub max_cost: f32,
+    pub turn_45: f32,
+    pub turn_90: f32,
+    pub too_sharp: f32
+}
+
 impl Ord for Node {
     fn cmp(&self, other: &Self) -> Ordering {
         other.f_score.total_cmp(&self.f_score)
@@ -93,7 +103,6 @@ pub fn search(
                 && new_col < cols as isize
             {
                 let neigh_idx = (new_row as usize) * cols + (new_col as usize);
-
                 let move_cost = get_movement_cost();
             }
         }
@@ -102,7 +111,20 @@ pub fn search(
     Vec::new()
 }
 
-fn get_movement_cost() -> f64 {
+fn get_movement_cost(dem_slice: &[f32],
+                     mx_slice: &[f64],
+                     my_slice: &[f64],
+                     cols: usize,
+                     current_idx: usize,
+                     neighbor_idx: usize
+    ) -> f32 {
+    let curr_elev: f32 = dem_slice[current_idx];
+    let neigh_elev: f32 = dem_slice[neighbor_idx];
+
+    if curr_elev <= -100.0 || neigh_elev <= -100.0 {
+        return f32::INFINITY;
+    }
+
     return 1.0;
 }
 
@@ -113,9 +135,6 @@ fn reconstruct_path(
     rows: usize,
     cols: usize,
 ) -> Vec<(usize, usize)> {
-    const DIRECT_R: [isize; 8] = [-1, 1, 0, 0, -1, -1, 1, 1];
-    const DIRECT_C: [isize; 8] = [0, 0, -1, 1, -1, 1, -1, 1];
-
     let mut path: Vec<(usize, usize)> = Vec::new();
 
     // A valid parent chain cannot contain more nodes than visited.
@@ -139,8 +158,11 @@ fn reconstruct_path(
             return Vec::new();
         }
 
-        let parent_row = row as isize + DIRECT_R[dir as usize];
-        let parent_col = col as isize + DIRECT_C[dir as usize];
+        // If `state.dir` stores the move direction `i` (parent -> child),
+        // use `REVERSE_DIR[dir]` to step back to the parent:
+        let (dr, dc) = DIRS[REVERSE_DIR[dir as usize] as usize];
+        let parent_row = row as isize + dr;
+        let parent_col = col as isize + dc;
 
         if parent_row < 0
             || parent_row >= rows as isize
@@ -155,6 +177,5 @@ fn reconstruct_path(
 
     Vec::new()
 }
-
 
 
