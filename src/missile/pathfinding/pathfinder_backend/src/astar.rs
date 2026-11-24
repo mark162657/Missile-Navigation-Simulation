@@ -24,7 +24,6 @@ struct NodeState {
 }
 
 pub struct CostWeight {
-    pub low_alt: f32,
     pub climb_slope: f32,
     pub descent_slope: f32,
     pub max_grade: f32,
@@ -91,6 +90,10 @@ pub fn search(
         let row = curr_idx / cols;
         let col = curr_idx % cols;
 
+        let mx = mx_slice[row] as f32;
+        let my = my_slice[row] as f32;
+        let diag = mx.hypot(my);
+
         for (i, (dr, dc)) in DIRS.iter().enumerate() {
             let new_row = row as isize + dr;
             let new_col = col as isize + dc;
@@ -101,8 +104,22 @@ pub fn search(
                 && new_col >= 0
                 && new_col < cols as isize
             {
+                let dist_m = match i {
+                    0 | 1 => my,
+                    2 | 3 => mx,
+                    _ => diag,
+                };
+                let w = CostWeight {
+                    climb_slope: 40.0,
+                    descent_slope: 20.0,
+                    max_grade: 0.35,
+                    turn_45: 0.03,
+                    turn_90: 0.35,
+                    too_sharp: f32::INFINITY,
+                };
                 let neigh_idx = (new_row as usize) * cols + (new_col as usize);
-                let move_cost = get_movement_cost();
+                let move_cost = get_movement_cost(dem_slice, dist_m, mx_slice, my_slice,
+                                                  cols, curr_idx, neigh_idx, w);
             }
         }
 
