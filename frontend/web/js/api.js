@@ -29,6 +29,7 @@ export const api = {
   dems: () => getJSON("/api/dems"),
   demGrid: (name, maxSize = 180) => getJSON(`/api/dems/${encodeURIComponent(name)}/grid?max_size=${maxSize}`),
   demElevation: (name, lat, lon) => getJSON(`/api/dems/${encodeURIComponent(name)}/elevation?lat=${lat}&lon=${lon}`),
+  engines: () => getJSON("/api/engines"),
   profiles: () => getJSON("/api/profiles"),
   saveProfile: (p) => postJSON("/api/profiles", p),
   missions: () => getJSON("/api/missions"),

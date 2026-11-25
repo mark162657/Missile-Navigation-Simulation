@@ -1,17 +1,90 @@
-"""Cross-platform availability check for the native pathfinding extension."""
+"""Cross-platform availability checks for the native pathfinding extensions.
+
+Supports both engines exposed in the frontend:
+  - ``rust``: PyO3 ``pathfinder`` module (CFA* — Coarse-to-Fine A*, built from
+    ``src/missile/pathfinding/pathfinder_backend``).
+  - ``cpp``: pybind11 ``missile.planning.missile_backend`` module (legacy A*,
+    built from ``src/missile/planning/cpp``).
+"""
 from __future__ import annotations
+
+from typing import Literal
 
 from . import bootstrap  # noqa: F401 - puts src/ on sys.path
 
+EngineName = Literal["rust", "cpp"]
+DEFAULT_ENGINE: EngineName = "rust"
+VALID_ENGINES: tuple[EngineName, ...] = ("rust", "cpp")
 
-def require_pathfinder_backend() -> None:
-    """Fail before loading a DEM when the extension is missing or incompatible."""
+
+def normalize_engine(engine: str | None) -> EngineName:
+    """Validate and normalize an engine identifier."""
+    key = (engine or DEFAULT_ENGINE).strip().lower()
+    if key not in VALID_ENGINES:
+        raise ValueError(f"Unknown pathfinding engine {engine!r}. Expected 'rust' or 'cpp'.")
+    return key  # type: ignore[return-value]
+
+
+def _probe_rust() -> tuple[bool, str | None]:
+    try:
+        import pathfinder  # noqa: F401
+        return True, None
+    except (ImportError, OSError) as exc:
+        return False, (
+            "Rust pathfinding engine (CFA*) is unavailable for this Python interpreter. "
+            "Build and install src/missile/pathfinding/pathfinder_backend (e.g. "
+            "'maturin develop --release' or 'pip install --force-reinstall .') using "
+            f"the same Python environment that runs frontend/run.py. ({exc})"
+        )
+
+
+def _probe_cpp() -> tuple[bool, str | None]:
     try:
         # Python selects .pyd on Windows and .so on macOS/Linux.
         from missile.planning import missile_backend  # noqa: F401
+        return True, None
     except (ImportError, OSError) as exc:
-        raise RuntimeError(
+        return False, (
             "C++ pathfinding engine is unavailable for this Python interpreter. "
             "Build src/missile/planning/cpp with CMake using the same Python "
-            "environment that runs frontend/run.py. See frontend/README.md."
-        ) from exc
+            f"environment that runs frontend/run.py. See frontend/README.md. ({exc})"
+        )
+
+
+def engine_status() -> dict:
+    """Return live availability metadata for both native pathfinding engines."""
+    rust_ok, rust_err = _probe_rust()
+    cpp_ok, cpp_err = _probe_cpp()
+    return {
+        "default": DEFAULT_ENGINE,
+        "engines": {
+            "rust": {
+                "id": "rust",
+                "name": "Rust",
+                "algorithm": "CFA*",
+                "label": "Rust · CFA*",
+                "available": rust_ok,
+                "error": rust_err,
+                "supports_downsample_k": True,
+                "default_downsample_k": 4,
+            },
+            "cpp": {
+                "id": "cpp",
+                "name": "C++",
+                "algorithm": "A*",
+                "label": "C++ · A*",
+                "available": cpp_ok,
+                "error": cpp_err,
+                "supports_downsample_k": False,
+            },
+        },
+    }
+
+
+def require_pathfinder_backend(engine: str = DEFAULT_ENGINE) -> EngineName:
+    """Fail before loading a DEM when the selected native extension is missing."""
+    key = normalize_engine(engine)
+    ok, err = _probe_rust() if key == "rust" else _probe_cpp()
+    if not ok:
+        raise RuntimeError(err or f"{key} pathfinding engine is unavailable.")
+    return key

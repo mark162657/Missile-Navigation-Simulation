@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import pathfinder
 
 from paths import PROJECT_ROOT
 from terrain.dem_loader import DEMLoader
@@ -19,7 +20,7 @@ class Pathfinding:
         tif_path = PROJECT_ROOT / 'data' / 'dem' / f'{DEM_NAME}'
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
-
+        self.dem = np.ascontiguousarray(dem.data, dtype=np.float32)  # zero-copy view of memmap
         self.coordinates = CoordinateSystem()
 
         # --- Initialise Lookup Table ---
@@ -50,7 +51,11 @@ class Pathfinding:
         self.meter_per_y_lookup = np.ascontiguousarray(self.meter_per_y, dtype=np.float64)
 
     def find_path(self, start: tuple[int, int], end: tuple[int, int]) -> list:
-
+        """
+        Args:
+            start: the tuple of the start coordinate (pixel coordinate)
+            end: the tuple of
+        """
         # Check for nodata: missing data in dem.
         nd = self.dem_loader.nodata
         if nd is not None and (self.dem[start] == nd or self.dem[end] == nd):
@@ -67,7 +72,14 @@ class Pathfinding:
         start_idx = start[0] * self.cols + start[1]
         end_idx = end[0] * self.cols + end[1]
 
-        # TODO
+        path = pathfinder.rs_pathfinder(
+            self.dem,
+            self.meters_per_x_lookup,
+            self.meter_per_y_lookup,
+            start,
+            end,
+        )
+
         start_t = time.time()
         path = None
         duration = time.time() - start_t

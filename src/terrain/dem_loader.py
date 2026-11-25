@@ -348,7 +348,7 @@ if __name__ == "__main__":
     iran_dem = "merged_dem_iran_N31_N41_E44_E54_filled.tif"
     sample_dem = "srtm_43_02.tif"
 
-    dem_path = project_root / "data" / "dem" / sample_dem
+    dem_path = project_root / "data" / "dem" / iran_dem
 
     dem = DEMLoader(dem_path)
     print(f"\n  DEM loaded: {dem.path.name}")

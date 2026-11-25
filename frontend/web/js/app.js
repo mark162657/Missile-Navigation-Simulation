@@ -16,7 +16,7 @@ const SCREENS = {
 class App {
   constructor() {
     this.store = {
-      dems: [], profiles: [],
+      dems: [], profiles: [], engines: null,
       plan: null,          // planned route: { dem_name, start_gps, target_gps, trajectory, profile, config }
       mission: null,       // loaded telemetry: { id, frames, result }
       liveTrajectory: null,
@@ -33,9 +33,14 @@ class App {
 
     // Prefetch catalog so screens open instantly.
     try {
-      const [dems, profiles] = await Promise.all([api.dems(), api.profiles()]);
+      const [dems, profiles, engines] = await Promise.all([
+        api.dems(),
+        api.profiles(),
+        api.engines().catch(() => null),
+      ]);
       this.store.dems = dems.filter((d) => !d.error);
       this.store.profiles = profiles;
+      this.store.engines = engines;
     } catch (e) {
       toast(`Backend unreachable: ${e.message}`, "err");
     }

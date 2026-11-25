@@ -1,6 +1,6 @@
-// Planning screen: choose a DEM + missile, set launch/target, tune the pathfinder,
-// run A*, and watch the route appear on the map. A successful plan is stored on
-// the app and carried to Mission Control.
+// Planning screen: choose a DEM + missile, set launch/target, pick Rust (CFA*)
+// or C++ (A*) pathfinding, tune parameters, and watch the route appear on the
+// map. A successful plan is stored on the app and carried to Mission Control.
 
 import { el, $, clear, toast, fmtDist, nf, fmtLat, fmtLon } from "./util.js";
 import { api } from "./api.js";
@@ -9,10 +9,18 @@ import { MapPanel } from "./map_panel.js";
 import { terminalPullupGps, MAX_IMPACT_DEG, MIN_IMPACT_DEG, RECOMMENDED_IMPACT_DEG } from "./guidance.js";
 
 const MAX_FLIGHT_TIME_S = 7200; // 2 hr hard ceiling (matches SimulationConfig)
+const K_PRESETS = [2, 4, 8, 16];
+const MIN_K = 1;
+const MAX_K = 256;
+
 const DEFAULTS = {
-  impact_angle_deg: -30, detonation_radius_m: 25,
-  wind_speed_ref_ms: 8, wind_from_deg: null,
+  engine: "rust",          // "rust" (CFA*) | "cpp" (A*)
+  downsample_k: 4,         // CFA* coarse-grid downsampling factor k
   heuristic_weight: 2.0,
+  impact_angle_deg: -30,
+  detonation_radius_m: 25,
+  wind_speed_ref_ms: 8,
+  wind_from_deg: null,
   max_flight_time_s: MAX_FLIGHT_TIME_S, // default to the maximum
 };
 
@@ -32,6 +40,7 @@ export class PlanningScreen {
   activate() {
     if (!this.built) this._build();
     this._syncCatalog();
+    this._syncEngineUI();
     this._refreshActions();
     this.map?.invalidate();
   }
@@ -39,21 +48,34 @@ export class PlanningScreen {
 
   _build() {
     this.ws = new Workspace(this.root);
+    this.ws.grid.classList.add("planning-workspace");
+    // Row 1 (9 rows): Map (8) + Mission Config (4)
     this._buildMap();
     this._buildMissionConfig();
+    // Row 2 (6 rows): Pathfinding Engine (5) + Pathfinding Console (7)
     this._buildPathfinder();
+    this._buildTerminal();
+    // Row 3 (5 rows): Missile Profile (6) + DEM Terrain Profile (6)
     this._buildMissileConfig();
     this._buildDemConfig();
-    this._buildTerminal();
     this.built = true;
   }
 
   _refreshActions() {
+    const isRust = this.state.config.engine === "rust";
+    const engineChip = el("span", {
+      class: `chip ${isRust ? "chip--rust" : "chip--cpp"} topbar__engine-chip`,
+      title: isRust ? "Active engine: Rust CFA*" : "Active engine: C++ A*",
+    }, [
+      el("span", { class: "dot" }),
+      el("span", { text: isRust ? `Rust · CFA* (k=${this.state.config.downsample_k})` : "C++ · A*" }),
+    ]);
+
     const launch = el("button", { class: "btn btn--primary btn--sm", disabled: !this.state.plan, onClick: () => this._launch() }, [
       el("span", { text: "Proceed to Mission" }), el("span", { class: "mi", text: "arrow_forward" }),
     ]);
     this.launchBtn = launch;
-    this.app.setActions([this.app.hiddenWidgetsControl(this.ws), launch]);
+    this.app.setActions([engineChip, this.app.hiddenWidgetsControl(this.ws), launch]);
   }
 
   // --- Widgets --------------------------------------------------------------
@@ -71,7 +93,7 @@ export class PlanningScreen {
         this.demSelect = select([], (v) => this._selectDem(v));
         this.profileSelect = select([], (v) => this._selectProfile(v));
 
-        const pinToggle = el("div", { class: "seg", role: "tablist", style: { marginTop: "2px" } }, [
+        const pinToggle = el("div", { class: "seg seg--full", role: "tablist", style: { marginTop: "2px" } }, [
           segBtn("Launch", true, () => this._setPinMode("start")),
           segBtn("Target", false, () => this._setPinMode("target")),
         ]);
@@ -92,7 +114,7 @@ export class PlanningScreen {
           field("DEM Terrain", this.demSelect),
           field("Missile Profile", this.profileSelect),
           subsection("place", "Endpoints"),
-          el("div", { class: "field" }, [el("span", { class: "label", text: "Set on map" }), pinToggle]),
+          el("div", { class: "field" }, [el("span", { class: "label", text: "Map click target" }), pinToggle]),
           labeledGps("Launch", this.startFields.node),
           labeledGps("Target", this.targetFields.node),
           el("p", { class: "hint", style: { marginTop: "2px" }, text: "Enter absolute values; N/S and E/W set the hemisphere (positive = N/E)." }),
@@ -104,39 +126,266 @@ export class PlanningScreen {
             field("Wind from °", this.cfgWindDir),
             field("Max duration (s)", this.cfgMaxDur),
           ]),
-          (this.impactHint = el("p", { class: "hint", style: { marginTop: "2px" } })),
-          el("p", { class: "hint", style: { marginTop: "2px" }, text: `Flight is aborted after this many seconds (max ${MAX_FLIGHT_TIME_S}). Defaults to the maximum.` }),
+          (this.impactHint = el("p", { class: "hint", style: { marginTop: "4px" } })),
+          el("p", { class: "hint", style: { marginTop: "2px" }, text: `Flight aborts after this limit (max ${MAX_FLIGHT_TIME_S}s).` }),
         );
         this._updateImpactStyle();
       } });
   }
 
   _buildPathfinder() {
-    this.ws.add({ id: "plan-pathfinder", title: "Pathfinding Algorithm", cols: 4, rows: 5,
+    this.ws.add({ id: "plan-pathfinder", title: "Pathfinding Engine", cols: 5, rows: 7,
       build: (body, widget) => {
-        widget.setMeta(el("span", { class: "chip", text: "A* · B-spline" }));
-        this.hwVal = el("span", { class: "kv__v mono", text: DEFAULTS.heuristic_weight.toFixed(1) });
-        const slider = el("input", { class: "range", type: "range", min: "1", max: "4", step: "0.1", value: String(DEFAULTS.heuristic_weight) });
-        slider.addEventListener("input", () => { this.state.config.heuristic_weight = Number(slider.value); this.hwVal.textContent = Number(slider.value).toFixed(1); });
+        this.pfWidget = widget;
 
-        this.planBtn = el("button", { class: "btn btn--primary btn--block", onClick: () => this._runPlan() }, [
-          el("span", { class: "mi", text: "route" }), el("span", { text: "Run Pathfinding" }),
+        // Engine selector cards: Rust (CFA*) vs C++ (A*)
+        this.engineCards = {
+          rust: this._makeEngineCard("rust", "Rust", "CFA*", "Coarse-to-Fine A*"),
+          cpp: this._makeEngineCard("cpp", "C++", "A*", "Legacy full-grid A*"),
+        };
+        const enginePicker = el("div", { class: "engine-picker", role: "group", "aria-label": "Pathfinding engine" }, [
+          this.engineCards.rust.node,
+          this.engineCards.cpp.node,
+        ]);
+
+        this.engineNotice = el("div", { class: "pf-notice", hidden: true });
+
+        // CFA* downsample factor k (Rust-only)
+        this.kInput = el("input", {
+          class: "input pf-k-input",
+          type: "number",
+          min: String(MIN_K),
+          max: String(MAX_K),
+          step: "1",
+          value: String(DEFAULTS.downsample_k),
+          "aria-label": "CFA* downsample factor k",
+        });
+        const commitK = (clampVal) => {
+          if (this.kInput.value === "") return;
+          let k = Math.round(Number(this.kInput.value));
+          if (!Number.isFinite(k)) return;
+          if (clampVal) {
+            k = Math.max(MIN_K, Math.min(MAX_K, k));
+            if (String(k) !== this.kInput.value) this.kInput.value = String(k);
+          } else if (k < MIN_K) {
+            return;
+          }
+          this._setDownsampleK(k, false);
+        };
+        this.kInput.addEventListener("input", () => commitK(false));
+        this.kInput.addEventListener("change", () => commitK(true));
+
+        this.kPresetBtns = K_PRESETS.map((k) => {
+          const btn = el("button", {
+            type: "button",
+            class: "k-preset",
+            text: `${k}×`,
+            title: `Set downsample factor k = ${k}`,
+            onClick: () => this._setDownsampleK(k, true),
+          });
+          btn.dataset.k = String(k);
+          return btn;
+        });
+        this.kRatioBadge = el("span", { class: "pf-pill mono" });
+        this.coarsePreview = el("div", { class: "pf-coarse-preview mono" });
+
+        this.kBlock = el("div", { class: "pf-param-card pf-param-card--rust" }, [
+          el("div", { class: "pf-param-card__head" }, [
+            el("span", { class: "label", text: "CFA* Downsample Factor (k)" }),
+            this.kRatioBadge,
+          ]),
+          el("div", { class: "pf-k-row" }, [
+            this.kInput,
+            el("div", { class: "pf-k-presets", role: "group", "aria-label": "Downsample presets" }, this.kPresetBtns),
+          ]),
+          this.coarsePreview,
+        ]);
+
+        // Heuristic weight slider
+        this.hwVal = el("span", { class: "pf-pill mono", text: DEFAULTS.heuristic_weight.toFixed(1) });
+        this.hwTag = el("span", { class: "pf-mode-tag" });
+        this.hwSlider = el("input", {
+          class: "range",
+          type: "range",
+          min: "1",
+          max: "4",
+          step: "0.1",
+          value: String(DEFAULTS.heuristic_weight),
+          "aria-label": "Heuristic weight",
+        });
+        this.hwSlider.addEventListener("input", () => {
+          const v = Number(this.hwSlider.value);
+          this.state.config.heuristic_weight = v;
+          this._updateHeuristicReadout(v);
+        });
+
+        this.pfHint = el("p", { class: "hint" });
+        const hwBlock = el("div", { class: "pf-param-card" }, [
+          el("div", { class: "pf-param-card__head" }, [
+            el("span", { class: "label", text: "Heuristic Weight (w)" }),
+            el("div", { style: { display: "flex", alignItems: "center", gap: "6px" } }, [this.hwTag, this.hwVal]),
+          ]),
+          this.hwSlider,
+          this.pfHint,
+        ]);
+
+        // Primary action button
+        this.planBtn = el("button", { class: "btn btn--primary btn--block pf-run-btn", onClick: () => this._runPlan() }, [
+          el("span", { class: "mi", text: "route" }), el("span", { text: "Run Rust CFA*" }),
+        ]);
+
+        // Compact 3-stat summary strip
+        this.planWpts = el("div", { class: "pf-stat__v mono", text: "—" });
+        this.planLen = el("div", { class: "pf-stat__v mono", text: "—" });
+        this.planTime = el("div", { class: "pf-stat__v mono", text: "—" });
+        const summary = el("div", { class: "pf-summary" }, [
+          statCell("Waypoints", this.planWpts),
+          statCell("Route Length", this.planLen),
+          statCell("Solve Time", this.planTime),
         ]);
 
         body.append(
-          el("p", { class: "hint", text: "Search over DEM pixels. Higher weight biases the heuristic for a faster, more direct route; 1.0 is the guaranteed shortest path." }),
-          el("div", { class: "kv", style: { marginTop: "8px" } }, [el("span", { class: "kv__k", text: "Heuristic weight" }), this.hwVal]),
-          slider,
-          el("div", { style: { height: "10px" } }),
-          this.planBtn,
-          el("div", { class: "kv", style: { marginTop: "10px" } }, [el("span", { class: "kv__k", text: "Waypoints" }), (this.planWpts = el("span", { class: "kv__v", text: "—" }))]),
-          el("div", { class: "kv" }, [el("span", { class: "kv__k", text: "Route length" }), (this.planLen = el("span", { class: "kv__v", text: "—" }))]),
+          el("div", { class: "pf-stack" }, [
+            enginePicker,
+            this.engineNotice,
+            this.kBlock,
+            hwBlock,
+            this.planBtn,
+            summary,
+          ]),
         );
+
+        this._updateHeuristicReadout(DEFAULTS.heuristic_weight);
+        this._syncEngineUI();
       } });
   }
 
+  _makeEngineCard(id, name, algo, desc) {
+    const statusDot = el("span", { class: "engine-card__dot" });
+    const statusText = el("span", { class: "engine-card__status-text", text: "Checking" });
+    const node = el("button", {
+      type: "button",
+      class: `engine-card engine-card--${id}`,
+      dataset: { engine: id },
+      "aria-pressed": String(this.state.config.engine === id),
+      onClick: () => this._selectEngine(id),
+    }, [
+      el("div", { class: "engine-card__top" }, [
+        el("span", { class: "engine-card__name", text: name }),
+        el("span", { class: "engine-card__algo mono", text: algo }),
+      ]),
+      el("div", { class: "engine-card__desc", text: desc }),
+      el("div", { class: "engine-card__status" }, [statusDot, statusText]),
+    ]);
+    return { node, statusDot, statusText };
+  }
+
+  _selectEngine(engineId) {
+    if (this.state.config.engine === engineId) return;
+    this.state.config.engine = engineId;
+    this._syncEngineUI();
+    this._refreshActions();
+  }
+
+  _setDownsampleK(k, syncInput = true) {
+    const clean = Math.max(MIN_K, Math.min(MAX_K, Math.round(k)));
+    this.state.config.downsample_k = clean;
+    if (syncInput && this.kInput) this.kInput.value = String(clean);
+    this._updateDownsampleUI();
+    this._refreshActions();
+  }
+
+  _updateDownsampleUI() {
+    const k = this.state.config.downsample_k;
+    if (this.kRatioBadge) {
+      this.kRatioBadge.textContent = k === 1 ? "1:1 full res" : `1:${k * k} coarse cells`;
+    }
+    if (this.kPresetBtns) {
+      this.kPresetBtns.forEach((b) => {
+        b.classList.toggle("is-active", Number(b.dataset.k) === k);
+      });
+    }
+    if (this.coarsePreview) {
+      const m = this.state.dem?.meta;
+      if (m) {
+        const cr = Math.max(1, Math.floor(m.height / k));
+        const cc = Math.max(1, Math.floor(m.width / k));
+        const resM = (m.resolution_deg * 111320) * k;
+        this.coarsePreview.textContent = `Coarse grid: ${nf(cc)} × ${nf(cr)} px · ~${nf(resM)} m/cell`;
+      } else {
+        this.coarsePreview.textContent = `Coarse stride: ${k} px per macro-cell`;
+      }
+    }
+  }
+
+  _updateHeuristicReadout(w) {
+    if (this.hwVal) this.hwVal.textContent = w.toFixed(1);
+    if (this.hwTag) {
+      this.hwTag.textContent = w <= 1.05 ? "Optimal" : w <= 2.4 ? "Balanced" : "Greedy";
+      this.hwTag.dataset.tone = w <= 1.05 ? "ok" : w <= 2.4 ? "primary" : "warn";
+    }
+  }
+
+  _syncEngineUI() {
+    if (!this.pfWidget) return;
+    const engine = this.state.config.engine;
+    const isRust = engine === "rust";
+    const info = this.app.store.engines?.engines;
+
+    // Header chip
+    this.pfWidget.setMeta(el("span", { class: `chip ${isRust ? "chip--rust" : "chip--cpp"}` }, [
+      el("span", { class: "dot" }),
+      el("span", { text: isRust ? "CFA* · Rust" : "A* · C++" }),
+    ]));
+
+    // Engine cards active & availability states
+    for (const id of ["rust", "cpp"]) {
+      const card = this.engineCards[id];
+      const active = engine === id;
+      card.node.setAttribute("aria-pressed", String(active));
+      card.node.classList.toggle("is-active", active);
+      const st = info?.[id];
+      if (st) {
+        card.node.classList.toggle("is-unavailable", !st.available);
+        card.statusDot.classList.toggle("is-ok", st.available);
+        card.statusDot.classList.toggle("is-err", !st.available);
+        card.statusText.textContent = st.available ? "Ready" : "Not built";
+      } else {
+        card.statusText.textContent = "Available";
+      }
+    }
+
+    // Inline availability notice if selected engine is not compiled
+    const selectedInfo = info?.[engine];
+    if (this.engineNotice) {
+      if (selectedInfo && !selectedInfo.available) {
+        this.engineNotice.hidden = false;
+        clear(this.engineNotice);
+        this.engineNotice.append(
+          el("span", { class: "mi", text: "warning" }),
+          el("span", { text: selectedInfo.error || `${selectedInfo.label} backend is not built in this Python environment.` }),
+        );
+      } else {
+        this.engineNotice.hidden = true;
+      }
+    }
+
+    // Toggle CFA* k block visibility
+    if (this.kBlock) this.kBlock.hidden = !isRust;
+    this._updateDownsampleUI();
+
+    // Update heuristic hint copy for engine context
+    if (this.pfHint) {
+      this.pfHint.textContent = isRust
+        ? "CFA* searches a k× downsampled coarse grid first, then refines corridors at full resolution. Heuristic weight biases search speed vs. optimality."
+        : "Full-resolution C++ A* over DEM pixels. 1.0 guarantees the shortest path; higher values trade optimality for speed.";
+    }
+
+    if (!this._planning) this._setPlanBtn(false);
+  }
+
   _buildMissileConfig() {
-    this.ws.add({ id: "plan-missile", title: "Missile Configuration", cols: 4, rows: 5,
+    this.ws.add({ id: "plan-missile", title: "Missile Configuration", cols: 6, rows: 5,
       build: (body, widget) => {
         this.missileWidget = widget;
         widget.setMeta(el("button", { class: "btn btn--sm btn--ghost", title: "New profile from this one", onClick: () => this._openProfileForm() }, [el("span", { class: "mi", text: "add" }), el("span", { text: "New" })]));
@@ -145,18 +394,29 @@ export class PlanningScreen {
   }
 
   _buildDemConfig() {
-    this.ws.add({ id: "plan-dem", title: "DEM Configuration", cols: 4, rows: 4,
+    this.ws.add({ id: "plan-dem", title: "DEM Terrain Profile", cols: 6, rows: 5,
       build: (body) => { this.demBody = body; this._renderDem(); } });
   }
 
   _buildTerminal() {
-    this.ws.add({ id: "plan-terminal", title: "Pathfinding Console", cols: 8, rows: 4, instrument: false, flush: true,
-      build: (body) => {
-        this.term = el("div", { class: "terminal" }, [
-          el("div", { class: "terminal__line", html: '<span class="t-tag">[gnc]</span> planning console ready. select endpoints and run pathfinding.' }),
-        ]);
+    this.ws.add({ id: "plan-terminal", title: "Pathfinding Console", cols: 7, rows: 7, instrument: false, flush: true,
+      build: (body, widget) => {
+        widget.setMeta(el("button", {
+          class: "btn btn--sm btn--ghost",
+          title: "Clear console output",
+          onClick: () => this._clearConsole(),
+        }, [el("span", { class: "mi", text: "delete_sweep" }), el("span", { text: "Clear" })]));
+
+        this.term = el("div", { class: "terminal" });
         body.append(this.term);
+        this._log("[gnc] planning console ready — select endpoints and run pathfinding.", "");
       } });
+  }
+
+  _clearConsole() {
+    if (!this.term) return;
+    clear(this.term);
+    this._log("[gnc] console cleared.", "");
   }
 
   // --- catalog / selection --------------------------------------------------
@@ -171,6 +431,15 @@ export class PlanningScreen {
       this._selectDem(safest.name);
     }
     if (profiles.length && !this.state.profile) this._selectProfile(profiles[0].name);
+
+    // Log detected engines once on first sync
+    if (!this._loggedEngines && this.app.store.engines?.engines) {
+      this._loggedEngines = true;
+      const e = this.app.store.engines.engines;
+      const rState = e.rust?.available ? "ready" : "unavailable";
+      const cState = e.cpp?.available ? "ready" : "unavailable";
+      this._log(`[sys] engines detected · Rust CFA* (${rState}) · C++ A* (${cState})`, "");
+    }
   }
 
   async _selectDem(name) {
@@ -179,6 +448,7 @@ export class PlanningScreen {
     this.demSelect.value = name;
     this.state.dem = { meta, grid: null };
     this._renderDem();
+    this._updateDownsampleUI();
     try {
       const grid = await api.demGrid(name);
       this.state.dem.grid = grid;
@@ -267,14 +537,17 @@ export class PlanningScreen {
     if (!p) { this.missileBody.append(emptyState("deployed_code", "No profile", "Select a missile profile.")); return; }
     const b = p.basic, d = p.detailed || {}, w = p.warhead || {};
     this.missileBody.append(el("div", { class: "profile-card" }, [
-      el("div", { class: "profile-card__name", text: p.name }),
+      el("div", { class: "profile-card__head" }, [
+        el("div", { class: "profile-card__name", text: p.name }),
+        w.warhead_name ? el("span", { class: "chip", text: w.warhead_name }) : null,
+      ]),
       el("div", { class: "profile-card__spec" }, [
-        kv("Cruise", `${nf(b.cruise_speed)} km/h`), kv("Max spd", `${nf(b.max_speed)} km/h`),
-        kv("Max g", `${nf(b.max_g_force, 1)}`), kv("Range", `${nf(b.max_range)} km`),
+        kv("Cruise", `${nf(b.cruise_speed)} km/h`), kv("Max speed", `${nf(b.max_speed)} km/h`),
+        kv("Max load", `${nf(b.max_g_force, 1)} g`), kv("Range", `${nf(b.max_range)} km`),
         kv("Cruise AGL", `${nf(b.cruise_agl_min)}–${nf(b.cruise_agl_max)} m`), kv("Turn rate", `${nf(b.sustained_turn_rate, 1)}°/s`),
         kv("Mass", `${nf(d.mass_kg)} kg`), kv("Fuel", `${nf(d.fuel_capacity_kg)} kg`),
-        kv("IMU", d.imu_grade || "—"), kv("Warhead", w.warhead_name || "—"),
-        kv("Blast r", `${nf(w.blast_radius_m)} m`), kv("GPS", `${nf(d.gps_update_rate_hz)} Hz`),
+        kv("IMU grade", d.imu_grade || "—"), kv("Blast radius", `${nf(w.blast_radius_m)} m`),
+        kv("GPS rate", `${nf(d.gps_update_rate_hz)} Hz`), kv("Min altitude", `${nf(b.min_altitude)} m`),
       ]),
     ]));
   }
@@ -301,7 +574,7 @@ export class PlanningScreen {
     const cancel = el("button", { class: "btn btn--sm btn--ghost", text: "Cancel", onClick: () => this._renderMissile() });
     this.missileBody.append(
       field("Name", fields.name),
-      el("div", { class: "form-grid" }, [
+      el("div", { class: "form-grid", style: { marginTop: "10px" } }, [
         field("Cruise km/h", fields.cruise_speed), field("Max km/h", fields.max_speed),
         field("Min km/h", fields.min_speed), field("Max g", fields.max_g_force),
         field("Turn °/s", fields.sustained_turn_rate), field("Range km", fields.max_range),
@@ -342,21 +615,22 @@ export class PlanningScreen {
     const dem = this.state.dem;
     if (!dem) { this.demBody.append(emptyState("terrain", "No DEM", "Select a DEM terrain tile.")); return; }
     const m = dem.meta, g = dem.grid;
+    const px = demPixels(m);
     const rows = [
       kvRow("File", prettyDem(m.name)),
-      kvRow("Grid", `${nf(m.width)} × ${nf(m.height)} px`),
+      kvRow("Dimensions", `${nf(m.width)} × ${nf(m.height)} px`),
+      kvRow("Total cells", `${(px / 1e6).toFixed(1)} M px`),
       kvRow("Resolution", `${(m.resolution_deg * 3600).toFixed(1)}″ · ${nf(m.resolution_deg * 111320)} m`),
       kvRow("Latitude", `${m.bounds.south.toFixed(2)}° – ${m.bounds.north.toFixed(2)}°`),
       kvRow("Longitude", `${m.bounds.west.toFixed(2)}° – ${m.bounds.east.toFixed(2)}°`),
     ];
     if (g) rows.push(kvRow("Elevation", `${nf(g.z_min)} – ${nf(g.z_max)} m`));
-    this.demBody.append(el("div", {}, rows));
+    this.demBody.append(el("div", { class: "dem-spec-grid" }, rows));
     if (isLargeDem(m)) {
-      this.demBody.append(el("p", {
-        class: "hint is-warn",
-        style: { marginTop: "10px" },
-        text: "Large terrain tile: planning and live simulation load full DEM arrays and may require 10+ GiB RAM. Use a smaller tile for setup checks.",
-      }));
+      this.demBody.append(el("div", { class: "pf-notice", style: { marginTop: "12px" } }, [
+        el("span", { class: "mi", text: "memory" }),
+        el("span", { text: "Large terrain tile (500M+ px): full DEM arrays may require 10+ GiB RAM. Increase CFA* downsample k or use a smaller tile for quick checks." }),
+      ]));
     }
   }
 
@@ -365,29 +639,45 @@ export class PlanningScreen {
     if (this._planning) { this._abortPlan(); return; }
     if (!this.state.dem) return toast("Select a DEM first", "err");
     if (!this.state.start || !this.state.target) return toast("Place a launch and target point", "err");
+
+    const engine = this.state.config.engine;
+    const isRust = engine === "rust";
+    const k = Math.max(MIN_K, Math.min(MAX_K, Math.round(Number(this.state.config.downsample_k) || DEFAULTS.downsample_k)));
+    this.state.config.downsample_k = k;
+    const tag = isRust ? "[cfa*]" : "[a*]";
+
     this._planning = true;
     this._planCtrl = new AbortController();
     this._setPlanBtn(true);
-    this._log(`[a*] planning ${prettyDem(this.state.dem.meta.name)} · w=${this.state.config.heuristic_weight.toFixed(1)}`, "");
-    this._log(`[a*] launch ${fmtLat(this.state.start[0])} ${fmtLon(this.state.start[1])} → target ${fmtLat(this.state.target[0])} ${fmtLon(this.state.target[1])}`, "");
-    const cursor = this._log("[a*] searching… (click Abort to cancel)", "run");
+
+    const paramSummary = isRust
+      ? `Rust CFA* · k=${k} · w=${this.state.config.heuristic_weight.toFixed(1)}`
+      : `C++ A* · w=${this.state.config.heuristic_weight.toFixed(1)}`;
+    this._log(`${tag} planning ${prettyDem(this.state.dem.meta.name)} (${paramSummary})`, "");
+    this._log(`${tag} launch ${fmtLat(this.state.start[0])} ${fmtLon(this.state.start[1])} → target ${fmtLat(this.state.target[0])} ${fmtLon(this.state.target[1])}`, "");
+    const cursor = this._log(`${tag} searching… (click Abort to cancel)`, "run");
 
     try {
-      const res = await api.plan({
+      const payload = {
         dem_name: this.state.dem.meta.name,
-        start_gps: this.state.start, target_gps: this.state.target,
+        start_gps: this.state.start,
+        target_gps: this.state.target,
+        engine,
         heuristic_weight: this.state.config.heuristic_weight,
-      }, this._planCtrl.signal);
+        downsample_k: k,
+      };
+      const res = await api.plan(payload, this._planCtrl.signal);
       cursor.remove();
-      res.log.forEach((line) => this._log(line, line.includes("done") ? "ok" : ""));
+      res.log.forEach((line) => this._log(line, line.includes("[done]") ? "ok" : ""));
       this.state.plan = res;
       this.map.setPlan(res.trajectory);
       this.map.fitPoints(res.trajectory);
       this._refreshPullup();
       this.planWpts.textContent = nf(res.waypoints);
       this.planLen.textContent = fmtDist(routeLength(res.trajectory));
+      this.planTime.textContent = res.elapsed_s != null ? `${Number(res.elapsed_s).toFixed(2)} s` : "—";
       this._refreshActions();
-      toast("Route planned", "ok");
+      toast(`Route planned (${res.algorithm || (isRust ? "CFA*" : "A*")})`, "ok");
     } catch (e) {
       cursor.remove();
       if (e.name === "AbortError") {
@@ -409,22 +699,41 @@ export class PlanningScreen {
   }
 
   _setPlanBtn(running) {
+    if (!this.planBtn) return;
     clear(this.planBtn);
+    const isRust = this.state.config.engine === "rust";
     if (running) {
+      this.planBtn.classList.remove("btn--primary");
       this.planBtn.classList.add("btn--danger");
       this.planBtn.append(el("span", { class: "mi", text: "stop" }), el("span", { text: "Abort Pathfinding" }));
     } else {
       this.planBtn.classList.remove("btn--danger");
-      this.planBtn.append(el("span", { class: "mi", text: "route" }), el("span", { text: "Run Pathfinding" }));
+      this.planBtn.classList.add("btn--primary");
+      this.planBtn.append(
+        el("span", { class: "mi", text: "route" }),
+        el("span", { text: isRust ? "Run Rust CFA*" : "Run C++ A*" }),
+      );
     }
   }
 
   _log(text, kind = "") {
     const tag = text.match(/^\[[^\]]+\]/)?.[0] || "";
     const rest = text.slice(tag.length);
+    const tagClass = tag === "[cfa*]" ? "t-tag t-tag--rust"
+      : tag === "[a*]" ? "t-tag t-tag--cpp"
+      : tag === "[dem]" ? "t-tag t-tag--dem"
+      : tag === "[traj]" || tag === "[spline]" ? "t-tag t-tag--traj"
+      : "t-tag";
     const line = el("div", { class: `terminal__line ${kind === "ok" ? "is-ok" : kind === "err" ? "is-err" : kind === "warn" ? "is-warn" : ""}` });
-    if (kind === "run") line.append(document.createTextNode(text + " "), el("span", { class: "terminal__cursor" }));
-    else line.innerHTML = `<span class="t-tag">${tag}</span>${escapeHtml(rest)}`;
+    if (kind === "run") {
+      line.append(
+        el("span", { class: tagClass, text: tag }),
+        document.createTextNode(rest + " "),
+        el("span", { class: "terminal__cursor" }),
+      );
+    } else {
+      line.innerHTML = `<span class="${tagClass}">${escapeHtml(tag)}</span>${escapeHtml(rest)}`;
+    }
     this.term.append(line);
     this.term.scrollTop = this.term.scrollHeight;
     return line;
@@ -449,6 +758,12 @@ export class PlanningScreen {
 }
 
 // --- small builders ---------------------------------------------------------
+function statCell(label, valNode) {
+  return el("div", { class: "pf-stat" }, [
+    el("div", { class: "pf-stat__k", text: label }),
+    valNode,
+  ]);
+}
 function routeLength(traj) {
   let m = 0;
   for (let i = 1; i < traj.length; i++) {
@@ -548,6 +863,4 @@ function kvRow(k, v) { return kv(k, v); }
 function emptyState(icon, title, msg) {
   return el("div", { class: "state" }, [el("span", { class: "mi", text: icon }), el("span", { class: "state__title", text: title }), el("span", { class: "state__msg", text: msg })]);
 }
-function legendItem(colorVar, label) { return el("span", {}, [el("i", { style: { color: `var(${colorVar})` } }), el("span", { text: label })]); }
-function iconBtn(icon, title, onClick) { return el("button", { class: "instr__btn", title, "aria-label": title, onClick }, [el("span", { class: "mi", text: icon })]); }
 function escapeHtml(s) { return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }

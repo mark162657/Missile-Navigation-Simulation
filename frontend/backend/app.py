@@ -6,11 +6,12 @@ bridges the browser to the simulation stack:
     GET  /api/dems                     list DEM tiles + bounds
     GET  /api/dems/{name}/grid         downsampled elevation grid
     GET  /api/dems/{name}/elevation    point elevation lookup
+    GET  /api/engines                  pathfinding engines + availability
     GET  /api/profiles                 missile profiles
     GET  /api/missions                 recorded flights (summaries)
     GET  /api/missions/{id}            full telemetry time series + verdict
     GET  /api/results                  saved mission-result verdicts
-    POST /api/plan                     run A* + spline, return trajectory
+    POST /api/plan                     run Rust CFA* or C++ A* + trajectory
     WS   /ws/live                      drive the live simulation, stream frames
 """
 from __future__ import annotations
@@ -19,13 +20,14 @@ import asyncio
 import queue
 import threading
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from . import catalog, dem_service
+from . import catalog, dem_service, native_backend
 from .bootstrap import PROJECT_ROOT
 
 WEB_DIR = PROJECT_ROOT / "frontend" / "web"
@@ -114,11 +116,18 @@ def get_results() -> list[dict]:
 # --------------------------------------------------------------------------- #
 # Planning
 # --------------------------------------------------------------------------- #
+@app.get("/api/engines")
+def get_engines() -> dict:
+    return native_backend.engine_status()
+
+
 class PlanRequest(BaseModel):
     dem_name: str
     start_gps: list[float]
     target_gps: list[float]
+    engine: Literal["rust", "cpp"] = "rust"
     heuristic_weight: float = 2.0
+    downsample_k: int = Field(default=4, ge=1, le=256)
 
 
 @app.post("/api/plan")
@@ -126,9 +135,15 @@ async def post_plan(req: PlanRequest):
     from . import planning
 
     try:
-        # Heavy C++/numpy work: keep it off the event loop.
+        # Heavy native/numpy work: keep it off the event loop.
         return await asyncio.to_thread(
-            planning.run_plan, req.dem_name, req.start_gps, req.target_gps, req.heuristic_weight
+            planning.run_plan,
+            req.dem_name,
+            req.start_gps,
+            req.target_gps,
+            req.heuristic_weight,
+            req.engine,
+            req.downsample_k,
         )
     except Exception as exc:  # noqa: BLE001 - report cleanly to the UI
         raise HTTPException(400, str(exc)) from exc

@@ -15,7 +15,16 @@ import time
 from typing import Callable, Iterator
 
 from . import bootstrap  # noqa: F401 - puts src/ on sys.path
-from .native_backend import require_pathfinder_backend
+from .native_backend import DEFAULT_ENGINE, normalize_engine, require_pathfinder_backend
+
+
+def _import_simulation():
+    """Import Simulation and SimulationConfig from src/main.py or src/terrain/main.py."""
+    try:
+        from main import Simulation, SimulationConfig
+    except ImportError:
+        from terrain.main import Simulation, SimulationConfig
+    return Simulation, SimulationConfig
 
 
 MAX_FLIGHT_TIME_S = 7200.0  # 2 hr hard ceiling (matches SimulationConfig default)
@@ -134,7 +143,7 @@ def _opt_float(value, default: float | None = None) -> float | None:
 
 def build_config(cfg: dict):
     """Translate a UI config dict into a SimulationConfig."""
-    from main import SimulationConfig
+    _, SimulationConfig = _import_simulation()
 
     # Operator-chosen flight ceiling, clamped to [1, MAX_FLIGHT_TIME_S]; default max.
     max_flight = _opt_float(cfg.get("max_flight_time_s"), MAX_FLIGHT_TIME_S)
@@ -172,14 +181,20 @@ def iter_frames(
     mission unfold at real time (`view_factor` sim-seconds per real second). If
     the sim is too heavy to keep up, no delay is added and it simply runs slower.
     """
-    # `main.Simulation` allocates full terrain arrays during construction. Check
-    # the native binary first so a missing/incompatible build fails cheaply.
-    require_pathfinder_backend()
+    precomputed = cfg.get("trajectory")
+    engine_key = normalize_engine(cfg.get("engine", DEFAULT_ENGINE))
+    downsample_k = int(_opt_float(cfg.get("downsample_k"), 4) or 4)
+
+    # Check the selected native binary before allocating terrain arrays when
+    # live planning will run. Precomputed trajectories skip re-planning.
+    if not precomputed:
+        require_pathfinder_backend(engine_key)
 
     from missile.config_store import get_profile
     from missile.profile import MissileProfile
     from missile.state import FlightStage
 
+    from . import planning
     from .frames import frame_from_state
 
     def log(msg: str) -> None:
@@ -190,23 +205,32 @@ def iter_frames(
     if profile is None:
         raise RuntimeError(f"Unknown missile profile: {profile_name!r}")
 
-    from main import Simulation
+    Simulation, _ = _import_simulation()
     from simulation.result import FlightLogger
 
     config = build_config(cfg)
     sim = Simulation(profile, config)
 
     # Reuse the route the planning screen already computed, if the UI sent it —
-    # re-running A* here would just reproduce the same path and stall the launch.
-    precomputed = cfg.get("trajectory")
+    # re-running pathfinding here would just reproduce the same path and stall launch.
     if precomputed:
         import numpy as np
 
         sim.trajectory = np.asarray(precomputed, dtype=float)
         log(f"[plan] using route from planner: {len(sim.trajectory):,} waypoints")
     else:
-        log(f"[plan] pathfinding over {config.dem_name} ...")
-        sim.plan_mission()
+        import numpy as np
+
+        log(f"[plan] pathfinding over {config.dem_name} ({engine_key.upper()}) ...")
+        plan = planning.run_plan(
+            config.dem_name,
+            config.start_gps,
+            config.target_gps,
+            heuristic_weight=config.heuristic_weight,
+            engine=engine_key,
+            downsample_k=downsample_k,
+        )
+        sim.trajectory = np.asarray(plan["trajectory"], dtype=float)
         log(f"[plan] trajectory ready: {len(sim.trajectory):,} waypoints")
 
     sim.state = sim._build_initial_state(config.start_gps)
