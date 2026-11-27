@@ -41,11 +41,31 @@ impl PartialOrd for Node { fn partial_cmp(&self, other: &Self) -> Option<Orderin
 impl PartialEq for Node { fn eq(&self, other: &Self) -> bool { self.cmp(other) == Ordering::Equal } }
 impl Eq for Node {}
 
+// --- Lookup Tables ---
+
 // (dr, dc): ↑   ↓   ←   →   ↖   ↗   ↙   ↘
 const DIRS: [(isize, isize); 8] = [
     (-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1),
 ];
 const REVERSE_DIR: [u8; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
+
+/*
+Discrete turn steps in 45° increments (0=0°, 1=45°, 2=90°, 3=135°, 4=180°)
+Matches DIRS order: ↑   ↓   ←   →   ↖   ↗   ↙   ↘
+The greater the degrees, the greater the cost
+*/
+
+const TURN_STEPS: [[u8; 8]; 8] = [
+    [0, 4, 2, 2, 1, 1, 3, 3], // 0: N
+    [4, 0, 2, 2, 3, 3, 1, 1], // 1: S
+    [2, 2, 0, 4, 1, 3, 1, 3], // 2: W
+    [2, 2, 4, 0, 3, 1, 3, 1], // 3: E
+    [1, 3, 1, 3, 0, 2, 2, 4], // 4: NW
+    [1, 3, 3, 1, 2, 0, 4, 2], // 5: NE
+    [3, 1, 1, 3, 2, 4, 0, 2], // 6: SW
+    [3, 1, 3, 1, 4, 2, 2, 0], // 7: SE
+];
+
 
 // Main algorithm function
 pub fn search(
@@ -109,6 +129,20 @@ pub fn search(
                     2 | 3 => mx,
                     _ => diag,
                 };
+
+                let row = curr_idx / cols;
+                let col = curr_idx % cols;
+                let curr_elev = dem_slice[curr_idx];
+                let incoming_dir = visited[&curr_idx].dir;
+                let mx = mx_slice[row] as f32;
+                let my = my_slice[row] as f32;
+                let diag = mx.hypot(my);
+
+                let neigh_idx = new_row as usize * cols + new_col as usize;
+                let neigh_elev = dem_slice[neigh_idx];
+
+
+
                 let w = &CostWeight {
                     climb_slope: 40.0,
                     descent_slope: 20.0,
@@ -118,8 +152,8 @@ pub fn search(
                     too_sharp: f32::INFINITY,
                 };
                 let neigh_idx = (new_row as usize) * cols + (new_col as usize);
-                let move_cost = get_movement_cost(dem_slice, dist_m, mx_slice, my_slice,
-                                                  cols, curr_idx, neigh_idx, w);
+                let move_cost = get_movement_cost(dem_slice, dist_m,
+                                                  curr_elev, neigh_elev, incoming_dir, i as u8, w);
             }
         }
 
@@ -129,24 +163,25 @@ pub fn search(
 
 fn get_movement_cost(dem_slice: &[f32],
                      dist_m: f32,
-                     mx_slice: &[f64],
-                     my_slice: &[f64],
-                     cols: usize,
-                     curr_idx: usize,
-                     neigh_idx: usize,
+                     curr_elev: f32,
+                     neigh_elev: f32,
+                     incoming_dir: u8,
+                     outgoing_dir: u8,
                      w: &CostWeight,
     ) -> f32 {
-    let current_elev: f32 = dem_slice[curr_idx];
-    let neighbor_elev: f32 = dem_slice[neigh_idx];
+    let curr_elev: f32 = dem_slice[curr_idx];
+    let neigh_elev: f32 = dem_slice[neigh_idx];
 
-    if current_elev <= -100.0 || neighbor_elev <= -100.0 {
+    if curr_elev <= -100.0 || neigh_elev <= -100.0 {
         return f32::INFINITY;
     }
 
-    let row1 = curr_idx / cols;
-    let col1 = curr_idx % cols;
-    let row2 = neigh_idx / cols;
-    let col2 = neigh_idx % cols;
+    // 1. turn cost
+
+
+    // 2. change of elevation cost
+
+
 
     return 1.0;
 }
