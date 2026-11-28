@@ -168,7 +168,8 @@ pub fn search(
                             dir: i as u8,
                         },
                     );
-                    let h_score = heuristic(new_row as usize, new_col as usize, end.0, end.1, mx_slice, my_slice);
+                    let h_score = heuristic(new_row as usize, new_col as usize, end.0,
+                                            end.1, mx_slice, my_slice);
                     let f_score = temp_g_score + (h_score * heuristic_weight);
                     open_set.push(Node {
                         f_score,
