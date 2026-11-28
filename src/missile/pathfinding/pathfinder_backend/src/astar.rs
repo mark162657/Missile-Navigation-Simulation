@@ -152,9 +152,36 @@ pub fn search(
                 let neigh_idx = (new_row as usize) * cols + (new_col as usize);
                 let move_cost = get_movement_cost(dem_slice, dist_m,
                                                   curr_elev, neigh_elev, incoming_dir, i as u8, w);
+                if !move_cost.is_finite() {
+                    continue;
+                }
+                let temp_g_score = visited[&curr_idx].g_score + move_cost;
+
+                let is_better = match visited.get(&neigh_idx) {
+                    None => true,
+                    Some(state) => temp_g_score < state.g_score,
+                };
+
+                if is_better {
+                    // Store `i as u8` (parent -> child)
+                    visited.insert(
+                        neigh_idx,
+                        NodeState {
+                            g_score: temp_g_score,
+                            dir: i as u8,
+                        },
+                    );
+                    let h_score = heuristic(new_row as usize, new_col as usize, end.0, end.1, mx_slice, my_slice);
+                    let f_score = temp_g_score + (h_score * heuristic_weight);
+                    open_set.push(Node {
+                        f_score,
+                        index: neigh_idx,
+                    });
+                }
             }
         }
     }
+    println!("No path found...");
     Vec::new()
 }
 
