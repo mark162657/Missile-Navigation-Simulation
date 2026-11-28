@@ -98,6 +98,15 @@ pub fn search(
         return Vec::new();
     }
 
+    let w = CostWeight {
+        climb_slope: 40.0,
+        descent_slope: 20.0,
+        max_grade: 0.35,
+        turn_45: 0.03,
+        turn_90: 0.35,
+        too_sharp: f32::INFINITY,
+    };
+
     // main pathfinding loop
     while let Some(current) = open_set.pop() {
         node_explored += 1;
@@ -110,6 +119,10 @@ pub fn search(
 
         let row = curr_idx / cols;
         let col = curr_idx % cols;
+        let curr_elev = dem_slice[curr_idx];
+        let curr_state = &visited[&curr_idx];
+        let curr_g = curr_state.g_score;
+        let incoming_dir = curr_state.dir;
 
         let mx = mx_slice[row] as f32;
         let my = my_slice[row] as f32;
@@ -131,32 +144,15 @@ pub fn search(
                     _ => diag,
                 };
 
-                let row = curr_idx / cols;
-                let col = curr_idx % cols;
-                let curr_elev = dem_slice[curr_idx];
-                let incoming_dir = visited[&curr_idx].dir;
-                let mx = mx_slice[row] as f32;
-                let my = my_slice[row] as f32;
-                let diag = mx.hypot(my);
-
-                let neigh_idx = new_row as usize * cols + new_col as usize;
+                let neigh_idx = (new_row as usize) * cols + (new_col as usize);
                 let neigh_elev = dem_slice[neigh_idx];
 
-                let w = &CostWeight {
-                    climb_slope: 40.0,
-                    descent_slope: 20.0,
-                    max_grade: 0.35,
-                    turn_45: 0.03,
-                    turn_90: 0.35,
-                    too_sharp: f32::INFINITY,
-                };
-                let neigh_idx = (new_row as usize) * cols + (new_col as usize);
                 let move_cost = get_movement_cost(dem_slice, dist_m,
-                                                  curr_elev, neigh_elev, incoming_dir, i as u8, w);
+                                                  curr_elev, neigh_elev, incoming_dir, i as u8, &w);
                 if !move_cost.is_finite() {
                     continue;
                 }
-                let temp_g_score = visited[&curr_idx].g_score + move_cost;
+                let temp_g_score = curr_g + move_cost;
 
                 let is_better = match visited.get(&neigh_idx) {
                     None => true,
