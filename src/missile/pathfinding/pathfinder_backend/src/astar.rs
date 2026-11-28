@@ -189,10 +189,21 @@ fn get_movement_cost(dem_slice: &[f32],
     }
 
     // 2. change of elevation cost (penalize slope not altitude)
+    let dz = neigh_elev - curr_elev;
+    let grade = dz.abs() / dist_m.max(1e-3);
+    if grade > w.max_grade {
+        return f32::INFINITY;
+    }
 
+    let slope_w = if dz > 0.0 {
+        w.climb_slope
+    } else {
+        w.descent_slope
+    };
+    let slope_penalty = slope_w * grade.powi(2);
 
-
-    return 1.0;
+    // return total cost function
+    return dist_m * (1.0 + slope_penalty + turn_penalty);
 }
 
 // reconstructing path from end to start, <by GPT-6.2 Sol>
