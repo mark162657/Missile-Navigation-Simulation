@@ -8,6 +8,7 @@ Supports both engines exposed in the frontend:
 """
 from __future__ import annotations
 
+import inspect
 from typing import Literal
 
 from . import bootstrap  # noqa: F401 - puts src/ on sys.path
@@ -23,6 +24,23 @@ def normalize_engine(engine: str | None) -> EngineName:
     if key not in VALID_ENGINES:
         raise ValueError(f"Unknown pathfinding engine {engine!r}. Expected 'rust' or 'cpp'.")
     return key  # type: ignore[return-value]
+
+
+def _rust_cfa_ready() -> bool:
+    """True once Rust Pathfinding.find_path (or rs_pathfinder) accepts k / downsample_k."""
+    try:
+        from missile.pathfinding.pathfinding_backend import Pathfinding
+        params = inspect.signature(Pathfinding.find_path).parameters
+        if "downsample_k" in params or "k" in params:
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import pathfinder
+        params = inspect.signature(pathfinder.rs_pathfinder).parameters
+        return "downsample_k" in params or "k" in params
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _probe_rust() -> tuple[bool, str | None]:
@@ -55,15 +73,17 @@ def engine_status() -> dict:
     """Return live availability metadata for both native pathfinding engines."""
     rust_ok, rust_err = _probe_rust()
     cpp_ok, cpp_err = _probe_cpp()
+    cfa_ready = _rust_cfa_ready() if rust_ok else False
     return {
         "default": DEFAULT_ENGINE,
         "engines": {
             "rust": {
                 "id": "rust",
                 "name": "Rust",
-                "algorithm": "CFA*",
-                "label": "Rust · CFA*",
+                "algorithm": "CFA*" if cfa_ready else "A*",
+                "label": "Rust · CFA*" if cfa_ready else "Rust · A*",
                 "available": rust_ok,
+                "cfa_ready": cfa_ready,
                 "error": rust_err,
                 "supports_downsample_k": True,
                 "default_downsample_k": 4,

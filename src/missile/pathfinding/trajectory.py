@@ -2,7 +2,6 @@ import numpy as np
 import numpy.typing as npt
 from terrain.dem_loader import DEMLoader
 from itertools import groupby
-from scipy.interpolate import splprep, splev
 
 class TrajectoryGenerator:
     def __init__(self, engine_backend, dem_loader: DEMLoader):

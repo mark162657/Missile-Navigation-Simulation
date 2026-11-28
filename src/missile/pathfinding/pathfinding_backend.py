@@ -4,7 +4,7 @@ import pathfinder
 
 from paths import PROJECT_ROOT
 from terrain.dem_loader import DEMLoader
-from terrain.coordinates import CoordinateSystem
+from terrain.coordinates import meter_per_deg_lat, meter_per_deg_lon_at
 
 # Main class that main file will call
 class Pathfinding:
@@ -21,13 +21,13 @@ class Pathfinding:
         dem = DEMLoader(tif_path)
         self.dem_loader = dem
         self.dem = np.ascontiguousarray(dem.data, dtype=np.float32)  # zero-copy view of memmap
-        self.coordinates = CoordinateSystem()
 
         # --- Initialise Lookup Table ---
         self.rows, self.cols = self.dem_loader.shape
 
         start_lat = self.dem_loader.transform[5] # top edge latitude (row 0)
         pixel_height = self.dem_loader.transform[4]
+        pixel_width = abs(self.dem_loader.transform[0])
 
         # Setup lookup table (1D NumPy array in float64)
             # Row 0: start_lat
@@ -39,22 +39,23 @@ class Pathfinding:
 
         self.latitudes = start_lat + (row_indices * pixel_height)
 
-        self.meter_per_y = (np.array([self.coordinates.meter_per_deg_lat(lat) for lat in self.latitudes])
+        self.meter_per_y = (np.array([meter_per_deg_lat(float(lat)) for lat in self.latitudes])
                             * abs(pixel_height))
 
         # x-axis (east/west) setup. width in meter with each latitude
-        meters_per_x_raw = (np.array([self.coordinates.meter_per_deg_lon_at(lat) for lat in self.latitudes])
-                            * abs(self.dem_loader.transform[0]))
+        meters_per_x_raw = (np.array([meter_per_deg_lon_at(float(lat)) for lat in self.latitudes])
+                            * pixel_width)
 
         # finally, construct two x and y lookup table
         self.meters_per_x_lookup = np.ascontiguousarray(meters_per_x_raw, dtype=np.float64)
         self.meter_per_y_lookup = np.ascontiguousarray(self.meter_per_y, dtype=np.float64)
 
-    def find_path(self, start: tuple[int, int], end: tuple[int, int]) -> list:
+    def find_path(self, start: tuple[int, int], end: tuple[int, int], heuristic_weight: float = 1.1) -> list:
         """
         Args:
-            start: the tuple of the start coordinate (pixel coordinate)
-            end: the tuple of
+            start: (row, col) pixel coordinate of origin
+            end: (row, col) pixel coordinate of target
+            heuristic_weight: heuristic inflation factor passed to Rust A*
         """
         # Check for nodata: missing data in dem.
         nd = self.dem_loader.nodata
@@ -65,27 +66,22 @@ class Pathfinding:
         if not (0 <= start[0] < self.rows and 0 <= start[1] < self.cols):
             raise ValueError(f"Start coordinate out of bounds {self.rows} x {self.cols}: {start}")
         if not (0 <= end[0] < self.rows and 0 <= end[1] < self.cols):
-            raise ValueError(f"End coordinate out of bounds {self.rows} x {self.cols}: {start}")
+            raise ValueError(f"End coordinate out of bounds {self.rows} x {self.cols}: {end}")
 
-        # --- Convert tuples to packed index to save memory ---
-        # work as: (row, col) -> row + total_cols + col
-        start_idx = start[0] * self.cols + start[1]
-        end_idx = end[0] * self.cols + end[1]
-
+        start_t = time.time()
         path = pathfinder.rs_pathfinder(
             self.dem,
             self.meters_per_x_lookup,
             self.meter_per_y_lookup,
-            start,
-            end,
+            (int(start[0]), int(start[1])),
+            (int(end[0]), int(end[1])),
+            float(heuristic_weight),
         )
-
-        start_t = time.time()
-        path = None
         duration = time.time() - start_t
 
         if not path:
             print(f"Path not found (Rust Pathfinder returned empty list). Time: {duration:.4f}s")
+            return None
 
         print(f"Path found! Length: {len(path)}. Time: {duration:.4f}s")
         return path

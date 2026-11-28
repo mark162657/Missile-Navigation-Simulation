@@ -188,6 +188,7 @@ export class PlanningScreen {
         });
         this.kRatioBadge = el("span", { class: "pf-pill mono" });
         this.coarsePreview = el("div", { class: "pf-coarse-preview mono" });
+        this.cfaPendingHint = el("p", { class: "hint", hidden: true });
 
         this.kBlock = el("div", { class: "pf-param-card pf-param-card--rust" }, [
           el("div", { class: "pf-param-card__head" }, [
@@ -199,6 +200,7 @@ export class PlanningScreen {
             el("div", { class: "pf-k-presets", role: "group", "aria-label": "Downsample presets" }, this.kPresetBtns),
           ]),
           this.coarsePreview,
+          this.cfaPendingHint,
         ]);
 
         // Heuristic weight slider
@@ -372,12 +374,22 @@ export class PlanningScreen {
 
     // Toggle CFA* k block visibility
     if (this.kBlock) this.kBlock.hidden = !isRust;
+    const rustInfo = info?.rust;
+    const cfaReady = rustInfo ? Boolean(rustInfo.cfa_ready) : true;
+    if (this.cfaPendingHint) {
+      this.cfaPendingHint.hidden = !isRust || cfaReady;
+      if (!cfaReady) {
+        this.cfaPendingHint.textContent = "CFA* downsampling not yet wired in Rust — currently runs full-res Rust A* (k will take effect once CFA* is added).";
+      }
+    }
     this._updateDownsampleUI();
 
     // Update heuristic hint copy for engine context
     if (this.pfHint) {
       this.pfHint.textContent = isRust
-        ? "CFA* searches a k× downsampled coarse grid first, then refines corridors at full resolution. Heuristic weight biases search speed vs. optimality."
+        ? (cfaReady
+          ? "CFA* searches a k× downsampled coarse grid first, then refines corridors at full resolution. Heuristic weight biases search speed vs. optimality."
+          : "Rust A* over DEM pixels (CFA* ready when wired). Heuristic weight biases search speed vs. optimality (1.0 = optimal).")
         : "Full-resolution C++ A* over DEM pixels. 1.0 guarantees the shortest path; higher values trade optimality for speed.";
     }
 
@@ -719,7 +731,7 @@ export class PlanningScreen {
   _log(text, kind = "") {
     const tag = text.match(/^\[[^\]]+\]/)?.[0] || "";
     const rest = text.slice(tag.length);
-    const tagClass = tag === "[cfa*]" ? "t-tag t-tag--rust"
+    const tagClass = tag === "[cfa*]" || tag === "[rust]" ? "t-tag t-tag--rust"
       : tag === "[a*]" ? "t-tag t-tag--cpp"
       : tag === "[dem]" ? "t-tag t-tag--dem"
       : tag === "[traj]" || tag === "[spline]" ? "t-tag t-tag--traj"
