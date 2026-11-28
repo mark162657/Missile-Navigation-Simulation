@@ -185,6 +185,21 @@ pub fn search(
     Vec::new()
 }
 
+#[inline]
+fn heuristic(
+    r1: usize,
+    c1: usize,
+    r2: usize,
+    c2: usize,
+    mx_slice: &[f64],
+    my_slice: &[f64],
+) -> f32 {
+    let mid_row = (r1 + r2) / 2;
+    let dy = (r2.abs_diff(r1) as f64) * my_slice[mid_row];
+    let dx = (c2.abs_diff(c1) as f64) * mx_slice[mid_row];
+    dx.hypot(dy) as f32
+}
+
 fn get_movement_cost(dem_slice: &[f32],
                      dist_m: f32, // dist from current node to next node based on current direction
                      curr_elev: f32,
