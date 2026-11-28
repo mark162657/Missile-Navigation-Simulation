@@ -141,8 +141,6 @@ pub fn search(
                 let neigh_idx = new_row as usize * cols + new_col as usize;
                 let neigh_elev = dem_slice[neigh_idx];
 
-
-
                 let w = &CostWeight {
                     climb_slope: 40.0,
                     descent_slope: 20.0,
@@ -156,30 +154,41 @@ pub fn search(
                                                   curr_elev, neigh_elev, incoming_dir, i as u8, w);
             }
         }
-
     }
     Vec::new()
 }
 
 fn get_movement_cost(dem_slice: &[f32],
-                     dist_m: f32,
+                     dist_m: f32, // dist from current node to next node based on current direction
                      curr_elev: f32,
                      neigh_elev: f32,
                      incoming_dir: u8,
                      outgoing_dir: u8,
                      w: &CostWeight,
     ) -> f32 {
-    let curr_elev: f32 = dem_slice[curr_idx];
-    let neigh_elev: f32 = dem_slice[neigh_idx];
 
     if curr_elev <= -100.0 || neigh_elev <= -100.0 {
         return f32::INFINITY;
     }
 
     // 1. turn cost
+    let turn_penalty = if incoming_dir >= 8 {
+        0.0
+    } else {
+        match TURN_STEPS[incoming_dir as usize][outgoing_dir as usize] {
+            0 => 0.0,
+            1 => w.turn_45,
+            2 => w.turn_90,
+            3 => w.too_sharp,
+            _ => return f32::INFINITY, // No 180deg reversal
+        }
+    };
+    // allow for early exit (3 and _ hit infinity)
+    if !turn_penalty.is_finite() {
+        return f32::INFINITY;
+    }
 
-
-    // 2. change of elevation cost
+    // 2. change of elevation cost (penalize slope not altitude)
 
 
 
