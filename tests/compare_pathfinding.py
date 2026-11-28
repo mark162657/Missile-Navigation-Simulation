@@ -374,7 +374,11 @@ def compare_rust_vs_cpp() -> None:
     )
 
     print(f"\n[2/2] Running C++ A*  (w={cpp_w})...")
-    cpp_res = run_cpp_single(cpp_pf, start_pixel, end_pixel, cpp_w)
+    if cpp_pf.engine is None:
+        print("[SKIP] C++ engine not available for this Python version; showing Rust results only.")
+        cpp_res = None
+    else:
+        cpp_res = run_cpp_single(cpp_pf, start_pixel, end_pixel, cpp_w)
 
     if not rust_res and not cpp_res:
         print("\n[ERROR] Neither engine found a path.")

@@ -7,7 +7,6 @@
 docs/
 
 # Ignore specific DEM files
-data/dem/merged_dem_iran_N31_N41_E44_E54.tif
 data/dem/merged_dem_iran_N31_N41_E44_E54_filled.tif
 
 # Byte-compiled / optimized / DLL files
@@ -25,9 +24,10 @@ env/
 .cache/
 
 # Ignore Build Folders
-build/
-cmake-build-debug/
-cmake-build-release/
+build*/
+cmake-build-*/
+target/
+*.whl
 node_modules/
 frontend/web_planner/dist/
 

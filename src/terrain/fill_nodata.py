@@ -22,8 +22,7 @@
 #
 # Usage
 # -----
-#   python3 src/terrain/fill_nodata.py                       # default Iran tile
-#   python3 src/terrain/fill_nodata.py <name.tif> --sea -29  # explicit
+#   python3 src/terrain/fill_nodata.py <name.tif> --sea -29
 #   python3 src/terrain/fill_nodata.py <name.tif> --out <out_name.tif>
 #
 # Note on non-sea voids
@@ -46,7 +45,6 @@ from rasterio.windows import Window
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEM_DIR = PROJECT_ROOT / "data" / "dem"
 
-DEFAULT_DEM = "merged_dem_iran_N31_N41_E44_E54.tif"
 DEFAULT_SEA_VALUE = -29          # metres; Caspian shoreline elevation in this tile
 ROW_CHUNK = 1024                 # rows read/written per window (~80 MB per chunk)
 
@@ -136,9 +134,8 @@ def _resolve_in_path(name_or_path: str) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Fill nodata (sea) pixels in a DEM.")
-    parser.add_argument("dem", nargs="?", default=DEFAULT_DEM,
-                        help="DEM filename in data/dem or a full path "
-                             f"(default: {DEFAULT_DEM})")
+    parser.add_argument("dem",
+                        help="DEM filename in data/dem or a full path")
     parser.add_argument("--sea", type=int, default=DEFAULT_SEA_VALUE,
                         help=f"elevation to write for nodata (default {DEFAULT_SEA_VALUE} m)")
     parser.add_argument("--out", default=None,
