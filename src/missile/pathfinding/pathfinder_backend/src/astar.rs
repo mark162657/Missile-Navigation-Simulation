@@ -75,7 +75,8 @@ pub fn search(
     mx_slice: &[f64],
     my_slice: &[f64],
     start: (usize, usize),
-    end: (usize, usize)
+    end: (usize, usize),
+    heuristic_weight: f32,
 ) -> Vec<(usize, usize)> {
 
     let mut node_explored: usize = 0;
@@ -185,6 +186,7 @@ pub fn search(
     Vec::new()
 }
 
+// --- Helper functions ---
 #[inline]
 fn heuristic(
     r1: usize,

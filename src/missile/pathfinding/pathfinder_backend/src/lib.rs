@@ -4,12 +4,14 @@ use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 
 #[pyfunction]
+#[pyo3(signature = (dem, meters_per_x, meters_per_y, start, end, heuristic_weight=1.1))]
 fn rs_pathfinder(
     dem: PyReadonlyArray2<'_, f32>,
     meters_per_x: PyReadonlyArray1<'_, f64>,
     meters_per_y: PyReadonlyArray1<'_, f64>,
     start: (usize, usize),
-    end: (usize, usize)
+    end: (usize, usize),
+    heuristic_weight: f32,
 ) -> PyResult<Vec<(usize, usize)>> {
 
     let view = dem.as_array();
@@ -31,7 +33,7 @@ fn rs_pathfinder(
         .as_slice()
         .map_err(|_| pyo3::exceptions::PyValueError::new_err("meters_per_y is not contiguous"))?;
 
-    Ok(astar::search(dem_slice, rows, cols, mx_slice, my_slice, start, end))
+    Ok(astar::search(dem_slice, rows, cols, mx_slice, my_slice, start, end, heuristic_weight))
 }
 
 #[pymodule]
