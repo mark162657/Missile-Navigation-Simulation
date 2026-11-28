@@ -69,7 +69,7 @@ def main() -> None:
         dy_m=float(my_lookup[mid_row]) * downsample,
     )
 
-    colors = ["#ff2222", "#00e5ff", "#ffaa00", "#d966ff", "#ffffff"]
+    colors = ["red", "cyan", "orange", "magenta", "white"]
     named_paths = [
         (f"w={r['weight']} ({r['distance_km']:.1f} km)", r["path_3d"], colors[i % len(colors)], 3.5)
         for i, r in enumerate(results)

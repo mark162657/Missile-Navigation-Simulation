@@ -263,19 +263,15 @@ def add_subplot_scene(
     end_pixel: tuple[int, int],
     named_paths: list[tuple[str, np.ndarray, str, float]],
 ) -> None:
-    """Render shaded terrain + path lines + legend + start/end markers onto a Fastplotlib subplot."""
+    """Render shaded terrain + path lines + start/end markers onto a Fastplotlib subplot."""
     subplot.add_image(data=terrain_rgb)
     subplot.name = title
 
     h, w, _ = terrain_rgb.shape
 
-    # Attach native Fastplotlib Legend in the right dock + print legend in terminal
-    subplot.docks["right"].size = 260
-    legend = fpl.Legend(subplot.docks["right"])
-
     print("\n--- Map Legend ---")
-    print("  [Lime ●]  Start")
-    print("  [Red  ●]  Target (End)")
+    print("  Lime dot ── Start")
+    print("  Red dot  ── Target (End)")
 
     for label, path_3d, color, thickness in named_paths:
         if len(path_3d) == 0:
@@ -286,11 +282,8 @@ def add_subplot_scene(
         mask = (r_local >= 0) & (r_local < h) & (c_local >= 0) & (c_local < w)
         pts = np.column_stack((c_local[mask], r_local[mask])).astype(np.float32)
         if len(pts) > 0:
-            line_graphic = subplot.add_line(
-                data=pts, thickness=thickness, colors=color, name=label
-            )
-            legend.add_graphic(line_graphic, label=label)
-            print(f"  [{color}] ── {label}")
+            subplot.add_line(data=pts, thickness=thickness, colors=color, name=label)
+            print(f"  {color.capitalize():<8} ── {label}")
 
     s_r = (start_pixel[0] - min_row) / downsample
     s_c = (start_pixel[1] - min_col) / downsample
@@ -440,16 +433,16 @@ def compare_rust_vs_cpp() -> None:
 
     terrain_rgb = render_realistic_terrain_rgb(dem_region, dx_m=dx_m, dy_m=dy_m)
 
-    figure = fpl.Figure(size=(1600, 900))
+    figure = fpl.Figure(size=(1400, 900))
 
     overlaid_paths = []
     if cpp_res:
         overlaid_paths.append(
-            (f"C++ A* (w={cpp_w}, {cpp_res['distance_km']:.1f} km)", cpp_res["path_3d"], "#00e5ff", 3.5)
+            (f"C++ A* (w={cpp_w}, {cpp_res['distance_km']:.1f} km)", cpp_res["path_3d"], "cyan", 3.5)
         )
     if rust_res:
         overlaid_paths.append(
-            (f"Rust A* (w={rust_w}, {rust_res['distance_km']:.1f} km)", rust_res["path_3d"], "#ff2222", 3.5)
+            (f"Rust A* (w={rust_w}, {rust_res['distance_km']:.1f} km)", rust_res["path_3d"], "red", 3.5)
         )
 
     add_subplot_scene(
