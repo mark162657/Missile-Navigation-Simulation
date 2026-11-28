@@ -33,8 +33,15 @@ class TrajectoryGenerator:
         rows = clean[:, 0]
         cols = clean[:, 1]
 
-        # Get elevation by get_terrain_profile function in CPP
-        ground_elevation = self.engine.get_terrain_profile(rows, cols)
+        # Sample ground elevation along the path directly from the DEM (out-of-bounds -> -9999.0 NoData)
+        r_idx = np.rint(rows).astype(np.intp)
+        c_idx = np.rint(cols).astype(np.intp)
+        valid = (
+            (r_idx >= 0) & (r_idx < self.dem.shape[0]) &
+            (c_idx >= 0) & (c_idx < self.dem.shape[1])
+        )
+        ground_elevation = np.full(len(r_idx), -9999.0, dtype=np.float32)
+        ground_elevation[valid] = self.dem.data[r_idx[valid], c_idx[valid]]
 
         # Convert (int, int) pixel coordinate to -> GPS coordinates (float: lat, float: lon)
         lat, lon = self.dem.pixel_to_lat_lon(rows, cols)
@@ -62,26 +69,3 @@ class TrajectoryGenerator:
             path: the list contains tuple (representing pixels)... yeah, just path
         """
         return [k for k, g in groupby(path)]
-
-
-    # def _compute_b_spline(self, clean_path: list[tuple[int, int]], smooth_factor: float, res_multi: int) -> list[tuple[int, int]]:
-    #     """
-    #     Smooth the path by b spline, using splev and splprep
-    #     """
-    #     try:
-    #         # Numpy slicing
-    #         clean_path = np.array(clean_path)
-
-    #         row = clean_path[:, 0] # select everything but only keep the 0th index
-    #         col = clean_path[:, 1] # same but 1st
-
-    #         # Main smoothing part. splprep for patter analysing, linspace for point generating, splev for drawing
-    #         tck, u = splprep([row, col], s=smooth_factor * len(clean_path), k=3) # default k = 3, cubic
-    #         u_new = np.linspace(0, 1, int(len(clean_path) * res_multi)) # draw original nodes * resolution upsampling to create smoother path
-    #         new_row, new_col = splev(u_new, tck)
-
-    #         return new_row.astype(np.float32), new_col.astype(np.float32)
-
-    #     except Exception as e:
-    #         print(f"Trajectory Gen Error: {e}")
-    #         return None, None
