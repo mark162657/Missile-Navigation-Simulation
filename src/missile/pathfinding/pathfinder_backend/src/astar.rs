@@ -200,6 +200,8 @@ fn get_movement_cost(dem_slice: &[f32],
     } else {
         w.descent_slope
     };
+
+    // grade^2 so one sudden steep climb costs much more than spreading the same climb smoothly
     let slope_penalty = slope_w * grade.powi(2);
 
     // return total cost function
